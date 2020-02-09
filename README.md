@@ -24,7 +24,7 @@ Files under the [tools](tools/) directory may be available under a different lic
     ├── tools                   # Scripts/Makefiles
     └── testbench               # (Very) simple testbench
         ├── asm                 #   Example assembly files
-        └── hex                 #   Canned demo hex files
+        └── hello_world2.hex    #   Canned demo hex files
  
 ## Dependencies
 
@@ -150,7 +150,7 @@ where:
                if not provided, 'make' cleans work directory, builds verilator executable and runs a test.
 debug=1     -  allows VCD generation for verilator and VCS and SHM waves for irun option.
 <target>    -  predefined CPU configurations 'default' ( by default), 'default_mt', 'typical_pd', 'high_perf' 
-TEST        -  allows to run a C (<test>.c) or assembly (<test>.s) test, hello_world2 is run by default 
+TEST        -  allows to run a C (<test>.c) or assembly (<test>.s) or hex (<test>.hex) test, hello_world2 is run by default 
 TEST_DIR    -  alternative to test source directory testbench/asm
 <snapshot>  -  run and build executable model of custom CPU configuration, remember to provide 'snapshot' argument 
                for runs on custom configurations.

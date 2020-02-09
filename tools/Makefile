@@ -33,7 +33,11 @@ BUILD_DIR = snapshots/${snapshot}
 TBDIR = ${RV_ROOT}/testbench
 
 # Define test name
-TEST = hello_world2
+ifeq ($(shell which $(GCC_PREFIX)-as),)
+ TEST = hello_world2.hex
+else
+ TEST = hello_world2
+endif
 
 # Define test name
 TEST_DIR = ${RV_ROOT}/testbench/asm
@@ -117,13 +121,14 @@ irun: program.hex irun-build
 vcs: program.hex vcs-build
 	./simv $(DEBUG_PLUS) +vcs+lic+wait  -l vcs.log
 
-program.hex: $(TEST).o $(LINK)
-	@echo Building $(TEST)
-ifeq ($(shell which $(GCC_PREFIX)-as),)
-	@echo " !!! No $(GCC_PREFIX)-as in path, using canned hex files !!"
-	cp ${RV_ROOT}/testbench/hex/*.hex .
+ifneq ($(findstring .hex,$(TEST)),)
+program.hex:
+	@echo " !!! No $(GCC_PREFIX)-as in path, or requested {test}.hex, using canned hex files !!"
+	cp ${RV_ROOT}/testbench/$(TEST)/*.hex .
 else
 ifeq (,$(wildcard $(TEST_DIR)/$(TEST).makefile))
+program.hex: $(TEST).o $(LINK)
+	@echo Building $(TEST)
 	$(GCC_PREFIX)-ld -m elf32lriscv --discard-none -T$(LINK) -o $(TEST).exe $(TEST).o
 	$(GCC_PREFIX)-objcopy -O verilog --only-section ".data*" --change-section-lma .data=0 $(TEST).exe data.hex
 	$(GCC_PREFIX)-objcopy -O verilog --only-section ".text"  $(TEST).exe program.hex

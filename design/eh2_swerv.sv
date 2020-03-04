@@ -27,6 +27,7 @@ import eh2_pkg::*;
 ) (
    input logic                  clk,
    input logic                  rst_l,
+   input logic                  dbg_rst_l,
    input logic [31:1]           rst_vec,
    input logic                  nmi_int,
    input logic [31:1]           nmi_vec,
@@ -952,7 +953,6 @@ import eh2_pkg::*;
 
       .*
    );
-
 
    assign core_rst_l = rst_l & (dbg_core_rst_l | scan_mode);
 

@@ -97,6 +97,19 @@ import eh2_pkg::*;
                                                                                                                                              iccm_rw_addr[pt.ICCM_BITS-1 : pt.ICCM_BANK_INDEX_LO]);
 
      rvoclkhdr iccm_hi0_c1_cgc  ( .en(iccm_clken[i]), .l1clk(iccm_clk[i]), .* );
+ `ifdef VERILATOR
+
+    eh2_ram #(.depth(1<<pt.ICCM_INDEX_BITS), .width(39)) iccm_bank (
+                                     // Primary ports
+                                     .ME(iccm_clken[i]),
+                                     .CLK(clk),
+                                     .WE(wren_bank[i]),
+                                     .ADR(addr_bank[i]),
+                                     .D(iccm_bank_wr_data[i][38:0]),
+                                     .Q(iccm_bank_dout[i][38:0])
+
+                                      );
+ `else
      if (pt.ICCM_INDEX_BITS == 6 ) begin : iccm
                ram_64x39 iccm_bank (
                                      // Primary ports
@@ -219,7 +232,7 @@ import eh2_pkg::*;
 
                                       );
      end // block: iccm
-
+ `endif // VERILATOR
   if (pt.NUM_THREADS > 1) begin: more_than_1
         // T0
         assign sel_red1[0][i]  = (redundant_valid[0][1] & (((iccm_rw_addr[pt.ICCM_BITS-1:2] == redundant_address[0][1][pt.ICCM_BITS-1:2]) & (iccm_rw_addr[3:2] == i)) |

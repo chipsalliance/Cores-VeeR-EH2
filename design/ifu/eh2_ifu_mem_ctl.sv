@@ -2295,7 +2295,7 @@ assign ic_miss_buff_half[63:0]    = {ic_miss_buff_data[{other_tag,1'b1}],ic_miss
 
     assign ic_wr_en[pt.ICACHE_NUM_WAYS-1:0] = bus_ic_wr_en[pt.ICACHE_NUM_WAYS-1:0] & {pt.ICACHE_NUM_WAYS{write_ic_16_bytes}};
    assign ic_write_stall_self              =  write_ic_16_bytes &  ~(((miss_state== CRIT_BYP_OK) & ~(bus_ifu_wr_en_ff & last_beat & ~uncacheable_miss_ff))) &
-                                                                   ~(((miss_state==STREAM)       & ~(bus_ifu_wr_en_ff & last_beat & ~uncacheable_miss_ff)));
+                                                                   ~(((miss_state==STREAM)       & ~(bus_ifu_wr_en_ff & last_beat & ~uncacheable_miss_ff) & ~(exu_flush_final | ifu_bp_hit_taken_q_f2 | stream_eol_f2)));
    assign ic_write_stall_other             =  write_ic_16_bytes & ~uncacheable_miss_ff;   // if this thread is writing - it must block the other thread from accessing the cache.
 
 

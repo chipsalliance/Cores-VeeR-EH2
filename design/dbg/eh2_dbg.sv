@@ -109,6 +109,7 @@ module eh2_dbg #(
    input logic                         clk,
    input logic                         free_clk,
    input logic                         rst_l,
+   input logic                         dbg_rst_l,
    input logic                         clk_override,
    input logic                         scan_mode
 );
@@ -158,6 +159,7 @@ module eh2_dbg #(
    logic [pt.NUM_THREADS-1:0] hart_sel;
    logic [pt.NUM_THREADS-1:0] command_sel;
    logic [pt.NUM_THREADS-1:0] dbg_halted;
+   logic [pt.NUM_THREADS-1:0] dbg_running;
    logic [pt.NUM_THREADS-1:0] dbg_resumeack;
    logic [pt.NUM_THREADS-1:0] dbg_havereset;
    logic [pt.NUM_THREADS-1:0] dbg_unavailable;
@@ -238,7 +240,7 @@ module eh2_dbg #(
    // end clocking section
 
    // Reset logic
-   assign dbg_dm_rst_l = rst_l & (dmcontrol_reg[0] | scan_mode);
+   assign dbg_dm_rst_l = dbg_rst_l & (dmcontrol_reg[0] | scan_mode);
    assign dbg_core_rst_l = ~dmcontrol_reg[1];
 
    // Use flopped version of mhartstart
@@ -266,10 +268,10 @@ module eh2_dbg #(
 
    assign sbcs_illegal_size = sbcs_reg[19];    // Anything bigger than 64 bits is illegal
 
-   assign sbaddress0_incr[3:0] = ({4{(sbcs_reg[19:17] == 3'b000)}} &  4'b0001) |
-                                 ({4{(sbcs_reg[19:17] == 3'b001)}} &  4'b0010) |
-                                 ({4{(sbcs_reg[19:17] == 3'b010)}} &  4'b0100) |
-                                 ({4{(sbcs_reg[19:17] == 3'b100)}} &  4'b1000);
+   assign sbaddress0_incr[3:0] = ({4{(sbcs_reg[19:17] == 3'h0)}} &  4'b0001) |
+                                 ({4{(sbcs_reg[19:17] == 3'h1)}} &  4'b0010) |
+                                 ({4{(sbcs_reg[19:17] == 3'h2)}} &  4'b0100) |
+                                 ({4{(sbcs_reg[19:17] == 3'h3)}} &  4'b1000);
 
    // sbdata
    assign        sbdata0_reg_wren0   = dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h3c);   // write data only when single read is 0
@@ -300,17 +302,19 @@ module eh2_dbg #(
    assign sbdata0wr_access  = dmi_reg_en &  dmi_reg_wr_en & (dmi_reg_addr == 7'h3c);                   // write to sbdata0 will start write command to system bus
 
    // memory mapped registers
-   // dmcontrol register has only 6 bits implemented. 31: haltreq, 30: resumereq, 29: haltreset, 28: ackhavereset, 26: hasel, 6:hartsel, 1: ndmreset, 0: dmactive.
+   // dmcontrol register has only 6 bits implemented. 31: haltreq, 30: resumereq, 28: ackhavereset, 26: hasel, 6:hartsel, 1: ndmreset, 0: dmactive.
    // rest all the bits are zeroed out
    // dmactive flop is reset based on core rst_l, all other flops use dm_rst_l
    assign dmcontrol_wren      = (dmi_reg_addr ==  7'h10) & dmi_reg_en & dmi_reg_wr_en;
+   assign dmcontrol_reg[29]   = '0;
    assign dmcontrol_reg[27]   = '0;
    assign dmcontrol_reg[25:17] = '0;
    assign dmcontrol_reg[15:2]  = '0;
    assign dmcontrol_hasel_in  = (pt.NUM_THREADS > 1) & dmi_reg_wdata[26];   // hasel tied to 0 for single thread
    assign dmcontrol_hartsel_in = (pt.NUM_THREADS > 1) & dmi_reg_wdata[16];   // hartsel tied to 0 for single thread
-   rvdffs #(7) dmcontrolff (.din({dmi_reg_wdata[31:28],dmcontrol_hasel_in,dmcontrol_hartsel_in,dmi_reg_wdata[1]}), .dout({dmcontrol_reg[31:28],dmcontrol_reg[26],dmcontrol_reg[16],dmcontrol_reg[1]}), .en(dmcontrol_wren), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
-   rvdffs #(1) dmcontrol_dmactive_ff (.din(dmi_reg_wdata[0]), .dout(dmcontrol_reg[0]), .en(dmcontrol_wren), .rst_l(rst_l), .clk(dbg_free_clk));
+   rvdffs #(6) dmcontrolff (.din({dmi_reg_wdata[31:30],dmi_reg_wdata[28],dmcontrol_hasel_in,dmcontrol_hartsel_in,dmi_reg_wdata[1]}),
+                            .dout({dmcontrol_reg[31:30],dmcontrol_reg[28],dmcontrol_reg[26],dmcontrol_reg[16],dmcontrol_reg[1]}), .en(dmcontrol_wren), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
+   rvdffs #(1) dmcontrol_dmactive_ff (.din(dmi_reg_wdata[0]), .dout(dmcontrol_reg[0]), .en(dmcontrol_wren), .rst_l(dbg_rst_l), .clk(dbg_free_clk));
    rvdff  #(1) dmcontrol_wrenff(.din(dmcontrol_wren), .dout(dmcontrol_wren_Q), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
 
    // dmstatus register bits that are implemented
@@ -324,7 +328,8 @@ module eh2_dbg #(
    assign dmstatus_reg[15:14] = '0;
    assign dmstatus_reg[13]    = &(dbg_unavailable[pt.NUM_THREADS-1:0] | ~hart_sel[pt.NUM_THREADS-1:0]);
    assign dmstatus_reg[12]    = |(dbg_unavailable[pt.NUM_THREADS-1:0] & hart_sel[pt.NUM_THREADS-1:0]);
-   assign dmstatus_reg[11:10] = '0;
+   assign dmstatus_reg[11]    = &(dbg_running[pt.NUM_THREADS-1:0] | ~hart_sel[pt.NUM_THREADS-1:0]);
+   assign dmstatus_reg[10]    = |(dbg_running[pt.NUM_THREADS-1:0] & hart_sel[pt.NUM_THREADS-1:0]);
    assign dmstatus_reg[9]     = &(dbg_halted[pt.NUM_THREADS-1:0] | ~hart_sel[pt.NUM_THREADS-1:0]);
    assign dmstatus_reg[8]     = |(dbg_halted[pt.NUM_THREADS-1:0] & hart_sel[pt.NUM_THREADS-1:0]);
    assign dmstatus_reg[7]     = '1;
@@ -347,11 +352,8 @@ module eh2_dbg #(
    assign        abstractcs_error_sel1 = dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h17) & ~((dmi_reg_wdata[31:24] == 8'b0) | (dmi_reg_wdata[31:24] == 8'h2));
    assign        abstractcs_error_sel2 = core_dbg_cmd_done & core_dbg_cmd_fail;
    assign        abstractcs_error_sel3 = dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h17) & ~(|(command_sel[pt.NUM_THREADS-1:0] & dbg_halted[pt.NUM_THREADS-1:0]));  //(dbg_state != HALTED);
-   assign        abstractcs_error_sel4 = (dmi_reg_addr ==  7'h17) & dmi_reg_en & dmi_reg_wr_en & (dmi_reg_wdata[31:24] == 8'h2) &
-                                         ( ((dmi_reg_wdata[22:20] == 3'b001) &  data1_reg[0]) |
-                                           ((dmi_reg_wdata[22:20] == 3'b010) &  (|data1_reg[1:0])) |
-                                           dmi_reg_wdata[22] | (dmi_reg_wdata[22:20] == 3'b011)
-                                           );
+   assign        abstractcs_error_sel4 = (dmi_reg_addr ==  7'h17) & dmi_reg_en & dmi_reg_wr_en &
+                                         ((dmi_reg_wdata[22:20] != 3'b010) | ((dmi_reg_wdata[31:24] == 8'h2) && (|data1_reg[1:0])));  // Only word size is allowed
 
    assign        abstractcs_error_sel5 = (dmi_reg_addr ==  7'h16) & dmi_reg_en & dmi_reg_wr_en;
 
@@ -378,7 +380,7 @@ module eh2_dbg #(
          command_wren |= ((dmi_reg_addr == 7'h17) & dmi_reg_en & dmi_reg_wr_en & command_sel[i] & (dbg_state[i] == HALTED));
       end
    end
-   assign     command_din[31:0] = {dmi_reg_wdata[31:24],1'b0,3'b010,3'b0,dmi_reg_wdata[16:0]};
+   assign     command_din[31:0] = {dmi_reg_wdata[31:24],1'b0,dmi_reg_wdata[22:20],3'b0,dmi_reg_wdata[16:0]};
    rvdffe #(32) dmcommand_reg (.*, .din(command_din[31:0]), .dout(command_reg[31:0]), .en(command_wren), .rst_l(dbg_dm_rst_l));
 
    // hawindow reg
@@ -436,13 +438,14 @@ module eh2_dbg #(
       assign dbg_havereset_wren[i] = (dmi_reg_addr == 7'h10) & dmi_reg_wdata[1] & dmi_reg_en & dmi_reg_wr_en;
       assign dbg_havereset_rst[i]  = (dmi_reg_addr == 7'h10) & dmi_reg_wdata[28] & dmi_reg_en & dmi_reg_wr_en & ((dmi_reg_wdata[16] == 1'(i)) | (dmi_reg_wdata[26] & hawindow_reg[i]));
 
-      assign dbg_unavailable[i] = hart_sel[i] & ~dec_tlu_mhartstart[i];
+      assign dbg_unavailable[i] = (hart_sel[i] & ~dec_tlu_mhartstart[i]) | ~rst_l;
+      assign dbg_running[i]     = ~(dbg_unavailable[i] | dbg_halted[i]);
 
       rvdff  #(1) dbg_halted_reg     (.din(dec_tlu_dbg_halted[i] & ~dec_tlu_mpc_halted_only[i]), .dout(dbg_halted[i]), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
       rvdffs #(1) dbg_resumeack_reg  (.din(dbg_resumeack_din[i]), .dout(dbg_resumeack[i]), .en(dbg_resumeack_wren[i]), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
       rvdffsc #(1) dbg_havereset_reg (.din(1'b1), .dout(dbg_havereset[i]), .en(dbg_havereset_wren[i]), .clear(dbg_havereset_rst[i]), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
       rvdffs #(1) abstractcs_busy_reg  (.din(abstractcs_busy_din[i]), .dout(abstractcs_busy[i]), .en(abstractcs_busy_wren[i]), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
-      rvdffs #($bits(state_t)) dbg_state_reg    (.din(dbg_nxtstate[i]), .dout({dbg_state[i]}), .en(dbg_state_en[i]), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
+      rvdffs #($bits(state_t)) dbg_state_reg    (.din(dbg_nxtstate[i]), .dout({dbg_state[i]}), .en(dbg_state_en[i]), .rst_l(dbg_dm_rst_l & rst_l), .clk(dbg_free_clk));
 
       // FSM to control the debug mode entry, command send/recieve, and Resume flow.
       always_comb begin
@@ -450,18 +453,18 @@ module eh2_dbg #(
          dbg_state_en[i]         = 1'b0;
          abstractcs_busy_wren    = 1'b0;
          abstractcs_busy_din     = 1'b0;
-         dbg_halt_req[i]   = dmcontrol_wren_Q & dmcontrol_reg[31] & hart_sel[i];      // single pulse output to the core. Need to drive every time this register is written since core might be halted due to MPC
-         dbg_resume_req[i] = 1'b0;                                                    // single pulse output to the core
+         dbg_halt_req[i]   = dmcontrol_wren_Q & dmcontrol_reg[31] & hart_sel[i] & ~dmcontrol_reg[1];      // single pulse output to the core. Need to drive every time this register is written since core might be halted due to MPC
+         dbg_resume_req[i] = 1'b0;                                                                        // single pulse output to the core
 
          case (dbg_state[i])
             IDLE: begin
                      dbg_nxtstate[i]      = (dbg_halted[i] | dec_tlu_mpc_halted_only[i]) ? HALTED : HALTING;         // initiate the halt command to the core
                      dbg_state_en[i]      = ((dmcontrol_reg[31] & hart_sel[i] & ~dec_tlu_debug_mode[i]) | dbg_halted[i] | dec_tlu_mpc_halted_only[i]) & ~dmcontrol_reg[1] & dec_tlu_mhartstart_Q[i];      // when the jtag writes the halt bit in the DM register, OR when the status indicates MPC halted
-                     dbg_halt_req[i] = dmcontrol_reg[31] & hart_sel[i] & dec_tlu_mhartstart_Q[i];      // only when jtag has written the halt_req bit in the control. Removed debug mode qualification during MPC changes
+                     dbg_halt_req[i] = dmcontrol_reg[31] & hart_sel[i] & dec_tlu_mhartstart_Q[i] & ~dmcontrol_reg[1];      // only when jtag has written the halt_req bit in the control. Removed debug mode qualification during MPC changes
             end
             HALTING : begin
-                     dbg_nxtstate[i]      = HALTED;                                        // Goto HALTED once the core sends an ACK
-                     dbg_state_en[i]      = dbg_halted[i];                                 // core indicates halted
+                     dbg_nxtstate[i]      = dmcontrol_reg[1] ? IDLE : HALTED;                                       // Goto HALTED once the core sends an ACK
+                     dbg_state_en[i]      = dbg_halted[i] | dmcontrol_reg[1];                                       // core indicates halted
             end
             HALTED: begin
                      // wait for halted to go away before send to resume. Else start of new command
@@ -473,22 +476,22 @@ module eh2_dbg #(
                      dbg_resume_req[i] = dbg_state_en[i] & (dbg_nxtstate[i] == RESUMING);                       // single cycle pulse to core if resuming
             end
             CMD_START: begin
-                     dbg_nxtstate[i]      = (|abstractcs_reg[10:8]) ? CMD_DONE : CMD_WAIT;                   // new command sent to the core
-                     dbg_state_en[i]      = dbg_cmd_valid | (|abstractcs_reg[10:8]);
+                     dbg_nxtstate[i]      = dmcontrol_reg[1] ? IDLE : (|abstractcs_reg[10:8]) ? CMD_DONE : CMD_WAIT;                   // new command sent to the core
+                     dbg_state_en[i]      = dbg_cmd_valid | (|abstractcs_reg[10:8]) | dmcontrol_reg[1];
             end
             CMD_WAIT: begin
-                     dbg_nxtstate[i]      = CMD_DONE;
-                     dbg_state_en[i]      = core_dbg_cmd_done;                   // go to done state for one cycle after completing current command
+                     dbg_nxtstate[i]      = dmcontrol_reg[1] ? IDLE : CMD_DONE;
+                     dbg_state_en[i]      = core_dbg_cmd_done | dmcontrol_reg[1];                   // go to done state for one cycle after completing current command
             end
             CMD_DONE: begin
-                     dbg_nxtstate[i]      = HALTED;
+                     dbg_nxtstate[i]      = dmcontrol_reg[1] ? IDLE : HALTED;
                      dbg_state_en[i]      = 1'b1;
                      abstractcs_busy_wren[i] = dbg_state_en[i];                    // remove the busy bit from the abstracts ( bit 12 )
                      abstractcs_busy_din[i]  = 1'b0;
             end
             RESUMING : begin
                      dbg_nxtstate[i]      = IDLE;
-                     dbg_state_en[i]      = dbg_resumeack[i];
+                     dbg_state_en[i]      = dbg_resumeack[i] | dmcontrol_reg[1];
             end
             default : begin
                      dbg_nxtstate[i]         = IDLE;
@@ -515,7 +518,6 @@ module eh2_dbg #(
                                     ({32{dmi_reg_addr == 7'h3d}} & sbdata1_reg[31:0]);
 
 
-   // Ack will use the power on reset only otherwise there won't be any ack until dmactive is 1
    rvdffs #(32)             dmi_rddata_reg   (.din(dmi_reg_rdata_din[31:0]), .dout(dmi_reg_rdata[31:0]), .en(dmi_reg_en), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));
 
    // interface for the core

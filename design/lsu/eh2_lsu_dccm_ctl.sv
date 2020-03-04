@@ -58,10 +58,13 @@ import eh2_pkg::*;
    input logic                             addr_in_pic_dc5,
    input logic                             lsu_raw_fwd_lo_dc5, lsu_raw_fwd_hi_dc5,
 
+   input logic                             dma_pic_wen,
    input logic                             dma_dccm_wen,
    input logic                             dma_dccm_spec_wen,
    input logic                             dma_dccm_spec_req,
    input logic                             dma_mem_write,
+   input logic [31:0]                      dma_mem_addr,
+   input logic [63:0]                      dma_mem_wdata,
    input logic [2:0]                       dma_mem_tag_dc3,
 
    input logic [31:0]                      lsu_addr_dc1,              // starting byte address for loads
@@ -362,13 +365,13 @@ import eh2_pkg::*;
    assign disable_ecc_check_hi_dc2 = lsu_stbuf_commit_any & lsu_pkt_dc2.store & dccm_wr_bypass_c1_c2_hi;
 
    // PIC signals. PIC ignores the lower 2 bits of address since PIC memory registers are 32-bits
-   assign picm_wren          = lsu_pkt_dc5.valid & lsu_pkt_dc5.store & addr_in_pic_dc5 & lsu_commit_dc5;
+   assign picm_wren          = (lsu_pkt_dc5.valid & lsu_pkt_dc5.store & addr_in_pic_dc5 & lsu_commit_dc5) | dma_pic_wen;
    assign picm_rden          = lsu_pkt_dc1.valid & lsu_pkt_dc1.load  & addr_in_pic_dc1;
    assign picm_mken          = lsu_pkt_dc1.valid & lsu_pkt_dc1.store & addr_in_pic_dc1;  // Get the mask for stores
    assign picm_rd_thr        = lsu_pkt_dc1.tid;
-   assign picm_rdaddr[31:0]  = pt.PIC_BASE_ADDR  | {17'b0,lsu_addr_dc1[14:0]};
-   assign picm_wraddr[31:0]  = pt.PIC_BASE_ADDR  | {17'b0,lsu_addr_dc5[14:0]};
-   assign picm_wr_data[31:0] = store_data_lo_dc5[31:0];
+   assign picm_rdaddr[31:0]  = lsu_addr_dc1[31:0];
+   assign picm_wraddr[31:0]  = dma_pic_wen ? dma_mem_addr[31:0] : lsu_addr_dc5[31:0];
+   assign picm_wr_data[31:0] = dma_pic_wen ? dma_mem_wdata[31:0] : store_data_lo_dc5[31:0];
 
    // getting raw store data back for bus
    assign store_data_ext_dc3[63:0] = {store_ecc_data_hi_dc3[31:0], store_ecc_data_lo_dc3[31:0]};   // We don't need AMO here since this is used for fwding and there can't be a load behind AMO

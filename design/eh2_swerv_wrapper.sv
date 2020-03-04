@@ -27,6 +27,7 @@ import eh2_pkg::*;
 ) (
    input logic                       clk,
    input logic                       rst_l,
+   input logic                       dbg_rst_l,
    input logic [31:1]                rst_vec,
    input logic                       nmi_int,
    input logic [31:1]                nmi_vec,
@@ -767,7 +768,7 @@ import eh2_pkg::*;
            .tdoEnable (),                  // Test Data Output enable
 
            // Processor Signals
-           .core_rst_n  (core_rst_l),     // Core reset, active low
+           .core_rst_n  (dbg_rst_l),     // Core reset, active low
            .core_clk    (clk),            // Core clock
            .jtag_id     (jtag_id),        // 32 bit JTAG ID
            .rd_data     (dmi_reg_rdata),  // 32 bit Read data from  Processor

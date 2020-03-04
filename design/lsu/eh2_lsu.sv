@@ -280,7 +280,7 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]  flush_dc2_up, flush_dc3, flush_dc4, flush_dc5;// flush_prior_dc5;
    logic        is_sideeffects_dc2, is_sideeffects_dc3;
    logic        ldst_nodma_dc2todc5;
-   logic        dma_dccm_wen, dma_dccm_spec_wen;
+   logic        dma_dccm_wen, dma_dccm_spec_wen, dma_pic_wen;
    logic [2:0]  dma_mem_tag_dc1, dma_mem_tag_dc2, dma_mem_tag_dc3;
    logic [31:0] dma_start_addr_dc1, dma_end_addr_dc1;
    logic [31:0] dma_dccm_wdata_hi, dma_dccm_wdata_lo;
@@ -314,6 +314,7 @@ import eh2_pkg::*;
    assign dccm_ready = ~(lsu_pkt_dc1_pre.valid | ldst_nodma_dc2todc5 | ld_single_ecc_error_dc5_ff);
    assign dma_mem_tag_dc1[2:0] = dma_mem_tag[2:0];
 
+   assign dma_pic_wen  = dma_dccm_req & dma_mem_write & ~dma_mem_addr_in_dccm;
    assign dma_dccm_wen = dma_dccm_req & dma_mem_write & dma_mem_addr_in_dccm;
    assign dma_dccm_spec_wen = dma_dccm_spec_req & dma_mem_write;
    assign dma_start_addr_dc1[31:0] = dma_mem_addr[31:0];
@@ -363,7 +364,7 @@ import eh2_pkg::*;
 
    // Instantiate the store buffer
    assign store_stbuf_reqvld_dc5 = lsu_pkt_dc5.valid & (lsu_pkt_dc5.store | (lsu_pkt_dc5.atomic & ~lsu_pkt_dc5.lr)) &
-                                   (~lsu_pkt_dc5.sc | lsu_sc_success_dc5 | (lsu_single_ecc_error_dc5 & ~lsu_raw_fwd_lo_dc3)) & addr_in_dccm_dc5 & lsu_commit_dc5;
+                                   (~lsu_pkt_dc5.sc | lsu_sc_success_dc5 | (lsu_single_ecc_error_dc5 & ~lsu_raw_fwd_lo_dc5)) & addr_in_dccm_dc5 & lsu_commit_dc5;
 
    // Disable Forwarding for now
    assign lsu_cmpen_dc2 = lsu_pkt_dc2.valid & (lsu_pkt_dc2.load | lsu_pkt_dc2.store | lsu_pkt_dc1.atomic) & (addr_in_dccm_dc2 | addr_in_pic_dc2);

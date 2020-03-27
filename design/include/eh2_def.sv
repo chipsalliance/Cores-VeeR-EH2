@@ -256,7 +256,7 @@ typedef struct packed {
                       logic inst_type;   //0: Load, 1: Store
                       logic amo_valid;
                       logic exc_type;    //0: MisAligned, 1: Access Fault
-                      logic [2:0] mscause;
+                      logic [3:0] mscause;
                       logic [31:0] addr;
                       } eh2_lsu_error_pkt_t;
 
@@ -450,6 +450,12 @@ typedef struct packed {
                        logic csr_mhpme4;
                        logic csr_mhpme5;
                        logic csr_mhpme6;
+                       logic csr_mitctl0;
+                       logic csr_mitctl1;
+                       logic csr_mitb0;
+                       logic csr_mitb1;
+                       logic csr_mitcnt0;
+                       logic csr_mitcnt1;
                        logic csr_mpmc;
                        logic csr_mcpc;
                        logic csr_meicpct;

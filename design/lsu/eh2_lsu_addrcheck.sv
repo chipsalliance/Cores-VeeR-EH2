@@ -52,7 +52,7 @@ import eh2_pkg::*;
 
    output logic        access_fault_dc2,            // access fault
    output logic        misaligned_fault_dc2,        // misaligned
-   output logic [2:0]  exc_mscause_dc2,             // Exception cause
+   output logic [3:0]  exc_mscause_dc2,             // Exception cause
 
    output logic        fir_dccm_access_error_dc2,   // Fast interrupt dccm access error
    output logic        fir_nondccm_access_error_dc2,// Fast interrupt dccm access error
@@ -79,10 +79,9 @@ import eh2_pkg::*;
    logic        base_reg_dccm_or_pic;
    logic [31:0] rs1_dc2;
    logic        unmapped_access_fault_dc2, mpu_access_fault_dc2, picm_access_fault_dc2, regpred_access_fault_dc2, amo_access_fault_dc2;
-   logic        regcross_misaligned_fault_dc2, sideeffect_misaligned_fault;
-   logic [2:0]  access_fault_mscause_dc2;
-   logic        misaligned_fault_mscause_dc2;
-   logic        sideeffect_misaligned_fault_dc2;
+   logic        regcross_misaligned_fault_dc2, sideeffect_misaligned_fault_dc2;
+   logic [3:0]  access_fault_mscause_dc2;
+   logic [3:0]  misaligned_fault_mscause_dc2;
    logic        non_dccm_access_ok;
 
    if (pt.DCCM_ENABLE == 1) begin: Gen_dccm_enable
@@ -200,7 +199,7 @@ import eh2_pkg::*;
 
    assign access_fault_dc2 = (unmapped_access_fault_dc2 | mpu_access_fault_dc2 | picm_access_fault_dc2 |
                               regpred_access_fault_dc2 | amo_access_fault_dc2) & lsu_pkt_dc2.valid & ~lsu_pkt_dc2.dma;
-   assign access_fault_mscause_dc2[2:0] = unmapped_access_fault_dc2 ? 3'h0 : mpu_access_fault_dc2 ? 3'h3 : regpred_access_fault_dc2 ? 3'h5 : picm_access_fault_dc2 ? 3'h6 : amo_access_fault_dc2 ? 3'h7 : 3'h0;
+   assign access_fault_mscause_dc2[3:0] = unmapped_access_fault_dc2 ? 4'h2 : mpu_access_fault_dc2 ? 4'h3 : regpred_access_fault_dc2 ? 4'h5 : picm_access_fault_dc2 ? 4'h6 : amo_access_fault_dc2 ? 4'h7 : 4'h0;
 
    // Misaligned happens due to 2 reasons (Atomic instructions (LR/SC/AMO) will never take misaligned as per spec)
    // 0. Region cross
@@ -208,9 +207,9 @@ import eh2_pkg::*;
    assign regcross_misaligned_fault_dc2 = (start_addr_dc2[31:28] != end_addr_dc2[31:28]);
    assign sideeffect_misaligned_fault_dc2 = (is_sideeffects_dc2 & ~is_aligned_dc2);
    assign misaligned_fault_dc2 = (regcross_misaligned_fault_dc2 | (sideeffect_misaligned_fault_dc2 & addr_external_dc2)) & lsu_pkt_dc2.valid & ~lsu_pkt_dc2.dma & ~lsu_pkt_dc2.atomic;
-   assign misaligned_fault_mscause_dc2 = regcross_misaligned_fault_dc2 ? 1'b0 : 1'b1;
+   assign misaligned_fault_mscause_dc2[3:0] = regcross_misaligned_fault_dc2 ? 4'h2 : sideeffect_misaligned_fault_dc2 ? 4'h1 : 4'h0;//sideeffect_misaligned_fault_dc2;
 
-   assign exc_mscause_dc2[2:0] = misaligned_fault_dc2 ? {2'b0,misaligned_fault_mscause_dc2} : access_fault_mscause_dc2[2:0];
+   assign exc_mscause_dc2[3:0] = misaligned_fault_dc2 ? misaligned_fault_mscause_dc2[3:0] : access_fault_mscause_dc2[3:0];
 
    // Fast interrupt error logic
    assign fir_dccm_access_error_dc2    = ((start_addr_in_dccm_region_dc2 & ~start_addr_in_dccm_dc2) |

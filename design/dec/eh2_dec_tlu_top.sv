@@ -843,7 +843,7 @@ end
                                      ({32{tlu_i0_csr_pkt_d.csr_misa}}       & 32'h40001105) |
                                      ({32{tlu_i0_csr_pkt_d.csr_mvendorid}}  & 32'h00000045) |
                                      ({32{tlu_i0_csr_pkt_d.csr_marchid}}    & 32'h00000011) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mimpid}}     & 32'h1) |
+                                     ({32{tlu_i0_csr_pkt_d.csr_mimpid}}     & 32'h2) |
                                      ({32{tlu_i0_csr_pkt_d.csr_mhartnum}}   & {30'h0, mhartnums[1:0]}) |
                                      ({32{tlu_i0_csr_pkt_d.csr_mrac}}       & mrac[31:0]) |
                                      ({32{tlu_i0_csr_pkt_d.csr_mcgc}}       & {23'b0, mcgc[8:0]}) |

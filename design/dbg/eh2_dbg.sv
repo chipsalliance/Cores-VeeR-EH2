@@ -438,7 +438,7 @@ module eh2_dbg #(
       assign dbg_havereset_wren[i] = (dmi_reg_addr == 7'h10) & dmi_reg_wdata[1] & dmi_reg_en & dmi_reg_wr_en;
       assign dbg_havereset_rst[i]  = (dmi_reg_addr == 7'h10) & dmi_reg_wdata[28] & dmi_reg_en & dmi_reg_wr_en & ((dmi_reg_wdata[16] == 1'(i)) | (dmi_reg_wdata[26] & hawindow_reg[i]));
 
-      assign dbg_unavailable[i] = (hart_sel[i] & ~dec_tlu_mhartstart[i]) | ~rst_l;
+      assign dbg_unavailable[i] = (hart_sel[i] & ~dec_tlu_mhartstart[i]) | ~rst_l | dmcontrol_reg[1];
       assign dbg_running[i]     = ~(dbg_unavailable[i] | dbg_halted[i]);
 
       rvdff  #(1) dbg_halted_reg     (.din(dec_tlu_dbg_halted[i] & ~dec_tlu_mpc_halted_only[i]), .dout(dbg_halted[i]), .rst_l(dbg_dm_rst_l), .clk(dbg_free_clk));

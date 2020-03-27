@@ -161,7 +161,7 @@ import eh2_pkg::*;
    logic               core_addr_in_dccm_dc1, core_addr_in_pic_dc1, core_addr_external_dc1;
    logic               addr_external_dc2;
    logic               access_fault_dc2, misaligned_fault_dc2;
-   logic [2:0]         exc_mscause_dc1, exc_mscause_dc2, exc_mscause_dc3;
+   logic [3:0]         exc_mscause_dc1, exc_mscause_dc2, exc_mscause_dc3;
    logic               lsu_single_ecc_error_dc4;
    logic               lsu_double_ecc_error_dc4;
 
@@ -246,7 +246,7 @@ import eh2_pkg::*;
    assign lsu_error_pkt_dc3.inst_type = lsu_pkt_dc3.store;   // AMO should be store
    assign lsu_error_pkt_dc3.amo_valid = lsu_pkt_dc3.atomic & ~(lsu_pkt_dc3.lr | lsu_pkt_dc3.sc);
    assign lsu_error_pkt_dc3.exc_type  = ~misaligned_fault_dc3;
-   assign lsu_error_pkt_dc3.mscause[2:0] = (lsu_double_ecc_error_dc3 & ~misaligned_fault_dc3 & ~access_fault_dc3) ? 3'h1 : exc_mscause_dc3[2:0];
+   assign lsu_error_pkt_dc3.mscause[3:0] = (lsu_double_ecc_error_dc3 & ~misaligned_fault_dc3 & ~access_fault_dc3) ? 4'h1 : exc_mscause_dc3[3:0];
    assign lsu_error_pkt_dc3.addr[31:0] = lsu_addr_dc3[31:0];
 
    //Create DMA packet
@@ -363,7 +363,7 @@ import eh2_pkg::*;
 
    rvdff #(1) access_fault_dc3ff     (.din(access_fault_dc2),     .dout(access_fault_dc3),     .clk(lsu_c2_dc3_clk), .*);
    rvdff #(1) misaligned_fault_dc3ff (.din(misaligned_fault_dc2), .dout(misaligned_fault_dc3), .clk(lsu_c2_dc3_clk), .*);
-   rvdff #(3) exc_mscause_dc3ff      (.din(exc_mscause_dc2[2:0]), .dout(exc_mscause_dc3[2:0]), .clk(lsu_c2_dc3_clk), .*);
+   rvdff #(4) exc_mscause_dc3ff      (.din(exc_mscause_dc2[3:0]), .dout(exc_mscause_dc3[3:0]), .clk(lsu_c2_dc3_clk), .*);
 
    rvdff #(1) lsu_single_ecc_error_dc4ff (.*, .din(lsu_single_ecc_error_dc3), .dout(lsu_single_ecc_error_dc4), .clk(lsu_c2_dc4_clk));
    rvdff #(1) lsu_single_ecc_error_dc5ff (.*, .din(lsu_single_ecc_error_dc4), .dout(lsu_single_ecc_error_dc5), .clk(lsu_c2_dc5_clk));

@@ -2,11 +2,11 @@
 
 ## Release Notes
 
-### Bug Fixes
+## Release Notes
 
-### Improvements
+* Modified MSCAUSE encoding to be consistent with current internal specification
+* Added internal timers
 
-Internal timers.
 
 # EH2 SweRV RISC-V Core<sup>TM</sup> 1.1 from Western Digital
 

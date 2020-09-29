@@ -197,6 +197,12 @@ endmodule
 `EH2_RAM_BE(128, 44)
 `EH2_RAM_BE(64, 44)
 
+   `EH2_RAM(64, 39)
+   `EH2_RAM_BE(32, 104)
+   `EH2_RAM_BE(32, 52)
+   `EH2_RAM_BE(32, 88)
+   `EH2_RAM_BE(32, 44)
+
 `undef EH2_RAM
 `undef EH2_RAM_BE
 `undef EH2_LOCAL_RAM_TEST_IO

@@ -79,7 +79,7 @@ all: clean verilator
 clean:
 	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots swerv* \
 	verilator* *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work \
-	vsimsa.cfg library.cfg riviera-build wave.asdb*
+	dataset.asdb vsimsa.cfg library.cfg riviera-build wave.asdb*
 
 # If define files do not exist, then run swerv.config.
 ${BUILD_DIR}/defines.h :

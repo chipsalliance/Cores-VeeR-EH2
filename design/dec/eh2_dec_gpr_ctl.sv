@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ import eh2_pkg::*;
     input logic [4:0] waddr2,
     input logic [4:0] waddr3,
 
-    input logic wtid0,          // write tids
+    input logic wtid0,         // write tids
     input logic wtid1,
     input logic wtid2,
     input logic wtid3,
@@ -58,7 +58,7 @@ import eh2_pkg::*;
     input logic       clk,
     input logic       rst_l,
 
-    output logic [31:0] rd0,  // read data
+    output logic [31:0] rd0,   // read data
     output logic [31:0] rd1,
     output logic [31:0] rd2,
     output logic [31:0] rd3,
@@ -71,7 +71,7 @@ import eh2_pkg::*;
    logic [31:1] w0v,w1v,w2v,w3v;
    logic [31:1] gpr_wr_en;
 
-   // GPR Write Enables for power savings
+   // GPR Write Enables
    assign gpr_wr_en[31:1] = (w0v[31:1] | w1v[31:1] | w2v[31:1] | w3v[31:1]);
    for ( genvar j=1; j<32; j++ )  begin : gpr
       rvdffe #(32) gprff (.*, .en(gpr_wr_en[j]), .din(gpr_in[j][31:0]), .dout(gpr_out[j][31:0]));
@@ -110,7 +110,7 @@ import eh2_pkg::*;
      end
    end // always_comb begin
 
-`ifdef ASSERT_ON
+`ifdef RV_ASSERT_ON
 
    logic write_collision_unused;
 

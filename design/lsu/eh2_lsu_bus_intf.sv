@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import eh2_pkg::*;
 `include "eh2_param.vh"
 )(
    input logic                          clk,
+   input logic                          clk_override,
+   input logic [pt.NUM_THREADS-1:0]     active_thread_l2clk,  // per thread l2 clock
    input logic                          rst_l,
    input logic                          scan_mode,
    input logic                          dec_tlu_external_ldfwd_disable,     // disable load to load forwarding for externals
@@ -35,7 +37,8 @@ import eh2_pkg::*;
    input logic                          dec_tlu_sideeffect_posted_disable,  // disable posted writes to sideeffect addr to the bus
 
    // various clocks needed for the bus reads and writes
-   input logic                          lsu_c1_dc2_clk,
+   input logic [pt.NUM_THREADS-1:0]     lsu_bus_obuf_c1_clken,
+   input logic                          lsu_busm_clken,
    input logic                          lsu_c1_dc3_clk,
    input logic                          lsu_c1_dc4_clk,
    input logic                          lsu_c1_dc5_clk,
@@ -48,7 +51,7 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0]     lsu_bus_obuf_c1_clk,
    input logic [pt.NUM_THREADS-1:0]     lsu_bus_buf_c1_clk,
    input logic                          lsu_free_c2_clk,
-   input logic                          free_clk,
+   input logic                          active_clk,
    input logic                          lsu_busm_clk,
 
    input logic                          lsu_busreq_dc1,                   // bus request is in dc2
@@ -59,13 +62,11 @@ import eh2_pkg::*;
    input                                eh2_lsu_pkt_t lsu_pkt_dc4,            // lsu packet flowing down the pipe
    input                                eh2_lsu_pkt_t lsu_pkt_dc5,            // lsu packet flowing down the pipe
 
-   input logic [31:0]                   lsu_addr_dc1,                     // lsu address flowing down the pipe
    input logic [31:0]                   lsu_addr_dc2,                     // lsu address flowing down the pipe
    input logic [31:0]                   lsu_addr_dc3,                     // lsu address flowing down the pipe
    input logic [31:0]                   lsu_addr_dc4,                     // lsu address flowing down the pipe
    input logic [31:0]                   lsu_addr_dc5,                     // lsu address flowing down the pipe
 
-   input logic [31:0]                   end_addr_dc1,                     // lsu address flowing down the pipe
    input logic [31:0]                   end_addr_dc2,                     // lsu address flowing down the pipe
    input logic [31:0]                   end_addr_dc3,                     // lsu address flowing down the pipe
    input logic [31:0]                   end_addr_dc4,                     // lsu address flowing down the pipe
@@ -77,6 +78,7 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0]     dec_tlu_force_halt,
 
    input logic                          core_ldst_dual_dc1,               // core ld/st is dual
+   input logic                          ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5,
    input logic                          lsu_commit_dc5,                   // lsu instruction in dc5 commits
    input logic                          is_sideeffects_dc2,               // lsu attribute is side_effects
    input logic                          is_sideeffects_dc3,               // lsu attribute is side_effects
@@ -84,7 +86,8 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0]     flush_dc3,                        // flush
    input logic [pt.NUM_THREADS-1:0]     flush_dc4,                        // flush
 
-   output logic                         lsu_busreq_dc5,                   // bus request is in dc5
+   output logic                         lsu_busreq_dc2, lsu_busreq_dc3, lsu_busreq_dc4, lsu_busreq_dc5,
+   output logic [pt.NUM_THREADS-1:0]    dec_tlu_force_halt_bus,           // Bus synchronized version of force halt
    output logic [pt.NUM_THREADS-1:0]    lsu_bus_idle_any,                 // No pending responses from the bus
    output logic [pt.NUM_THREADS-1:0]    lsu_bus_buffer_pend_any,          // bus buffer has a pending bus entry
    output logic [pt.NUM_THREADS-1:0]    lsu_bus_buffer_full_any,          // write buffer is full
@@ -165,8 +168,7 @@ import eh2_pkg::*;
 );
 
    logic              lsu_bus_clk_en_q;
-   logic              ldst_dual_dc1, ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5;
-   logic              lsu_busreq_dc2, lsu_busreq_dc3, lsu_busreq_dc4;
+   logic              ldst_dual_dc1;
    logic              ldst_samedw_dc5, is_aligned_dc5;
 
    logic [3:0]        ldst_byteen_dc2, ldst_byteen_dc3, ldst_byteen_dc4, ldst_byteen_dc5;
@@ -225,6 +227,7 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]                     obuf_nxtready;
 
    logic                                lsu_nonblock_load_valid_dc2, lsu_nonblock_load_valid_dc3, lsu_nonblock_load_valid_dc4,lsu_nonblock_load_valid_dc5;
+   logic [pt.NUM_THREADS-1:0]           bus_pend_trxn_en;
    logic [pt.NUM_THREADS-1:0][7:0]      bus_pend_trxn, bus_pend_trxn_ns, bus_pend_trxnQ;
    logic [pt.NUM_THREADS-1:0]           lsu_bus_cntr_overflow;
 
@@ -254,6 +257,8 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0][pt.LSU_NUM_NBLOAD_WIDTH-1:0] tid_nonblock_load_data_tag;
    logic [pt.NUM_THREADS-1:0][31:0]                        tid_nonblock_load_data;
 
+   logic                                                   bus_coalescing_disable;
+
    logic                   lsu_axi_awvalid_q, lsu_axi_awready_q;
    logic                   lsu_axi_wvalid_q, lsu_axi_wready_q;
    logic                   lsu_axi_arvalid_q, lsu_axi_arready_q;
@@ -263,8 +268,6 @@ import eh2_pkg::*;
    logic [1:0]             lsu_axi_bresp_q, lsu_axi_rresp_q;
    logic [63:0]            lsu_axi_rdata_q;
 
-   logic                   bus_coalescing_disable;
-
    //------------------------------------------------------------------------------------------------------------
    //----------------------------------------Logic starts here---------------------------------------------------
    //------------------------------------------------------------------------------------------------------------
@@ -273,7 +276,7 @@ import eh2_pkg::*;
 
    assign ldst_byteen_dc2[3:0] = ({4{lsu_pkt_dc2.by}}   & 4'b0001) |
                                  ({4{lsu_pkt_dc2.half}} & 4'b0011) |
-                                 ({4{lsu_pkt_dc2.word}} & 4'b1111);
+                                 ({4{lsu_pkt_dc2.word | lsu_pkt_dc2.dword}} & 4'b1111);
    assign ldst_dual_dc1   = core_ldst_dual_dc1;
    assign ldst_samedw_dc5 = (lsu_addr_dc5[3] == end_addr_dc5[3]);
    assign is_aligned_dc5    = (lsu_pkt_dc5.word & (lsu_addr_dc5[1:0] == 2'b0)) |
@@ -321,20 +324,20 @@ import eh2_pkg::*;
    assign store_data_hi_dc5[31:0]   = store_data_ext_dc5[63:32];
    assign store_data_lo_dc5[31:0]   = store_data_ext_dc5[31:0];
 
-   assign ld_addr_dc3hit_lo_lo = (lsu_addr_dc2[31:2] == lsu_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
-   assign ld_addr_dc3hit_lo_hi = (end_addr_dc2[31:2] == lsu_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
-   assign ld_addr_dc3hit_hi_lo = (lsu_addr_dc2[31:2] == end_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
-   assign ld_addr_dc3hit_hi_hi = (end_addr_dc2[31:2] == end_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_lo_lo = (lsu_addr_dc2[31:2] == lsu_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_lo_hi = (end_addr_dc2[31:2] == lsu_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_hi_lo = (lsu_addr_dc2[31:2] == end_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_hi_hi = (end_addr_dc2[31:2] == end_addr_dc3[31:2]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
 
-   assign ld_addr_dc4hit_lo_lo = (lsu_addr_dc2[31:2] == lsu_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
-   assign ld_addr_dc4hit_lo_hi = (end_addr_dc2[31:2] == lsu_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
-   assign ld_addr_dc4hit_hi_lo = (lsu_addr_dc2[31:2] == end_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
-   assign ld_addr_dc4hit_hi_hi = (end_addr_dc2[31:2] == end_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_lo_lo = (lsu_addr_dc2[31:2] == lsu_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_lo_hi = (end_addr_dc2[31:2] == lsu_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_hi_lo = (lsu_addr_dc2[31:2] == end_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_hi_hi = (end_addr_dc2[31:2] == end_addr_dc4[31:2]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
 
-   assign ld_addr_dc5hit_lo_lo = (lsu_addr_dc2[31:2] == lsu_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
-   assign ld_addr_dc5hit_lo_hi = (end_addr_dc2[31:2] == lsu_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
-   assign ld_addr_dc5hit_hi_lo = (lsu_addr_dc2[31:2] == end_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
-   assign ld_addr_dc5hit_hi_hi = (end_addr_dc2[31:2] == end_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_lo_lo = (lsu_addr_dc2[31:2] == lsu_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_lo_hi = (end_addr_dc2[31:2] == lsu_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_hi_lo = (lsu_addr_dc2[31:2] == end_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_hi_hi = (end_addr_dc2[31:2] == end_addr_dc5[31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
 
    for (genvar i=0; i<4; i++) begin
       assign ld_byte_dc3hit_lo_lo[i] = ld_addr_dc3hit_lo_lo & ldst_byteen_lo_dc3[i] & ldst_byteen_lo_dc2[i];
@@ -356,10 +359,12 @@ import eh2_pkg::*;
                                  ld_byte_dc4hit_lo_lo[i] | ld_byte_dc4hit_hi_lo[i] |
                                  ld_byte_dc5hit_lo_lo[i] | ld_byte_dc5hit_hi_lo[i] |
                                  ld_byte_hit_buf_lo[lsu_pkt_dc2.tid][i];
+
       assign ld_byte_hit_hi[i] = ld_byte_dc3hit_lo_hi[i] | ld_byte_dc3hit_hi_hi[i] |
                                  ld_byte_dc4hit_lo_hi[i] | ld_byte_dc4hit_hi_hi[i] |
                                  ld_byte_dc5hit_lo_hi[i] | ld_byte_dc5hit_hi_hi[i] |
                                  ld_byte_hit_buf_hi[lsu_pkt_dc2.tid][i];
+
 
       assign ld_byte_dc3hit_lo[i] = ld_byte_dc3hit_lo_lo[i] | ld_byte_dc3hit_hi_lo[i];
       assign ld_byte_dc4hit_lo[i] = ld_byte_dc4hit_lo_lo[i] | ld_byte_dc4hit_hi_lo[i];
@@ -442,7 +447,7 @@ import eh2_pkg::*;
    assign lsu_axi_awid[pt.LSU_BUS_TAG-1:0] = (pt.LSU_BUS_TAG)'({bus_tid,obuf_tag0[bus_tid][pt.LSU_BUS_TAG-2:0]});
    assign lsu_axi_awaddr[31:0]          = obuf_sideeffect[bus_tid] ? obuf_addr[bus_tid][31:0] : {obuf_addr[bus_tid][31:3],3'b0};
    assign lsu_axi_awsize[2:0]           = obuf_sideeffect[bus_tid] ? {1'b0, obuf_sz[bus_tid][1:0]} : 3'b011;
-   assign lsu_axi_awprot[2:0]           = '0;
+   assign lsu_axi_awprot[2:0]           = 3'b001;
    assign lsu_axi_awcache[3:0]          = obuf_sideeffect[bus_tid]? 4'b0 : 4'b1111;
    assign lsu_axi_awregion[3:0]         = obuf_addr[bus_tid][31:28];
    assign lsu_axi_awlen[7:0]            = '0;
@@ -459,7 +464,7 @@ import eh2_pkg::*;
    assign lsu_axi_arid[pt.LSU_BUS_TAG-1:0] = (pt.LSU_BUS_TAG)'({bus_tid,obuf_tag0[bus_tid][pt.LSU_BUS_TAG-2:0]});
    assign lsu_axi_araddr[31:0]          = obuf_sideeffect[bus_tid] ? obuf_addr[bus_tid][31:0] : {obuf_addr[bus_tid][31:3],3'b0};
    assign lsu_axi_arsize[2:0]           = obuf_sideeffect[bus_tid] ? {1'b0, obuf_sz[bus_tid][1:0]} : 3'b011;
-   assign lsu_axi_arprot[2:0]           = '0;
+   assign lsu_axi_arprot[2:0]           = 3'b001;
    assign lsu_axi_arcache[3:0]          = obuf_sideeffect[bus_tid] ? 4'b0 : 4'b1111;
    assign lsu_axi_arregion[3:0]         = obuf_addr[bus_tid][31:28];
    assign lsu_axi_arlen[7:0]            = '0;
@@ -473,8 +478,10 @@ import eh2_pkg::*;
    // Count the number of pending trxns for fence
    assign bus_pend_trxnQ[pt.NUM_THREADS-1:0]    = '0;
    assign bus_pend_trxn[pt.NUM_THREADS-1:0]     = '0;
+   assign bus_pend_trxn_en[pt.NUM_THREADS-1:0]  = 1'b0;
    assign lsu_bus_cntr_overflow[pt.NUM_THREADS-1:0] = '0;
    assign lsu_bus_idle_any[pt.NUM_THREADS-1:0]  = {pt.NUM_THREADS{1'b1}};
+   assign dec_tlu_force_halt_bus[pt.NUM_THREADS-1:0] = 2'h0;
 
    // PMU signals
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin: GenPMU
@@ -484,29 +491,31 @@ import eh2_pkg::*;
       assign lsu_pmu_bus_busy[i]       = ((lsu_axi_awvalid & ~lsu_axi_awready) | (lsu_axi_wvalid & ~lsu_axi_wready) | (lsu_axi_arvalid & ~lsu_axi_arready)) & (i == bus_tid);
    end
 
-   rvdff #(.WIDTH(1))               lsu_axi_awvalid_ff (.din(lsu_axi_awvalid),                .dout(lsu_axi_awvalid_q),                .clk(lsu_busm_clk), .*);
-   rvdff #(.WIDTH(1))               lsu_axi_awready_ff (.din(lsu_axi_awready),                .dout(lsu_axi_awready_q),                .clk(lsu_busm_clk), .*);
-   rvdff #(.WIDTH(1))               lsu_axi_wvalid_ff  (.din(lsu_axi_wvalid),                 .dout(lsu_axi_wvalid_q),                 .clk(lsu_busm_clk), .*);
-   rvdff #(.WIDTH(1))               lsu_axi_wready_ff  (.din(lsu_axi_wready),                 .dout(lsu_axi_wready_q),                 .clk(lsu_busm_clk), .*);
-   rvdff #(.WIDTH(1))               lsu_axi_arvalid_ff (.din(lsu_axi_arvalid),                .dout(lsu_axi_arvalid_q),                .clk(lsu_busm_clk), .*);
-   rvdff #(.WIDTH(1))               lsu_axi_arready_ff (.din(lsu_axi_arready),                .dout(lsu_axi_arready_q),                .clk(lsu_busm_clk), .*);
+   rvdff_fpga #(.WIDTH(1))               lsu_axi_awvalid_ff (.din(lsu_axi_awvalid),                .dout(lsu_axi_awvalid_q),                .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga #(.WIDTH(1))               lsu_axi_awready_ff (.din(lsu_axi_awready),                .dout(lsu_axi_awready_q),                .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga #(.WIDTH(1))               lsu_axi_wvalid_ff  (.din(lsu_axi_wvalid),                 .dout(lsu_axi_wvalid_q),                 .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga #(.WIDTH(1))               lsu_axi_wready_ff  (.din(lsu_axi_wready),                 .dout(lsu_axi_wready_q),                 .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga #(.WIDTH(1))               lsu_axi_arvalid_ff (.din(lsu_axi_arvalid),                .dout(lsu_axi_arvalid_q),                .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga #(.WIDTH(1))               lsu_axi_arready_ff (.din(lsu_axi_arready),                .dout(lsu_axi_arready_q),                .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
 
-   rvdff  #(.WIDTH(1))              lsu_axi_bvalid_ff  (.din(lsu_axi_bvalid),                 .dout(lsu_axi_bvalid_q),                 .clk(lsu_busm_clk), .*);
-   rvdff  #(.WIDTH(1))              lsu_axi_bready_ff  (.din(lsu_axi_bready),                 .dout(lsu_axi_bready_q),                 .clk(lsu_busm_clk), .*);
-   rvdff  #(.WIDTH(2))              lsu_axi_bresp_ff   (.din(lsu_axi_bresp[1:0]),             .dout(lsu_axi_bresp_q[1:0]),             .clk(lsu_busm_clk), .*);
-   rvdff  #(.WIDTH(pt.LSU_BUS_TAG)) lsu_axi_bid_ff     (.din(lsu_axi_bid[pt.LSU_BUS_TAG-1:0]),.dout(lsu_axi_bid_q[pt.LSU_BUS_TAG-1:0]),.clk(lsu_busm_clk), .*);
-   rvdffe #(.WIDTH(64))             lsu_axi_rdata_ff   (.din(lsu_axi_rdata[63:0]),            .dout(lsu_axi_rdata_q[63:0]),            .en(lsu_axi_rvalid & lsu_bus_clk_en), .*);
+   rvdff_fpga  #(.WIDTH(1))              lsu_axi_bvalid_ff  (.din(lsu_axi_bvalid),                 .dout(lsu_axi_bvalid_q),                 .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(1))              lsu_axi_bready_ff  (.din(lsu_axi_bready),                 .dout(lsu_axi_bready_q),                 .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(2))              lsu_axi_bresp_ff   (.din(lsu_axi_bresp[1:0]),             .dout(lsu_axi_bresp_q[1:0]),             .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(pt.LSU_BUS_TAG)) lsu_axi_bid_ff     (.din(lsu_axi_bid[pt.LSU_BUS_TAG-1:0]),.dout(lsu_axi_bid_q[pt.LSU_BUS_TAG-1:0]),.clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdffe      #(.WIDTH(64))             lsu_axi_rdata_ff   (.din(lsu_axi_rdata[63:0]),            .dout(lsu_axi_rdata_q[63:0]),            .en((lsu_axi_rvalid | clk_override) & lsu_bus_clk_en), .*);
 
-   rvdff  #(.WIDTH(1))              lsu_axi_rvalid_ff  (.din(lsu_axi_rvalid),                 .dout(lsu_axi_rvalid_q),                 .clk(lsu_busm_clk), .*);
-   rvdff  #(.WIDTH(1))              lsu_axi_rready_ff  (.din(lsu_axi_rready),                 .dout(lsu_axi_rready_q),                 .clk(lsu_busm_clk), .*);
-   rvdff  #(.WIDTH(2))              lsu_axi_rresp_ff   (.din(lsu_axi_rresp[1:0]),             .dout(lsu_axi_rresp_q[1:0]),             .clk(lsu_busm_clk), .*);
-   rvdff  #(.WIDTH(pt.LSU_BUS_TAG)) lsu_axi_rid_ff     (.din(lsu_axi_rid[pt.LSU_BUS_TAG-1:0]),.dout(lsu_axi_rid_q[pt.LSU_BUS_TAG-1:0]),.clk(lsu_busm_clk), .*);
+   rvdff_fpga  #(.WIDTH(1))              lsu_axi_rvalid_ff  (.din(lsu_axi_rvalid),                 .dout(lsu_axi_rvalid_q),                 .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(1))              lsu_axi_rready_ff  (.din(lsu_axi_rready),                 .dout(lsu_axi_rready_q),                 .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(2))              lsu_axi_rresp_ff   (.din(lsu_axi_rresp[1:0]),             .dout(lsu_axi_rresp_q[1:0]),             .clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(pt.LSU_BUS_TAG)) lsu_axi_rid_ff     (.din(lsu_axi_rid[pt.LSU_BUS_TAG-1:0]),.dout(lsu_axi_rid_q[pt.LSU_BUS_TAG-1:0]),.clk(lsu_busm_clk), .clken(lsu_busm_clken), .rawclk(clk), .*);
 
    // Per thread bus buffer
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin: GenThreadLoop
       // Read/Write Buffer
       eh2_lsu_bus_buffer #(.pt(pt)) bus_buffer (
          .tid(1'(i)),
+         .clk(active_thread_l2clk[i]),
+         .lsu_bus_obuf_c1_clken(lsu_bus_obuf_c1_clken[i]),
          .lsu_bus_ibuf_c1_clk(lsu_bus_ibuf_c1_clk[i]),
          .lsu_bus_buf_c1_clk(lsu_bus_buf_c1_clk[i]),
          .lsu_bus_obuf_c1_clk(lsu_bus_obuf_c1_clk[i]),
@@ -555,14 +564,6 @@ import eh2_pkg::*;
       );
    end
 
-   // // Only one thread will take imprecise error at a time
-   // always_comb begin
-   //    lsu_imprecise_error_addr_any  = '0;
-   //    for (int i=0; i<pt.NUM_THREADS; i++) begin
-   //       lsu_imprecise_error_addr_any[31:0] |= {32{(lsu_imprecise_error_load_any[i] | lsu_imprecise_error_store_any[i])}} & tid_imprecise_error_addr_any[i];
-   //    end
-   // end
-
    always_comb begin
       lsu_nonblock_load_data_valid = '0;
       lsu_nonblock_load_data_error = '0;
@@ -581,7 +582,7 @@ import eh2_pkg::*;
       assign nxt_bus_tid = bus_tid ? (~(obuf_nxtready[0] | obuf_valid[0]) & obuf_nxtready[1]) :
                                      (~obuf_nxtready[0] | (obuf_nxtready[1] | obuf_valid[1]));
       assign bus_tid_en  = bus_cmd_sent | (~bus_cmd_valid & (obuf_nxtready[0] | obuf_nxtready[1]) & ~obuf_nxtready[bus_tid]) | (~obuf_valid[bus_tid] & obuf_valid[~bus_tid]);
-      rvdffs #(.WIDTH(1)) bus_tidff (.din(nxt_bus_tid), .dout(bus_tid), .en(bus_tid_en), .clk(lsu_busm_clk), .*);
+      rvdffs_fpga #(.WIDTH(1)) bus_tidff (.din(nxt_bus_tid), .dout(bus_tid), .en(bus_tid_en), .clk(lsu_busm_clk), .clken(lsu_bus_clk_en & bus_tid_en), .rawclk(clk), .*);
    end else begin: GenST
       assign bus_tid = 1'b0;
    end
@@ -589,8 +590,9 @@ import eh2_pkg::*;
    // Thread arbitration logic for nonblock tid
    if (pt.NUM_THREADS == 2) begin: GenNBTID_MT
       rvarbiter2 nbtid_arbiter (
+         .clk(active_clk),
          .ready(tid_nonblock_load_data_ready[1:0]),
-         .shift(lsu_nonblock_load_data_valid | lsu_nonblock_load_data_tid),
+         .shift(lsu_nonblock_load_data_valid | lsu_nonblock_load_data_error),
          .tid  (lsu_nonblock_load_data_tid),   //output
          .*
       );
@@ -599,14 +601,10 @@ import eh2_pkg::*;
    end
 
    // Fifo flops
-   rvdff #(.WIDTH(32)) lsu_fwddata_dc3ff (.din(ld_fwddata_dc2[31:0]), .dout(ld_fwddata_dc3[31:0]), .clk(lsu_c1_dc3_clk), .*);
+   rvdffe #(.WIDTH(32)) lsu_fwddata_dc3ff (.din(ld_fwddata_dc2[31:0]), .dout(ld_fwddata_dc3[31:0]), .en((lsu_pkt_dc2.valid & lsu_pkt_dc2.load & lsu_busreq_dc2) | clk_override), .*);
 
-   rvdff #(.WIDTH(1)) clken_ff (.din(lsu_bus_clk_en), .dout(lsu_bus_clk_en_q), .clk(free_clk), .*);
+   rvdff #(.WIDTH(1)) clken_ff (.din(lsu_bus_clk_en), .dout(lsu_bus_clk_en_q), .clk(active_clk), .*);
 
-   rvdff #(.WIDTH(1)) ldst_dual_dc2ff (.din(ldst_dual_dc1), .dout(ldst_dual_dc2), .clk(lsu_c1_dc2_clk), .*);
-   rvdff #(.WIDTH(1)) ldst_dual_dc3ff (.din(ldst_dual_dc2), .dout(ldst_dual_dc3), .clk(lsu_c1_dc3_clk),  .*);
-   rvdff #(.WIDTH(1)) ldst_dual_dc4ff (.din(ldst_dual_dc3), .dout(ldst_dual_dc4), .clk(lsu_c1_dc4_clk), .*);
-   rvdff #(.WIDTH(1)) ldst_dual_dc5ff (.din(ldst_dual_dc4), .dout(ldst_dual_dc5), .clk(lsu_c1_dc5_clk), .*);
    rvdff #(.WIDTH(1)) is_sideeffects_dc4ff (.din(is_sideeffects_dc3), .dout(is_sideeffects_dc4), .clk(lsu_c1_dc4_clk), .*);
    rvdff #(.WIDTH(1)) is_sideeffects_dc5ff (.din(is_sideeffects_dc4), .dout(is_sideeffects_dc5), .clk(lsu_c1_dc5_clk), .*);
 
@@ -614,8 +612,8 @@ import eh2_pkg::*;
    rvdff #(4) lsu_byten_dc4ff (.*, .din(ldst_byteen_dc3[3:0]), .dout(ldst_byteen_dc4[3:0]), .clk(lsu_c1_dc4_clk));
    rvdff #(4) lsu_byten_dc5ff (.*, .din(ldst_byteen_dc4[3:0]), .dout(ldst_byteen_dc5[3:0]), .clk(lsu_c1_dc5_clk));
 
-   rvdff #(.WIDTH(1)) lsu_busreq_dc2ff (.din(lsu_busreq_dc1), .dout(lsu_busreq_dc2), .clk(lsu_c2_dc2_clk), .*);  // Don't want dc2 to dc3 propagation during freeze.
-   rvdff #(.WIDTH(1)) lsu_busreq_dc3ff (.din(lsu_busreq_dc2 & ~ld_full_hit_dc2), .dout(lsu_busreq_dc3), .clk(lsu_c2_dc3_clk), .*);  // Don't want dc2 to dc3 propagation during freeze.
+   rvdff #(.WIDTH(1)) lsu_busreq_dc2ff (.din(lsu_busreq_dc1), .dout(lsu_busreq_dc2), .clk(lsu_c2_dc2_clk), .*);  // Don't want dc2 to dc3 propagation during freeze. Maybe used freeze gate
+   rvdff #(.WIDTH(1)) lsu_busreq_dc3ff (.din(lsu_busreq_dc2 & ~ld_full_hit_dc2), .dout(lsu_busreq_dc3), .clk(lsu_c2_dc3_clk), .*);  // Don't want dc2 to dc3 propagation during freeze. Maybe used freeze gated clock
    rvdff #(.WIDTH(1)) lsu_busreq_dc4ff (.din(lsu_busreq_dc3 & ~flush_dc3[lsu_pkt_dc3.tid]),      .dout(lsu_busreq_dc4), .clk(lsu_c2_dc4_clk), .*);
    rvdff #(.WIDTH(1)) lsu_busreq_dc5ff (.din(lsu_busreq_dc4 & ~flush_dc4[lsu_pkt_dc4.tid]),      .dout(lsu_busreq_dc5), .clk(lsu_c2_dc5_clk), .*);
 
@@ -624,98 +622,98 @@ import eh2_pkg::*;
    rvdff #(.WIDTH(1)) lsu_nonblock_load_valid_dc4ff  (.din(lsu_nonblock_load_valid_dc3),  .dout(lsu_nonblock_load_valid_dc4), .clk(lsu_c2_dc4_clk), .*);
    rvdff #(.WIDTH(1)) lsu_nonblock_load_valid_dc5ff  (.din(lsu_nonblock_load_valid_dc4),  .dout(lsu_nonblock_load_valid_dc5), .clk(lsu_c2_dc5_clk), .*);
 
-`ifdef ASSERT_ON
+`ifdef RV_ASSERT_ON
 
-   // Assertion to check AXI write address is aligned to size
-   property lsu_axi_awaddr_aligned;
-     @(posedge lsu_busm_clk) disable iff(~rst_l) lsu_axi_awvalid |-> ((lsu_axi_awsize[2:0] == 3'h0)                                   |
-                                                                      ((lsu_axi_awsize[2:0] == 3'h1) & (lsu_axi_awaddr[0] == 1'b0))   |
-                                                                      ((lsu_axi_awsize[2:0] == 3'h2) & (lsu_axi_awaddr[1:0] == 2'b0)) |
-                                                                      ((lsu_axi_awsize[2:0] == 3'h3) & (lsu_axi_awaddr[2:0] == 3'b0)));
-   endproperty
-   assert_lsu_axi_awaddr_aligned: assert property (lsu_axi_awaddr_aligned) else
-     $display("Assertion lsu_axi_awaddr_aligned failed: lsu_axi_awvalid=1'b%b, lsu_axi_awsize=3'h%h, lsu_axi_awaddr=32'h%h",lsu_axi_awvalid, lsu_axi_awsize[2:0], lsu_axi_awaddr[31:0]);
-   // Assertion to check awvalid stays stable during entire bus clock
+     // Assertion to check AXI write address is aligned to size
+     property lsu_axi_awaddr_aligned;
+       @(posedge lsu_busm_clk) disable iff(~rst_l) lsu_axi_awvalid |-> ((lsu_axi_awsize[2:0] == 3'h0)                                   |
+                                                                        ((lsu_axi_awsize[2:0] == 3'h1) & (lsu_axi_awaddr[0] == 1'b0))   |
+                                                                        ((lsu_axi_awsize[2:0] == 3'h2) & (lsu_axi_awaddr[1:0] == 2'b0)) |
+                                                                        ((lsu_axi_awsize[2:0] == 3'h3) & (lsu_axi_awaddr[2:0] == 3'b0)));
+     endproperty
+     assert_lsu_axi_awaddr_aligned: assert property (lsu_axi_awaddr_aligned) else
+       $display("Assertion lsu_axi_awaddr_aligned failed: lsu_axi_awvalid=1'b%b, lsu_axi_awsize=3'h%h, lsu_axi_awaddr=32'h%h",lsu_axi_awvalid, lsu_axi_awsize[2:0], lsu_axi_awaddr[31:0]);
+     // Assertion to check awvalid stays stable during entire bus clock
 
-   // Assertion to check AXI read address is aligned to size
-   property lsu_axi_araddr_aligned;
-     @(posedge lsu_busm_clk) disable iff(~rst_l) lsu_axi_awvalid |-> ((lsu_axi_arsize[2:0] == 3'h0)                                   |
-                                                                      ((lsu_axi_arsize[2:0] == 3'h1) & (lsu_axi_araddr[0] == 1'b0))   |
-                                                                      ((lsu_axi_arsize[2:0] == 3'h2) & (lsu_axi_araddr[1:0] == 2'b0)) |
-                                                                      ((lsu_axi_arsize[2:0] == 3'h3) & (lsu_axi_araddr[2:0] == 3'b0)));
-   endproperty
-   assert_lsu_axi_araddr_aligned: assert property (lsu_axi_araddr_aligned) else
-     $display("Assertion lsu_axi_araddr_aligned failed: lsu_axi_awvalid=1'b%b, lsu_axi_awsize=3'h%h, lsu_axi_araddr=32'h%h",lsu_axi_awvalid, lsu_axi_awsize[2:0], lsu_axi_araddr[31:0]);
+     // Assertion to check AXI read address is aligned to size
+     property lsu_axi_araddr_aligned;
+       @(posedge lsu_busm_clk) disable iff(~rst_l) lsu_axi_awvalid |-> ((lsu_axi_arsize[2:0] == 3'h0)                                   |
+                                                                        ((lsu_axi_arsize[2:0] == 3'h1) & (lsu_axi_araddr[0] == 1'b0))   |
+                                                                        ((lsu_axi_arsize[2:0] == 3'h2) & (lsu_axi_araddr[1:0] == 2'b0)) |
+                                                                        ((lsu_axi_arsize[2:0] == 3'h3) & (lsu_axi_araddr[2:0] == 3'b0)));
+     endproperty
+     assert_lsu_axi_araddr_aligned: assert property (lsu_axi_araddr_aligned) else
+       $display("Assertion lsu_axi_araddr_aligned failed: lsu_axi_awvalid=1'b%b, lsu_axi_awsize=3'h%h, lsu_axi_araddr=32'h%h",lsu_axi_awvalid, lsu_axi_awsize[2:0], lsu_axi_araddr[31:0]);
 
-   // Assertion to check awvalid stays stable during entire bus clock
-  property lsu_axi_awvalid_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid != $past(lsu_axi_awvalid)) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_awvalid_stable: assert property (lsu_axi_awvalid_stable) else
-      $display("LSU AXI awvalid changed in middle of bus clock");
+     // Assertion to check awvalid stays stable during entire bus clock
+    property lsu_axi_awvalid_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid != $past(lsu_axi_awvalid)) |-> ($past(lsu_bus_clk_en) | (|dec_tlu_force_halt[pt.NUM_THREADS-1:0]));
+     endproperty
+     assert_lsu_axi_awvalid_stable: assert property (lsu_axi_awvalid_stable) else
+        $display("LSU AXI awvalid changed in middle of bus clock");
 
-   // Assertion to check awid stays stable during entire bus clock
-   property lsu_axi_awid_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid & (lsu_axi_awid[pt.LSU_BUS_TAG-1:0] != $past(lsu_axi_awid[pt.LSU_BUS_TAG-1:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_awid_stable: assert property (lsu_axi_awid_stable) else
-      $display("LSU AXI awid changed in middle of bus clock");
+     // Assertion to check awid stays stable during entire bus clock
+     property lsu_axi_awid_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid & (lsu_axi_awid[pt.LSU_BUS_TAG-1:0] != $past(lsu_axi_awid[pt.LSU_BUS_TAG-1:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_awid_stable: assert property (lsu_axi_awid_stable) else
+        $display("LSU AXI awid changed in middle of bus clock");
 
-   // Assertion to check awaddr stays stable during entire bus clock
-   property lsu_axi_awaddr_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid & (lsu_axi_awaddr[31:0] != $past(lsu_axi_awaddr[31:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_awaddr_stable: assert property (lsu_axi_awaddr_stable) else
-      $display("LSU AXI awaddr changed in middle of bus clock");
+     // Assertion to check awaddr stays stable during entire bus clock
+     property lsu_axi_awaddr_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid & (lsu_axi_awaddr[31:0] != $past(lsu_axi_awaddr[31:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_awaddr_stable: assert property (lsu_axi_awaddr_stable) else
+        $display("LSU AXI awaddr changed in middle of bus clock");
 
-   // Assertion to check awsize stays stable during entire bus clock
-   property lsu_axi_awsize_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid & (lsu_axi_awsize[2:0] != $past(lsu_axi_awsize[2:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_awsize_stable: assert property (lsu_axi_awsize_stable) else
-      $display("LSU AXI awsize changed in middle of bus clock");
+     // Assertion to check awsize stays stable during entire bus clock
+     property lsu_axi_awsize_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_awvalid & (lsu_axi_awsize[2:0] != $past(lsu_axi_awsize[2:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_awsize_stable: assert property (lsu_axi_awsize_stable) else
+        $display("LSU AXI awsize changed in middle of bus clock");
 
-   // Assertion to check wstrb stays stable during entire bus clock
-   property lsu_axi_wstrb_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_wvalid & (lsu_axi_wstrb[7:0] != $past(lsu_axi_wstrb[7:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_wstrb_stable: assert property (lsu_axi_wstrb_stable) else
-      $display("LSU AXI wstrb changed in middle of bus clock");
+     // Assertion to check wstrb stays stable during entire bus clock
+     property lsu_axi_wstrb_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_wvalid & (lsu_axi_wstrb[7:0] != $past(lsu_axi_wstrb[7:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_wstrb_stable: assert property (lsu_axi_wstrb_stable) else
+        $display("LSU AXI wstrb changed in middle of bus clock");
 
-   // Assertion to check wdata stays stable during entire bus clock
-   property lsu_axi_wdata_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_wvalid & (lsu_axi_wdata[63:0] != $past(lsu_axi_wdata[63:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_wdata_stable: assert property (lsu_axi_wdata_stable) else
-      $display("LSU AXI command wdata changed in middle of bus clock");
+     // Assertion to check wdata stays stable during entire bus clock
+     property lsu_axi_wdata_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_wvalid & (lsu_axi_wdata[63:0] != $past(lsu_axi_wdata[63:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_wdata_stable: assert property (lsu_axi_wdata_stable) else
+        $display("LSU AXI command wdata changed in middle of bus clock");
 
-   // Assertion to check awvalid stays stable during entire bus clock
-   property lsu_axi_arvalid_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid != $past(lsu_axi_arvalid)) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_arvalid_stable: assert property (lsu_axi_arvalid_stable) else
-      $display("LSU AXI awvalid changed in middle of bus clock");
+     // Assertion to check awvalid stays stable during entire bus clock
+     property lsu_axi_arvalid_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid != $past(lsu_axi_arvalid)) |-> ($past(lsu_bus_clk_en) | (|dec_tlu_force_halt[pt.NUM_THREADS-1:0]));
+     endproperty
+     assert_lsu_axi_arvalid_stable: assert property (lsu_axi_arvalid_stable) else
+        $display("LSU AXI awvalid changed in middle of bus clock");
 
-   // Assertion to check awid stays stable during entire bus clock
-   property lsu_axi_arid_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid & (lsu_axi_arid[pt.LSU_BUS_TAG-1:0] != $past(lsu_axi_arid[pt.LSU_BUS_TAG-1:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_arid_stable: assert property (lsu_axi_arid_stable) else
-      $display("LSU AXI awid changed in middle of bus clock");
+     // Assertion to check awid stays stable during entire bus clock
+     property lsu_axi_arid_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid & (lsu_axi_arid[pt.LSU_BUS_TAG-1:0] != $past(lsu_axi_arid[pt.LSU_BUS_TAG-1:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_arid_stable: assert property (lsu_axi_arid_stable) else
+        $display("LSU AXI awid changed in middle of bus clock");
 
-   // Assertion to check awaddr stays stable during entire bus clock
-   property lsu_axi_araddr_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid & (lsu_axi_araddr[31:0] != $past(lsu_axi_araddr[31:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_araddr_stable: assert property (lsu_axi_araddr_stable) else
-      $display("LSU AXI awaddr changed in middle of bus clock");
+     // Assertion to check awaddr stays stable during entire bus clock
+     property lsu_axi_araddr_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid & (lsu_axi_araddr[31:0] != $past(lsu_axi_araddr[31:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_araddr_stable: assert property (lsu_axi_araddr_stable) else
+        $display("LSU AXI awaddr changed in middle of bus clock");
 
-   // Assertion to check awsize stays stable during entire bus clock
-   property lsu_axi_arsize_stable;
-      @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid & (lsu_axi_arsize[2:0] != $past(lsu_axi_arsize[2:0]))) |-> $past(lsu_bus_clk_en);
-   endproperty
-   assert_lsu_axi_arsize_stable: assert property (lsu_axi_arsize_stable) else
-      $display("LSU AXI awsize changed in middle of bus clock");
+     // Assertion to check awsize stays stable during entire bus clock
+     property lsu_axi_arsize_stable;
+        @(posedge clk) disable iff(~rst_l)  (lsu_axi_arvalid & (lsu_axi_arsize[2:0] != $past(lsu_axi_arsize[2:0]))) |-> $past(lsu_bus_clk_en);
+     endproperty
+     assert_lsu_axi_arsize_stable: assert property (lsu_axi_arsize_stable) else
+        $display("LSU AXI awsize changed in middle of bus clock");
 
 `endif
 

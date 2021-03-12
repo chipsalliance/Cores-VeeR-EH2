@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+// this is testbench file
+
 `ifdef VERILATOR
 module tb_top ( input bit core_clk );
 `else
@@ -27,13 +29,34 @@ module tb_top;
     logic        [31:0]         nmi_vector;
     logic        [31:1]         jtag_id;
 
+// AHB
+    logic        [31:0]         ic_haddr;
+    logic        [2:0]          ic_hburst;
+    logic        [3:0]          ic_hprot;
+    logic        [2:0]          ic_hsize;
+    logic        [1:0]          ic_htrans;
+    logic                       ic_hwrite;
+    logic        [63:0]         ic_hrdata;
+    logic                       ic_hready;
+    logic                       ic_hresp;
+
+    logic        [31:0]         lsu_haddr;
+    logic        [2:0]          lsu_hburst;
+    logic        [3:0]          lsu_hprot;
+    logic        [2:0]          lsu_hsize;
+    logic        [1:0]          lsu_htrans;
+    logic                       lsu_hwrite;
+    logic        [63:0]         lsu_hrdata;
+    logic        [63:0]         lsu_hwdata;
+    logic                       lsu_hready;
+    logic                       lsu_hresp;
 
     logic [`RV_NUM_THREADS-1:0][63:0]    trace_rv_i_insn_ip;
     logic [`RV_NUM_THREADS-1:0][63:0]    trace_rv_i_address_ip;
-    logic [`RV_NUM_THREADS-1:0][2:0]     trace_rv_i_valid_ip;
-    logic [`RV_NUM_THREADS-1:0][2:0]     trace_rv_i_exception_ip;
+    logic [`RV_NUM_THREADS-1:0][1:0]     trace_rv_i_valid_ip;
+    logic [`RV_NUM_THREADS-1:0][1:0]     trace_rv_i_exception_ip;
     logic [`RV_NUM_THREADS-1:0][4:0]     trace_rv_i_ecause_ip;
-    logic [`RV_NUM_THREADS-1:0][2:0]     trace_rv_i_interrupt_ip;
+    logic [`RV_NUM_THREADS-1:0][1:0]     trace_rv_i_interrupt_ip;
     logic [`RV_NUM_THREADS-1:0][31:0]    trace_rv_i_tval_ip;
 
     logic                       o_debug_mode_status;
@@ -271,18 +294,21 @@ module tb_top;
     wire                        lmem_axi_bready;
 
 
-    wire[63:0] WriteData;
+    string                      abi_reg[32]; // ABI register names
+    wire[63:0]                  WriteData;
+    wire                        tck, tms, tdi, tdo, trstn, srstn;
+    wire [31:0]                 minstret[2], mcycle[2];
 
+`define DEC rvtop.swerv.dec
 
     assign mailbox_write = lmem.mailbox_write;
     assign WriteData = lmem.WriteData;
     assign mailbox_data_val = WriteData[7:0] > 8'h5 && WriteData[7:0] < 8'h7f;
 
-wire [31:0] minstret[2], mcycle[2];
-assign minstret[0] = rvtop.swerv.dec.tlu.tlumt[0].tlu.minstretl;
-assign mcycle[0]   = rvtop.swerv.dec.tlu.tlumt[0].tlu.mcyclel;
-assign minstret[1] = rvtop.swerv.dec.tlu.tlumt[`RV_NUM_THREADS-1].tlu.minstretl;
-assign mcycle[1]   = rvtop.swerv.dec.tlu.tlumt[`RV_NUM_THREADS-1].tlu.mcyclel;
+    assign minstret[0] = `DEC.tlu.tlumt[0].tlu.minstretl;
+    assign mcycle[0]   = `DEC.tlu.tlumt[0].tlu.mcyclel;
+    assign minstret[1] = `DEC.tlu.tlumt[`RV_NUM_THREADS-1].tlu.minstretl;
+    assign mcycle[1]   = `DEC.tlu.tlumt[`RV_NUM_THREADS-1].tlu.mcyclel;
 
 
     parameter MAX_CYCLES = 10_000_000;
@@ -319,11 +345,11 @@ assign mcycle[1]   = rvtop.swerv.dec.tlu.tlumt[`RV_NUM_THREADS-1].tlu.mcyclel;
 
     // trace monitor
     always @(posedge core_clk) begin
-         wb_valid[1:0]  <= '{rvtop.swerv.dec.dec_i1_wen_wb,   rvtop.swerv.dec.dec_i0_wen_wb};
-         wb_dest        <= '{rvtop.swerv.dec.dec_i1_waddr_wb, rvtop.swerv.dec.dec_i0_waddr_wb};
-         wb_data        <= '{rvtop.swerv.dec.dec_i1_wdata_wb, rvtop.swerv.dec.dec_i0_wdata_wb};
-         wb_tid         <= '{rvtop.swerv.dec.dec_i1_tid_wb,   rvtop.swerv.dec.dec_i0_tid_wb};
-         for(int t=0; t<`RV_NUM_THREADS; t++)
+         wb_valid[1:0]  <= '{`DEC.dec_i1_wen_wb,   `DEC.dec_i0_wen_wb};
+         wb_dest        <= '{`DEC.dec_i1_waddr_wb, `DEC.dec_i0_waddr_wb};
+         wb_data        <= '{`DEC.dec_i1_wdata_wb, `DEC.dec_i0_wdata_wb};
+         wb_tid         <= '{`DEC.dec_i1_tid_wb,   `DEC.dec_i0_tid_wb};
+         for(int t=0; t<`RV_NUM_THREADS; t++) begin
              if (trace_rv_i_valid_ip[t] !== 0) begin
                 $fwrite(tp,"t%0d %b,%h,%h,%0h,%0h,3,%b,%h,%h,%b\n",t, trace_rv_i_valid_ip[t], trace_rv_i_address_ip[t][63:32], trace_rv_i_address_ip[t][31:0],
                        trace_rv_i_insn_ip[t][63:32], trace_rv_i_insn_ip[t][31:0],trace_rv_i_exception_ip[t],trace_rv_i_ecause_ip[t],
@@ -335,15 +361,58 @@ assign mcycle[1]   = rvtop.swerv.dec.tlu.tlumt[`RV_NUM_THREADS-1].tlu.mcyclel;
                         bit i0;
                         i0 = i != 0 || trace_rv_i_valid_ip[t]!=3 && wb_tid[1] == t && wb_valid[1];
                         commit_count[t]++;
-                        $fwrite (el, "%10d : %6s %0d %h %h %s\n",cycleCnt, $sformatf("#%0d",commit_count[t]), t,
-                               trace_rv_i_address_ip[t][31+i*32 -:32], trace_rv_i_insn_ip[t][31+i*32-:32],
-                               (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("r%0d=%h", wb_dest[i0], wb_data[i0]) : "");
+                        $fwrite (el, "%10d : %8s %0d %h %h%13s ; %s\n",cycleCnt, $sformatf("#%0d",commit_count[t]), t,
+                                trace_rv_i_address_ip[t][31+i*32 -:32], trace_rv_i_insn_ip[t][31+i*32-:32],
+                                (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("%s=%h", abi_reg[wb_dest[i0]], wb_data[i0]) : "             ",
+                                dasm(trace_rv_i_insn_ip[t][31+i*32 -:32], trace_rv_i_address_ip[t][31+i*32-:32], wb_dest[i0] & {5{wb_valid[i0]}}, wb_data[i0], t)
+                                );
                     end
             end
+            if(`DEC.dec_nonblock_load_wen[t]) begin
+                $fwrite (el, "%10d : %10d%22s=%h ; nbL\n", cycleCnt, `DEC.lsu_nonblock_load_data_tid, abi_reg[`DEC.dec_nonblock_load_waddr[t]], `DEC.lsu_nonblock_load_data);
+                tb_top.gpr[t][`DEC.dec_nonblock_load_waddr[t]] = `DEC.lsu_nonblock_load_data;
+            end
+        end
+        if(`DEC.exu_div_wren) begin
+            $fwrite (el, "%10d : %10d%22s=%h ; nbD\n", cycleCnt, `DEC.div_tid_wb, abi_reg[`DEC.div_waddr_wb], `DEC.exu_div_result);
+            tb_top.gpr[`DEC.div_tid_wb][`DEC.div_waddr_wb] = `DEC.exu_div_result;
+        end
     end
 
 
     initial begin
+        abi_reg[0] = "zero";
+        abi_reg[1] = "ra";
+        abi_reg[2] = "sp";
+        abi_reg[3] = "gp";
+        abi_reg[4] = "tp";
+        abi_reg[5] = "t0";
+        abi_reg[6] = "t1";
+        abi_reg[7] = "t2";
+        abi_reg[8] = "s0";
+        abi_reg[9] = "s1";
+        abi_reg[10] = "a0";
+        abi_reg[11] = "a1";
+        abi_reg[12] = "a2";
+        abi_reg[13] = "a3";
+        abi_reg[14] = "a4";
+        abi_reg[15] = "a5";
+        abi_reg[16] = "a6";
+        abi_reg[17] = "a7";
+        abi_reg[18] = "s2";
+        abi_reg[19] = "s3";
+        abi_reg[20] = "s4";
+        abi_reg[21] = "s5";
+        abi_reg[22] = "s6";
+        abi_reg[23] = "s7";
+        abi_reg[24] = "s8";
+        abi_reg[25] = "s9";
+        abi_reg[26] = "s10";
+        abi_reg[27] = "s11";
+        abi_reg[28] = "t3";
+        abi_reg[29] = "t4";
+        abi_reg[30] = "t5";
+        abi_reg[31] = "t6";
     // tie offs
         jtag_id[31:28] = 4'b1;
         jtag_id[27:12] = '0;
@@ -352,11 +421,12 @@ assign mcycle[1]   = rvtop.swerv.dec.tlu.tlumt[`RV_NUM_THREADS-1].tlu.mcyclel;
         nmi_vector   = 32'hee000000;
         nmi_int   = 0;
 
-        $readmemh("data.hex",     lmem.mem);
+        $readmemh("program.hex",  lmem.mem);
         $readmemh("program.hex",  imem.mem);
         tp = $fopen("trace_port.csv","w");
         el = $fopen("exec.log","w");
-        $fwrite (el, "//Cycle : #inst 0  pc opcode reg regnum value\n");
+        $fwrite (el, "//   Cycle : #inst  hart   pc    opcode    reg=value   ; mnemonic\n");
+        $fwrite (el, "//---------------------------------------------------------------\n");
         fd = $fopen("console.log","w");
         preload_dccm();
         preload_iccm();
@@ -368,14 +438,14 @@ assign mcycle[1]   = rvtop.swerv.dec.tlu.tlumt[`RV_NUM_THREADS-1].tlu.mcyclel;
     end
 
 
-    assign rst_l = cycleCnt > 5;
+    assign rst_l = cycleCnt > 5 && srstn;
     assign porst_l = cycleCnt > 2;
 
    //=========================================================================-
    // RTL instance
    //=========================================================================-
 eh2_swerv_wrapper rvtop (
-    .rst_l                  ( rst_l         ),
+    .rst_l                  ( rst_l),
     .dbg_rst_l              ( porst_l       ),
     .clk                    ( core_clk      ),
     .rst_vec                ( reset_vector[31:1]),
@@ -383,7 +453,71 @@ eh2_swerv_wrapper rvtop (
     .nmi_vec                ( nmi_vector[31:1]),
     .jtag_id                ( jtag_id[31:1]),
 
-    //-------------------------- LSU AXI signals--------------------------
+`ifdef RV_BUILD_AHB_LITE
+    .haddr                  ( ic_haddr      ),
+    .hburst                 ( ic_hburst     ),
+    .hmastlock              ( ),
+    .hprot                  ( ic_hprot      ),
+    .hsize                  ( ic_hsize      ),
+    .htrans                 ( ic_htrans     ),
+    .hwrite                 ( ic_hwrite     ),
+
+    .hrdata                 ( ic_hrdata     ),
+    .hready                 ( ic_hready     ),
+    .hresp                  ( ic_hresp      ),
+
+    //---------------------------------------------------------------
+    // Debug AHB Master
+    //---------------------------------------------------------------
+    .sb_haddr               (),
+    .sb_hburst              (),
+    .sb_hmastlock           (),
+    .sb_hprot               (),
+    .sb_hsize               (),
+    .sb_htrans              (),
+    .sb_hwrite              (),
+    .sb_hwdata              (),
+
+    .sb_hrdata              ('0),
+    .sb_hready              ('1),
+    .sb_hresp               ('0),
+
+    //---------------------------------------------------------------
+    // LSU AHB Master
+    //---------------------------------------------------------------
+    .lsu_haddr              ( lsu_haddr       ),
+    .lsu_hburst             ( lsu_hburst      ),
+    .lsu_hmastlock          ( ),
+    .lsu_hprot              ( lsu_hprot       ),
+    .lsu_hsize              ( lsu_hsize       ),
+    .lsu_htrans             ( lsu_htrans      ),
+    .lsu_hwrite             ( lsu_hwrite      ),
+    .lsu_hwdata             ( lsu_hwdata      ),
+
+    .lsu_hrdata             ( lsu_hrdata      ),
+    .lsu_hready             ( lsu_hready      ),
+    .lsu_hresp              ( lsu_hresp       ),
+
+    //---------------------------------------------------------------
+    // DMA Slave
+    //---------------------------------------------------------------
+    .dma_haddr              ( '0 ),
+    .dma_hburst             ( '0 ),
+    .dma_hmastlock          ( '0 ),
+    .dma_hprot              ( '0 ),
+    .dma_hsize              ( '0 ),
+    .dma_htrans             ( '0 ),
+    .dma_hwrite             ( '0 ),
+    .dma_hwdata             ( '0 ),
+
+    .dma_hrdata             (),
+    .dma_hresp              (),
+    .dma_hsel               ( 1'b1 ),
+    .dma_hreadyin           ( 1'b1 ),
+    .dma_hreadyout          (),
+`endif
+`ifdef RV_BUILD_AXI4
+//-------------------------- LSU AXI signals--------------------------
     // AXI Write Channels
     .lsu_axi_awvalid        (lsu_axi_awvalid),
     .lsu_axi_awready        (lsu_axi_awready),
@@ -562,15 +696,21 @@ eh2_swerv_wrapper rvtop (
     .dma_axi_rdata          (dma_axi_rdata),
     .dma_axi_rresp          (dma_axi_rresp),
     .dma_axi_rlast          (dma_axi_rlast),
-
+`endif
     .timer_int              ( '0  ),
     .extintsrc_req          ( '0  ),
 
-    .lsu_bus_clk_en         ( 1'b1  ),// Clock ratio b/w cpu core clk & AHB master interface
-    .ifu_bus_clk_en         ( 1'b1  ),// Clock ratio b/w cpu core clk & AHB master interface
-    .dbg_bus_clk_en         ( 1'b1  ),// Clock ratio b/w cpu core clk & AHB Debug master interface
-    .dma_bus_clk_en         ( 1'b1  ),// Clock ratio b/w cpu core clk & AHB slave interface
+    .lsu_bus_clk_en         ( 1'b1  ),
+    .ifu_bus_clk_en         ( 1'b1  ),
+    .dbg_bus_clk_en         ( 1'b1  ),
+    .dma_bus_clk_en         ( 1'b1  ),
 
+
+    .dccm_ext_in_pkt        ('0),
+    .iccm_ext_in_pkt        ('0),
+    .ic_data_ext_in_pkt     ('0),
+    .ic_tag_ext_in_pkt      ('0),
+    .btb_ext_in_pkt         ('0),
     .trace_rv_i_insn_ip     (trace_rv_i_insn_ip),
     .trace_rv_i_address_ip  (trace_rv_i_address_ip),
     .trace_rv_i_valid_ip    (trace_rv_i_valid_ip),
@@ -579,25 +719,25 @@ eh2_swerv_wrapper rvtop (
     .trace_rv_i_interrupt_ip(trace_rv_i_interrupt_ip),
     .trace_rv_i_tval_ip     (trace_rv_i_tval_ip),
 
-    .jtag_tck               ( 1'b0  ),
-    .jtag_tms               ( 1'b0  ),
-    .jtag_tdi               ( 1'b0  ),
-    .jtag_trst_n            ( 1'b0  ),
-    .jtag_tdo               ( jtag_tdo ),
+    .jtag_tck               ( tck  ),
+    .jtag_tms               ( tms  ),
+    .jtag_tdi               ( tdi  ),
+    .jtag_trst_n            ( trstn  ),
+    .jtag_tdo               ( tdo ),
 
     .mpc_debug_halt_ack     ( ),
     .mpc_debug_halt_req     ('0),
     .mpc_debug_run_ack      (),
     .mpc_debug_run_req      ('1),
-    .mpc_reset_run_req      ('1),             // Start running after reset
+    .mpc_reset_run_req      ('1),
      .debug_brkpt_status    (),
 
-    .i_cpu_halt_req         ('0),    // Async halt req to CPU
-    .o_cpu_halt_ack         (),        // core response to halt
-    .o_cpu_halt_status      (),        // 1'b1 indicates core is halted
-    .i_cpu_run_req          ('0),    // Async restart req to CPU
+    .i_cpu_halt_req         ('0),
+    .o_cpu_halt_ack         (),
+    .o_cpu_halt_status      (),
+    .i_cpu_run_req          ('0),
     .o_debug_mode_status    (),
-    .o_cpu_run_ack          (),     // Core response to run req
+    .o_cpu_run_ack          (),
 
     .dec_tlu_perfcnt0       (),
     .dec_tlu_perfcnt1       (),
@@ -607,10 +747,115 @@ eh2_swerv_wrapper rvtop (
 
     .soft_int               ('0),
     .core_id                ('0),
-    .scan_mode              ( 1'b0 ),         // To enable scan mode
-    .mbist_mode             ( 1'b0 )        // to enable mbist
+    .scan_mode              ( 1'b0 ),
+    .mbist_mode             ( 1'b0 )
 
 );
+
+bit openocd;
+initial begin
+    openocd = $test$plusargs("openocd");
+end
+
+SimJTAG #2 jtag_drv(
+
+    .clock(core_clk),
+    .reset(~porst_l),
+
+    .enable(openocd),
+    .init_done(porst_l),
+
+    .jtag_TCK(tck),
+    .jtag_TMS(tms),
+    .jtag_TDI(tdi),
+    .jtag_TRSTn(trstn),
+
+    .jtag_TDO_data(tdo),
+    .jtag_TDO_driven(1'b1),
+    .srstn(srstn),
+
+    .exit()
+);
+
+
+function string dmi_reg_name ( int ra);
+    case(ra)
+    'h4:  return "DATA0    ";
+    'h5:  return "DATA1    ";
+    'h10: return "DM_CNTL  ";
+    'h11: return "DM_STATUS";
+    'h15: return "HAWINDOW ";
+    'h16: return "AB_CS    ";
+    'h17: return "AB_CMD   ";
+    'h38: return "SB_CS    ";
+    'h39: return "SB_ADDR0 ";
+    'h3c: return "SB_DATA0 ";
+    'h3d: return "SB_DATA1 ";
+    'h40: return "HALTSUM  ";
+    default: return $sformatf("0x%0h   ", ra);
+    endcase
+endfunction
+
+bit reg_read;
+bit[7:0] reg_addr;
+
+// Debug Module monitor
+always @ (posedge core_clk) begin
+    if(`CPU_TOP.dmi_reg_wr_en)
+        $display("DM: %10d Write %s = %h", cycleCnt, dmi_reg_name(`CPU_TOP.dmi_reg_addr),`CPU_TOP.dmi_reg_wdata);
+    reg_read <= `CPU_TOP.dmi_reg_en & ~`CPU_TOP.dmi_reg_wr_en;
+    reg_addr <= `CPU_TOP.dmi_reg_addr;
+    if(reg_read)
+        $display("DM: %10d Read  %s = %h", cycleCnt, dmi_reg_name(reg_addr),`CPU_TOP.dmi_reg_rdata);
+end
+
+`ifdef RV_BUILD_AHB_LITE
+
+ahb_sif imem (
+     // Inputs
+     .HWDATA(64'h0),
+     .HCLK(core_clk),
+     .HSEL(1'b1),
+     .HPROT(ic_hprot),
+     .HWRITE(ic_hwrite),
+     .HTRANS(ic_htrans),
+     .HSIZE(ic_hsize),
+     .HREADY(ic_hready),
+     .HRESETn(rst_l),
+     .HADDR(ic_haddr),
+     .HBURST(ic_hburst),
+
+     // Outputs
+     .HREADYOUT(ic_hready),
+     .HRESP(ic_hresp),
+     .HRDATA(ic_hrdata)
+);
+
+
+ahb_sif lmem (
+     // Inputs
+     .HWDATA(lsu_hwdata),
+     .HCLK(core_clk),
+     .HSEL(1'b1),
+     .HPROT(lsu_hprot),
+     .HWRITE(lsu_hwrite),
+     .HTRANS(lsu_htrans),
+     .HSIZE(lsu_hsize),
+     .HREADY(lsu_hready),
+     .HRESETn(rst_l),
+     .HADDR(lsu_haddr),
+     .HBURST(lsu_hburst),
+
+     // Outputs
+     .HREADYOUT(lsu_hready),
+     .HRESP(lsu_hresp),
+     .HRDATA(lsu_hrdata)
+);
+
+`endif
+
+
+`ifdef RV_BUILD_AXI4
 
 axi_slv #(.TAGW(`RV_IFU_BUS_TAG)) imem(
     .aclk(core_clk),
@@ -759,18 +1004,21 @@ axi_lsu_dma_bridge # (`RV_LSU_BUS_TAG,`RV_LSU_BUS_TAG ) bridge(
     .s1_bready(dma_axi_bready)
 );
 
+`endif
+
 task preload_iccm;
 bit[31:0] data;
-bit[31:0] addr, eaddr, saddr, faddr;
-int adr;
+bit[31:0] addr, eaddr, saddr;
+
 /*
 addresses:
- 0xffec - ICCM start address to load
- 0xfff0 - ICCM end address to load
- 0xfff4 - imem start address
+ 0xfffffff0 - ICCM start address to load
+ 0xfffffff4 - ICCM end address to load
 */
-
-addr = 'hffec;
+`ifndef VERILATOR
+init_iccm();
+`endif
+addr = 'hffff_fff0;
 saddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
 if ( (saddr < `RV_ICCM_SADR) || (saddr > `RV_ICCM_EADR)) return;
 `ifndef RV_ICCM_ENABLE
@@ -779,49 +1027,46 @@ if ( (saddr < `RV_ICCM_SADR) || (saddr > `RV_ICCM_EADR)) return;
     $display("********************************************************");
     $finish;
 `endif
-init_iccm;
-addr = 'hfff0;
+addr += 4;
 eaddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
-addr = 'hfff4;
-faddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
 $display("ICCM pre-load from %h to %h", saddr, eaddr);
 
 for(addr= saddr; addr <= eaddr; addr+=4) begin
-    adr = faddr & 'hffff;
-    data = {imem.mem[adr+3],imem.mem[adr+2],imem.mem[adr+1],imem.mem[adr]};
+    data = {imem.mem[addr+3],imem.mem[addr+2],imem.mem[addr+1],imem.mem[addr]};
     slam_iccm_ram(addr, data == 0 ? 0 : {riscv_ecc32(data),data});
-    faddr+=4;
 end
 
 endtask
 
+
 task preload_dccm;
 bit[31:0] data;
-bit[31:0] addr, eaddr;
-int adr;
+bit[31:0] addr, saddr, eaddr;
+
 /*
 addresses:
- 0xfff8 - DCCM start address to load
- 0xfffc - ICCM end address to load
- 0x0    - lmem start addres to load from
+ 0xffff_fff8 - DCCM start address to load
+ 0xffff_fffc - DCCM end address to load
 */
+`ifndef VERILATOR
+init_dccm();
+`endif
 
-addr = 'hfff8;
-eaddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
-if (eaddr != `RV_DCCM_SADR) return;
+addr = 'hffff_fff8;
+saddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
+if (saddr < `RV_DCCM_SADR || saddr > `RV_DCCM_EADR) return;
 `ifndef RV_DCCM_ENABLE
     $display("********************************************************");
     $display("DCCM preload: there is no DCCM in SweRV, terminating !!!");
     $display("********************************************************");
     $finish;
 `endif
-addr = 'hfffc;
+addr += 4;
 eaddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
-$display("DCCM pre-load from %h to %h", `RV_DCCM_SADR, eaddr);
+$display("DCCM pre-load from %h to %h", saddr, eaddr);
 
-for(addr=`RV_DCCM_SADR; addr <= eaddr; addr+=4) begin
-    adr = addr & 'hffff;
-    data = {lmem.mem[adr+3],lmem.mem[adr+2],lmem.mem[adr+1],lmem.mem[adr]};
+for(addr=saddr; addr <= eaddr; addr+=4) begin
+    data = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
     slam_dccm_ram(addr, data == 0 ? 0 : {riscv_ecc32(data),data});
 end
 
@@ -858,7 +1103,25 @@ case(bank)
 `endif
 endcase
 `endif
-//$display("Writing bank %0d indx=%0d A=%h, D=%h",bank, indx, addr, data);
+endtask
+
+task init_dccm();
+`ifdef RV_DCCM_ENABLE
+    `DRAM(0) = '{default:39'h0};
+    `DRAM(1) = '{default:39'h0};
+`ifdef RV_DCCM_NUM_BANKS_4
+    `DRAM(2) = '{default:39'h0};
+    `DRAM(3) = '{default:39'h0};
+`endif
+`ifdef RV_DCCM_NUM_BANKS_8
+    `DRAM(2) = '{default:39'h0};
+    `DRAM(3) = '{default:39'h0};
+    `DRAM(4) = '{default:39'h0};
+    `DRAM(5) = '{default:39'h0};
+    `DRAM(6) = '{default:39'h0};
+    `DRAM(7) = '{default:39'h0};
+`endif
+`endif
 endtask
 
 
@@ -967,5 +1230,11 @@ function int get_iccm_bank(input[31:0] addr,  output int bank_idx);
     return int'( addr[5:2]);
 `endif
 endfunction
+
+/* verilator lint_off CASEINCOMPLETE */
+`include "dasm.svi"
+/* verilator lint_on CASEINCOMPLETE */
+
+
 
 endmodule

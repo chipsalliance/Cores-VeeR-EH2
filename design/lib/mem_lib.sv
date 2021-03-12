@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,17 @@
 `define EH2_LOCAL_RAM_TEST_IO          \
 input logic WE,              \
 input logic ME,              \
-input logic CLK
+input logic CLK,             \
+input logic TEST1,           \
+input logic RME,             \
+input logic  [3:0] RM,       \
+input logic LS,              \
+input logic DS,              \
+input logic SD,              \
+input logic TEST_RNM,        \
+input logic BC1,             \
+input logic BC2,             \
+output logic ROP
 
 
 // behavior to be replaced by actual SRAM in VLE
@@ -29,12 +39,23 @@ module ram_``depth``x``width(               \
     `EH2_LOCAL_RAM_TEST_IO                 \
 );                                          \
 reg [(width-1):0] ram_core [(depth-1):0];   \
-                                            \
-always @(posedge CLK) begin              \
-   if (ME && WE) ram_core[ADR] = D;        \
+`ifdef GTLSIM                               \
+integer i;                                  \
+initial begin                               \
+   for (i=0; i<depth; i=i+1)                \
+     ram_core[i] = '0;                      \
+end                                         \
+`endif                                      \
+always @(posedge CLK) begin                 \
+`ifdef GTLSIM                               \
+   if (ME && WE)       ram_core[ADR] <= D;        \
+`else                                       \
+   if (ME && WE) begin ram_core[ADR] <= D; Q <= 'x; end  \
+`endif                                      \
    if (ME && ~WE) Q <= ram_core[ADR];       \
 end                                         \
                                             \
+assign ROP = ME;                            \
                                             \
 //initial $display("%m D=%b, A=%b",D,ADR);\
 endmodule
@@ -47,19 +68,29 @@ module ram_be_``depth``x``width(            \
     `EH2_LOCAL_RAM_TEST_IO                 \
 );                                          \
 reg [(width-1):0] ram_core [(depth-1):0];   \
-                                            \
-always @(posedge CLK) begin              \
-   if (ME && WE) ram_core[ADR] = D & WEM | ~WEM & ram_core[ADR];\
-   if (ME && ~WE) Q <= ram_core[ADR];       \
+`ifdef GTLSIM                               \
+integer i;                                  \
+initial begin                               \
+   for (i=0; i<depth; i=i+1)                \
+     ram_core[i] = '0;                      \
+end                                         \
+`endif                                      \
+always @(posedge CLK) begin                 \
+`ifdef GTLSIM                               \
+   if (ME && WE)       ram_core[ADR] <= D & WEM | ~WEM & ram_core[ADR];      \
+`else                                       \
+   if (ME && WE) begin ram_core[ADR] <= D & WEM | ~WEM & ram_core[ADR]; Q <= 'x; end  \
+`endif                                      \
+   if (ME && ~WE) Q <= ram_core[ADR];          \
 end                                         \
                                             \
+assign ROP = ME;                            \
                                             \
 //initial $display("%m D=%b, A=%b",D,ADR);\
 endmodule
 
-
 // parameterizable RAM for verilator sims
-module eh2_ram #(depth=4096, width=39) (
+module eh2_ram #(depth=2, width=1) (
 input logic [$clog2(depth)-1:0] ADR,
 input logic [(width-1):0] D,
 output logic [(width-1):0] Q,
@@ -68,7 +99,11 @@ output logic [(width-1):0] Q,
 reg [(width-1):0] ram_core [(depth-1):0];
 
 always @(posedge CLK) begin
-   if (ME && WE) ram_core[ADR] = D;
+`ifdef GTLSIM
+   if (ME && WE)       ram_core[ADR] <= D;
+`else
+   if (ME && WE) begin ram_core[ADR] <= D; Q <= 'x; end
+`endif
    if (ME && ~WE) Q <= ram_core[ADR];
 end
 endmodule
@@ -85,6 +120,7 @@ endmodule
 `EH2_RAM(512, 39)
 `EH2_RAM(256, 39)
 `EH2_RAM(128, 39)
+`EH2_RAM(64, 39)
 `EH2_RAM(1024, 20)
 `EH2_RAM(512, 20)
 `EH2_RAM(256, 20)
@@ -175,6 +211,7 @@ endmodule
 `EH2_RAM_BE(256, 52)
 `EH2_RAM_BE(128, 52)
 `EH2_RAM_BE(64, 52)
+`EH2_RAM_BE(32, 52)
 `EH2_RAM_BE(4096, 104)
 `EH2_RAM_BE(2048, 104)
 `EH2_RAM_BE(1024, 104)
@@ -182,6 +219,7 @@ endmodule
 `EH2_RAM_BE(256, 104)
 `EH2_RAM_BE(128, 104)
 `EH2_RAM_BE(64, 104)
+`EH2_RAM_BE(32, 104)
 `EH2_RAM_BE(4096, 88)
 `EH2_RAM_BE(2048, 88)
 `EH2_RAM_BE(1024, 88)
@@ -189,6 +227,7 @@ endmodule
 `EH2_RAM_BE(256, 88)
 `EH2_RAM_BE(128, 88)
 `EH2_RAM_BE(64, 88)
+`EH2_RAM_BE(32, 88)
 `EH2_RAM_BE(4096, 44)
 `EH2_RAM_BE(2048, 44)
 `EH2_RAM_BE(1024, 44)
@@ -196,6 +235,18 @@ endmodule
 `EH2_RAM_BE(256, 44)
 `EH2_RAM_BE(128, 44)
 `EH2_RAM_BE(64, 44)
+`EH2_RAM_BE(32, 44)
+
+`EH2_RAM_BE(32, 124)
+`EH2_RAM_BE(64, 120)
+`EH2_RAM_BE(128, 120)
+`EH2_RAM_BE(256, 120)
+`EH2_RAM_BE(512, 120)
+`EH2_RAM_BE(32, 62)
+`EH2_RAM_BE(64, 60)
+`EH2_RAM_BE(128, 60)
+`EH2_RAM_BE(256, 60)
+`EH2_RAM_BE(512, 60)
 
 `undef EH2_RAM
 `undef EH2_RAM_BE

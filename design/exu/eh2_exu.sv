@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,17 +22,38 @@ import eh2_pkg::*;
   (
 
    input logic                                   clk,                          // Top level clock
-   input logic                                   active_clk,                   // Level 1 active clock
+   input logic [pt.NUM_THREADS-1:0]              active_thread_l2clk,
    input logic                                   clk_override,                 // Override multiply clock enables
    input logic                                   rst_l,                        // Reset
    input logic                                   scan_mode,                    // Scan control
 
+   input logic                                   dec_i0_secondary_d,           // I0 Secondary ALU at  D-stage.  Used for clock gating
+   input logic                                   dec_i0_secondary_e1,          // I0 Secondary ALU at E1-stage.  Used for clock gating
+   input logic                                   dec_i0_secondary_e2,          // I0 Secondary ALU at E2-stage.  Used for clock gating
+
+   input logic                                   dec_i1_secondary_d,           // I1 Secondary ALU at  D-stage.  Used for clock gating
+   input logic                                   dec_i1_secondary_e1,          // I1 Secondary ALU at E1-stage.  Used for clock gating
+   input logic                                   dec_i1_secondary_e2,          // I1 Secondary ALU at E2-stage.  Used for clock gating
+
+   input logic                                   dec_i0_branch_d,              // I0 Branch at  D-stage.  Used for clock gating
+   input logic                                   dec_i0_branch_e1,             // I0 Branch at E1-stage.  Used for clock gating
+   input logic                                   dec_i0_branch_e2,             // I0 Branch at E2-stage.  Used for clock gating
+   input logic                                   dec_i0_branch_e3,             // I0 Branch at E3-stage.  Used for clock gating
+
+   input logic                                   dec_i1_branch_d,              // I0 Branch at  D-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_e1,             // I0 Branch at E1-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_e2,             // I0 Branch at E2-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_e3,             // I0 Branch at E3-stage.  Used for clock gating
+
+   input logic                                   dec_i0_pc4_e4,                // I0 PC4 to PMU
+   input logic                                   dec_i1_pc4_e4,                // I1 PC4 to PMU
+
    input logic                                   dec_extint_stall,             // External interrupt mux select
    input logic                      [31:2]       dec_tlu_meihap,               // External interrupt mux data
 
-   input logic [4:2]                             dec_i0_data_en,               // Slot I0 clock enable {e1, e2, e3    }, one cycle pulse
+   input logic [4:1]                             dec_i0_data_en,               // Slot I0 clock enable {e1, e2, e3    }, one cycle pulse
    input logic [4:1]                             dec_i0_ctl_en,                // Slot I0 clock enable {e1, e2, e3, e4}, two cycle pulse
-   input logic [4:2]                             dec_i1_data_en,               // Slot I1 clock enable {e1, e2, e3    }, one cycle pulse
+   input logic [4:1]                             dec_i1_data_en,               // Slot I1 clock enable {e1, e2, e3    }, one cycle pulse
    input logic [4:1]                             dec_i1_ctl_en,                // Slot I1 clock enable {e1, e2, e3, e4}, two cycle pulse
 
    input logic                                   dec_debug_wdata_rs1_d,        // Debug select to primary I0 RS1
@@ -46,9 +67,11 @@ import eh2_pkg::*;
    input logic [pt.BHT_GHR_SIZE-1:0]             i0_predict_fghr_d,            // DEC predict fghr
    input logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]   i0_predict_index_d,           // DEC predict index
    input logic [pt.BTB_BTAG_SIZE-1:0]            i0_predict_btag_d,            // DEC predict branch tag
+   input logic [pt.BTB_TOFFSET_SIZE-1:0]         i0_predict_toffset_d,         // DEC predict branch toffset
    input logic [pt.BHT_GHR_SIZE-1:0]             i1_predict_fghr_d,            // DEC predict fghr
    input logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]   i1_predict_index_d,           // DEC predict index
    input logic [pt.BTB_BTAG_SIZE-1:0]            i1_predict_btag_d,            // DEC predict branch tag
+   input logic [pt.BTB_TOFFSET_SIZE-1:0]         i1_predict_toffset_d,         // DEC predict branch toffset
 
    input logic                                   dec_i0_rs1_bypass_en_e2,      // DEC bypass bus select for E2 stage
    input logic                                   dec_i0_rs2_bypass_en_e2,      // DEC bypass bus select for E2 stage
@@ -96,8 +119,8 @@ import eh2_pkg::*;
    input logic [31:0]                            i1_rs1_bypass_data_d,         // DEC bypass data
    input logic [31:0]                            i1_rs2_bypass_data_d,         // DEC bypass data
 
-   input logic [12:1]                            dec_i0_br_immed_d,            // Branch immediate
-   input logic [12:1]                            dec_i1_br_immed_d,            // Branch immediate
+   input logic [pt.BTB_TOFFSET_SIZE:1]           dec_i0_br_immed_d,            // Branch immediate
+   input logic [pt.BTB_TOFFSET_SIZE:1]           dec_i1_br_immed_d,            // Branch immediate
 
    input logic                                   dec_i0_lsu_d,                 // Bypass control for LSU operand bus
    input logic                                   dec_i1_lsu_d,                 // Bypass control for LSU operand bus
@@ -116,8 +139,8 @@ import eh2_pkg::*;
    input logic                                   dec_i0_select_pc_d,           // PC select to RS1
    input logic                                   dec_i1_select_pc_d,           // PC select to RS1
 
-   input logic [31:1]                            dec_i0_pc_d,
-   input logic [31:1]                            dec_i1_pc_d,                  // Instruction PC
+   input logic [31:1]                            dec_i0_pc_d,                  // I0 Instruction PC
+   input logic [31:1]                            dec_i1_pc_d,                  // I1 Instruction PC
 
    input logic                                   dec_i0_rs1_bypass_en_d,       // DEC bypass select
    input logic                                   dec_i0_rs2_bypass_en_d,       // DEC bypass select
@@ -152,6 +175,9 @@ import eh2_pkg::*;
 
    output logic [pt.NUM_THREADS-1:0][31:1]       exu_flush_path_final,         // Target for the oldest flush source
 
+   output logic [pt.NUM_THREADS-1:0]             exu_flush_final_early,        // Pipe is being flushed this cycle
+   output logic [pt.NUM_THREADS-1:0][31:1]       exu_flush_path_final_early,   // Target for the oldest flush source
+
    output logic [31:0]                           exu_mul_result_e3,            // Multiply result
 
    output logic [31:0]                           exu_div_result,               // Divide result
@@ -166,12 +192,12 @@ import eh2_pkg::*;
 
 
 
-   output eh2_predict_pkt_t [pt.NUM_THREADS-1:0]                    exu_mp_pkt,   // to IFU_DP - final mispredict
-   output logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           exu_mp_eghr,  // to IFU_DP - for bht write
-   output logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           exu_mp_fghr,  // to IFU_DP - fghr repair value
-   output logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] exu_mp_index, // to IFU_DP - misprecict index
-   output logic [pt.NUM_THREADS-1:0] [pt.BTB_BTAG_SIZE-1:0]          exu_mp_btag,  // to IFU_DP - mispredict tag
-
+   output eh2_predict_pkt_t [pt.NUM_THREADS-1:0]                    exu_mp_pkt,      // to IFU_DP - final mispredict
+   output logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           exu_mp_eghr,     // to IFU_DP - for bht write
+   output logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           exu_mp_fghr,     // to IFU_DP - fghr repair value
+   output logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] exu_mp_index,    // to IFU_DP - misprecict index
+   output logic [pt.NUM_THREADS-1:0] [pt.BTB_BTAG_SIZE-1:0]          exu_mp_btag,     // to IFU_DP - mispredict tag
+   output logic [pt.NUM_THREADS-1:0] [pt.BTB_TOFFSET_SIZE-1:0]       exu_mp_toffset,  // to IFU_DP - mispredict toffset
 
 
    output logic [1:0]                            exu_i0_br_hist_e4,            // to DEC  I0 branch history
@@ -206,7 +232,6 @@ import eh2_pkg::*;
    output logic                                  exu_pmu_i1_br_misp,           // to PMU - I1 E4 branch mispredict
    output logic                                  exu_pmu_i1_br_ataken,         // to PMU - I1 E4 taken
    output logic                                  exu_pmu_i1_pc4                // to PMU - I1 E4 PC
-
    );
 
 
@@ -228,13 +253,13 @@ import eh2_pkg::*;
    logic [31:0]                      i0_rs1_e1, i0_rs2_e1;
    logic [31:0]                      i0_rs1_e2, i0_rs2_e2;
    logic [31:0]                      i0_rs1_e3, i0_rs2_e3;
-   logic [12:1]                      i0_br_immed_e1, i0_br_immed_e2, i0_br_immed_e3;
+   logic [pt.BTB_TOFFSET_SIZE:1]     i0_br_immed_e1, i0_br_immed_e2, i0_br_immed_e3;
 
    logic [31:0]                      i1_rs1_e1, i1_rs2_e1;
    logic [31:0]                      i1_rs1_e2, i1_rs2_e2;
    logic [31:0]                      i1_rs1_e3, i1_rs2_e3;
 
-   logic [12:1]                      i1_br_immed_e1, i1_br_immed_e2, i1_br_immed_e3;
+   logic [pt.BTB_TOFFSET_SIZE:1]     i1_br_immed_e1, i1_br_immed_e2, i1_br_immed_e3;
 
    logic [31:0]                      i0_rs1_e2_final, i0_rs2_e2_final;
    logic [31:0]                      i1_rs1_e2_final, i1_rs2_e2_final;
@@ -256,7 +281,6 @@ import eh2_pkg::*;
    logic                             i1_sec_decode_e4, i0_sec_decode_e4;
    logic                             i1_pred_correct_e4_eff, i0_pred_correct_e4_eff;
    logic [31:1]                      i1_flush_path_e4_eff, i0_flush_path_e4_eff;
-   logic [31:0]                      i0_csr_rs1_in_d;
    logic [31:1]                      i1_flush_path_upper_e2, i0_flush_path_upper_e2;
    logic [31:1]                      i1_flush_path_upper_e3, i0_flush_path_upper_e3;
    logic [31:1]                      i1_flush_path_upper_e4, i0_flush_path_upper_e4;
@@ -264,13 +288,13 @@ import eh2_pkg::*;
    eh2_alu_pkt_t                    i0_ap_e1, i0_ap_e2, i0_ap_e3, i0_ap_e4;
    eh2_alu_pkt_t                    i1_ap_e1, i1_ap_e2, i1_ap_e3, i1_ap_e4;
 
-   logic                             i0_e1_data_en, i0_e2_data_en, i0_e3_data_en;
+   logic                             i0_e1_data_en, i0_e2_data_en, i0_e3_data_en, i0_e4_data_en;
    logic                             i0_e1_ctl_en,  i0_e2_ctl_en,  i0_e3_ctl_en,  i0_e4_ctl_en;
 
-   logic                             i1_e1_data_en, i1_e2_data_en, i1_e3_data_en;
+   logic                             i1_e1_data_en, i1_e2_data_en, i1_e3_data_en, i1_e4_data_en;
    logic                             i1_e1_ctl_en,  i1_e2_ctl_en,  i1_e3_ctl_en,  i1_e4_ctl_en;
 
-   localparam PREDPIPESIZE = pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1+pt.BHT_GHR_SIZE+pt.BTB_BTAG_SIZE;
+   localparam PREDPIPESIZE = pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1+pt.BHT_GHR_SIZE+pt.BTB_BTAG_SIZE+pt.BTB_TOFFSET_SIZE;
    logic [PREDPIPESIZE-1:0]          i0_predpipe_d, i0_predpipe_e1, i0_predpipe_e2, i0_predpipe_e3, i0_predpipe_e4;
    logic [PREDPIPESIZE-1:0]          i1_predpipe_d, i1_predpipe_e1, i1_predpipe_e2, i1_predpipe_e3, i1_predpipe_e4;
 
@@ -336,10 +360,12 @@ import eh2_pkg::*;
                                  ({32{  dec_i0_rs1_bypass_en_d &  dec_i0_mul_d               }} & i0_rs1_bypass_data_d[31:0]) |
                                  ({32{  dec_i1_rs1_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs1_bypass_data_d[31:0]);
 
-   assign mul_rs2_d[31:0]      = ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & gpr_i0_rs2_d[31:0]        ) |
-                                 ({32{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & gpr_i1_rs2_d[31:0]        ) |
-                                 ({32{  dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & i0_rs2_bypass_data_d[31:0]) |
-                                 ({32{  dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs2_bypass_data_d[31:0]);
+   assign mul_rs2_d[31:0]      = ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & {27'b0,dec_i0_immed_d[4:0]}) |
+                                 ({32{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & {27'b0,dec_i1_immed_d[4:0]}) |
+                                 ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & gpr_i0_rs2_d[31:0]         ) |
+                                 ({32{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & gpr_i1_rs2_d[31:0]         ) |
+                                 ({32{  dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & i0_rs2_bypass_data_d[31:0] ) |
+                                 ({32{  dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs2_bypass_data_d[31:0] );
 
 
 
@@ -351,35 +377,33 @@ import eh2_pkg::*;
 
 
 
-   assign i0_csr_rs1_in_d[31:0] = (dec_i0_csr_ren_d) ? i0_rs1_d[31:0] : exu_i0_csr_rs1_e1[31:0];
-
-   assign {i0_e1_data_en, i0_e2_data_en, i0_e3_data_en }                = dec_i0_data_en[4:2];
+   assign {i0_e1_data_en, i0_e2_data_en, i0_e3_data_en, i0_e4_data_en}  = dec_i0_data_en[4:1];
    assign {i0_e1_ctl_en,  i0_e2_ctl_en,  i0_e3_ctl_en,  i0_e4_ctl_en }  = dec_i0_ctl_en[4:1];
 
-   assign {i1_e1_data_en, i1_e2_data_en, i1_e3_data_en}                = dec_i1_data_en[4:2];
-   assign {i1_e1_ctl_en,  i1_e2_ctl_en,  i1_e3_ctl_en,  i1_e4_ctl_en}  = dec_i1_ctl_en[4:1];
+   assign {i1_e1_data_en, i1_e2_data_en, i1_e3_data_en, i1_e4_data_en}  = dec_i1_data_en[4:1];
+   assign {i1_e1_ctl_en,  i1_e2_ctl_en,  i1_e3_ctl_en,  i1_e4_ctl_en }  = dec_i1_ctl_en[4:1];
 
 
 
 
-   rvdffe #(32) i0_csr_rs1_ff (.*, .en(i0_e1_data_en), .din(i0_csr_rs1_in_d[31:0]), .dout(exu_i0_csr_rs1_e1[31:0]));
+   rvdffe #(32) i0_csr_rs1_ff (.*, .clk(clk), .en(i0_e1_data_en & dec_i0_csr_ren_d), .din(i0_rs1_d[31:0]), .dout(exu_i0_csr_rs1_e1[31:0]));
 
 
    eh2_exu_mul_ctl #(.pt(pt)) mul_e1    (.*,
-                          .clk_override  ( clk_override                ),   // I
-                          .mp            ( mul_p                       ),   // I
-                          .a             ( mul_rs1_d[31:0]             ),   // I
-                          .b             ( mul_rs2_d[31:0]             ),   // I
-                          .out           ( exu_mul_result_e3[31:0]     ));  // O
+                          .clk_override  ( clk_override                             ),   // I
+                          .mp            ( mul_p                                    ),   // I
+                          .a             ( mul_rs1_d[31:0]                          ),   // I
+                          .b             ( mul_rs2_d[31:0]                          ),   // I
+                          .out           ( exu_mul_result_e3[31:0]                  ));  // O
 
 
    eh2_exu_div_ctl #(.pt(pt)) div_e1    (.*,
-                          .cancel        ( dec_div_cancel              ),   // I
-                          .dp            ( div_p                       ),   // I
-                          .dividend      ( div_rs1_d[31:0]             ),   // I
-                          .divisor       ( div_rs2_d[31:0]             ),   // I
-                          .finish_dly    ( exu_div_wren                ),   // O
-                          .out           ( exu_div_result[31:0]        ));  // O
+                          .cancel        ( dec_div_cancel                           ),   // I
+                          .dp            ( div_p                                    ),   // I
+                          .dividend      ( div_rs1_d[31:0]                          ),   // I
+                          .divisor       ( div_rs2_d[31:0]                          ),   // I
+                          .finish_dly    ( exu_div_wren                             ),   // O
+                          .out           ( exu_div_result[31:0]                     ));  // O
 
 
    always_comb begin
@@ -397,124 +421,124 @@ import eh2_pkg::*;
 
 
    eh2_exu_alu_ctl #(.pt(pt)) i0_alu_e1 (.*,
-                          .enable        ( i0_e1_ctl_en                ),   // I
-                          .predict_p     ( i0_predict_newp_d           ),   // I
-                          .valid         ( dec_i0_alu_decode_d         ),   // I
-                          .flush         ( exu_flush_final             ),   // I
-                          .a             ( i0_rs1_final_d[31:0]        ),   // I
-                          .b             ( i0_rs2_d[31:0]              ),   // I
-                          .pc            ( dec_i0_pc_d[31:1]           ),   // I
-                          .brimm         ( dec_i0_br_immed_d[12:1]     ),   // I
-                          .ap_in_tid     ( i0_ap.tid                   ),   // I
-                          .ap            ( i0_ap_e1                    ),   // I
-                          .out           ( exu_i0_result_e1[31:0]      ),   // O
-                          .flush_upper   ( i0_flush_upper_e1           ),   // O
-                          .flush_path    ( i0_flush_path_e1[31:1]      ),   // O
-                          .predict_p_ff  ( i0_predict_p_e1             ),   // O
-                          .pc_ff         ( exu_i0_pc_e1[31:1]          ),   // O
-                          .pred_correct  ( i0_pred_correct_upper_e1    )    // O
-                          );
+                          .b_enable      ( dec_i0_branch_d                          ),   // I
+                          .c_enable      ( i0_e1_ctl_en                             ),   // I
+                          .d_enable      ( i0_e1_data_en                            ),   // I
+                          .predict_p     ( i0_predict_newp_d                        ),   // I
+                          .valid         ( dec_i0_alu_decode_d                      ),   // I
+                          .flush         ( exu_flush_final                          ),   // I
+                          .a             ( i0_rs1_final_d[31:0]                     ),   // I
+                          .b             ( i0_rs2_d[31:0]                           ),   // I
+                          .pc            ( dec_i0_pc_d[31:1]                        ),   // I
+                          .brimm         ( dec_i0_br_immed_d[pt.BTB_TOFFSET_SIZE:1] ),   // I
+                          .ap_in_tid     ( i0_ap.tid                                ),   // I
+                          .ap            ( i0_ap_e1                                 ),   // I
+                          .out           ( exu_i0_result_e1[31:0]                   ),   // O
+                          .flush_upper   ( i0_flush_upper_e1                        ),   // O
+                          .flush_path    ( i0_flush_path_e1[31:1]                   ),   // O
+                          .predict_p_ff  ( i0_predict_p_e1                          ),   // O
+                          .pc_ff         ( exu_i0_pc_e1[31:1]                       ),   // O
+                          .pred_correct  ( i0_pred_correct_upper_e1                 ));  // O
 
 
    eh2_exu_alu_ctl #(.pt(pt)) i1_alu_e1 (.*,
-                          .enable        ( i1_e1_ctl_en                ),   // I
-                          .predict_p     ( i1_predict_newp_d           ),   // I
-                          .valid         ( dec_i1_alu_decode_d         ),   // I
-                          .flush         ( exu_flush_final             ),   // I
-                          .a             ( i1_rs1_d[31:0]              ),   // I
-                          .b             ( i1_rs2_d[31:0]              ),   // I
-                          .pc            ( dec_i1_pc_d[31:1]           ),   // I
-                          .brimm         ( dec_i1_br_immed_d[12:1]     ),   // I
-                          .ap_in_tid     ( i1_ap.tid                   ),   // I
-                          .ap            ( i1_ap_e1                    ),   // I
-                          .out           ( exu_i1_result_e1[31:0]      ),   // O
-                          .flush_upper   ( i1_flush_upper_e1           ),   // O
-                          .flush_path    ( i1_flush_path_e1[31:1]      ),   // O
-                          .predict_p_ff  ( i1_predict_p_e1             ),   // O
-                          .pc_ff         ( exu_i1_pc_e1[31:1]          ),   // O
-                          .pred_correct  ( i1_pred_correct_upper_e1    )    // O
-                          );
+                          .b_enable      ( dec_i1_branch_d                          ),   // I
+                          .c_enable      ( i1_e1_ctl_en                             ),   // I
+                          .d_enable      ( i1_e1_data_en                            ),   // I
+                          .predict_p     ( i1_predict_newp_d                        ),   // I
+                          .valid         ( dec_i1_alu_decode_d                      ),   // I
+                          .flush         ( exu_flush_final                          ),   // I
+                          .a             ( i1_rs1_d[31:0]                           ),   // I
+                          .b             ( i1_rs2_d[31:0]                           ),   // I
+                          .pc            ( dec_i1_pc_d[31:1]                        ),   // I
+                          .brimm         ( dec_i1_br_immed_d[pt.BTB_TOFFSET_SIZE:1] ),   // I
+                          .ap_in_tid     ( i1_ap.tid                                ),   // I
+                          .ap            ( i1_ap_e1                                 ),   // I
+                          .out           ( exu_i1_result_e1[31:0]                   ),   // O
+                          .flush_upper   ( i1_flush_upper_e1                        ),   // O
+                          .flush_path    ( i1_flush_path_e1[31:1]                   ),   // O
+                          .predict_p_ff  ( i1_predict_p_e1                          ),   // O
+                          .pc_ff         ( exu_i1_pc_e1[31:1]                       ),   // O
+                          .pred_correct  ( i1_pred_correct_upper_e1                 ));  // O
 
 
 
-   assign i0_predpipe_d[PREDPIPESIZE-1:0] = {i0_predict_fghr_d, i0_predict_index_d, i0_predict_btag_d};
-   assign i1_predpipe_d[PREDPIPESIZE-1:0] = {i1_predict_fghr_d, i1_predict_index_d, i1_predict_btag_d};
+   assign i0_predpipe_d[PREDPIPESIZE-1:0] = {i0_predict_fghr_d, i0_predict_index_d, i0_predict_btag_d, i0_predict_toffset_d};
+   assign i1_predpipe_d[PREDPIPESIZE-1:0] = {i1_predict_fghr_d, i1_predict_index_d, i1_predict_btag_d, i1_predict_toffset_d};
 
 
-   rvdffe #($bits(eh2_predict_pkt_t))  i0_pp_e2_ff            (.*, .en ( i0_e2_ctl_en      ),  .din ( i0_predict_p_e1                  ),  .dout ( i0_pp_e2                      ) );
-   rvdffe #($bits(eh2_predict_pkt_t))  i0_pp_e3_ff            (.*, .en ( i0_e3_ctl_en      ),  .din ( i0_pp_e2                         ),  .dout ( i0_pp_e3                      ) );
+   rvdffppie #(.WIDTH($bits(eh2_predict_pkt_t)),.LEFT(19),.RIGHT(9))  i0_pp_e2_ff         (.*, .clk(clk), .en ( i0_e2_ctl_en ), .den(i0_e2_data_en & dec_i0_branch_e1), .din( i0_predict_p_e1 ),  .dout( i0_pp_e2       ) );
+   rvdffppie #(.WIDTH($bits(eh2_predict_pkt_t)),.LEFT(19),.RIGHT(9))  i0_pp_e3_ff         (.*, .clk(clk), .en ( i0_e3_ctl_en ), .den(i0_e3_data_en & dec_i0_branch_e2), .din( i0_pp_e2        ),  .dout( i0_pp_e3       ) );
+   rvdffppie #(.WIDTH($bits(eh2_predict_pkt_t)),.LEFT(19),.RIGHT(9))  i1_pp_e2_ff         (.*, .clk(clk), .en ( i1_e2_ctl_en ), .den(i1_e2_data_en & dec_i1_branch_e1), .din( i1_predict_p_e1 ),  .dout( i1_pp_e2       ) );
+   rvdffppie #(.WIDTH($bits(eh2_predict_pkt_t)),.LEFT(19),.RIGHT(9))  i1_pp_e3_ff         (.*, .clk(clk), .en ( i1_e3_ctl_en ), .den(i1_e3_data_en & dec_i1_branch_e2), .din( i1_pp_e2        ),  .dout( i1_pp_e3       ) );
 
-   rvdffe #($bits(eh2_predict_pkt_t))  i1_pp_e2_ff            (.*, .en ( i1_e2_ctl_en      ),  .din( i1_predict_p_e1                   ),  .dout( i1_pp_e2                       ) );
-   rvdffe #($bits(eh2_predict_pkt_t))  i1_pp_e3_ff            (.*, .en ( i1_e3_ctl_en      ),  .din( i1_pp_e2                          ),  .dout( i1_pp_e3                       ) );
 
+   rvdffe #(PREDPIPESIZE)                                   i0_predpipe_e1_ff   (.*, .clk(clk), .en ( i0_e1_data_en & dec_i0_branch_d ),  .din( i0_predpipe_d   ),  .dout( i0_predpipe_e1 ) );
+   rvdffe #(PREDPIPESIZE)                                   i0_predpipe_e2_ff   (.*, .clk(clk), .en ( i0_e2_data_en & dec_i0_branch_e1),  .din( i0_predpipe_e1  ),  .dout( i0_predpipe_e2 ) );
+   rvdffe #(PREDPIPESIZE)                                   i0_predpipe_e3_ff   (.*, .clk(clk), .en ( i0_e3_data_en & dec_i0_branch_e2),  .din( i0_predpipe_e2  ),  .dout( i0_predpipe_e3 ) );
+   rvdffe #(PREDPIPESIZE)                                   i0_predpipe_e4_ff   (.*, .clk(clk), .en ( i0_e4_ctl_en  & dec_i0_branch_e3),  .din( i0_predpipe_e3  ),  .dout( i0_predpipe_e4 ) );
 
-   rvdffe #(PREDPIPESIZE)               i0_predpipe_e1_ff      (.*, .en ( i0_e1_data_en     ),  .din( i0_predpipe_d                     ),  .dout( i0_predpipe_e1                 ) );
-   rvdffe #(PREDPIPESIZE)               i0_predpipe_e2_ff      (.*, .en ( i0_e2_data_en     ),  .din( i0_predpipe_e1                    ),  .dout( i0_predpipe_e2                 ) );
-   rvdffe #(PREDPIPESIZE)               i0_predpipe_e3_ff      (.*, .en ( i0_e3_data_en     ),  .din( i0_predpipe_e2                    ),  .dout( i0_predpipe_e3                 ) );
-   rvdffe #(PREDPIPESIZE)               i0_predpipe_e4_ff      (.*, .en ( i0_e4_ctl_en      ),  .din( i0_predpipe_e3                    ),  .dout( i0_predpipe_e4                 ) );
-
-   rvdffe #(PREDPIPESIZE)               i1_predpipe_e1_ff      (.*, .en ( i1_e1_data_en     ),  .din( i1_predpipe_d                     ),  .dout( i1_predpipe_e1                 ) );
-   rvdffe #(PREDPIPESIZE)               i1_predpipe_e2_ff      (.*, .en ( i1_e2_data_en     ),  .din( i1_predpipe_e1                    ),  .dout( i1_predpipe_e2                 ) );
-   rvdffe #(PREDPIPESIZE)               i1_predpipe_e3_ff      (.*, .en ( i1_e3_data_en     ),  .din( i1_predpipe_e2                    ),  .dout( i1_predpipe_e3                 ) );
-   rvdffe #(PREDPIPESIZE)               i1_predpipe_e4_ff      (.*, .en ( i1_e4_ctl_en      ),  .din( i1_predpipe_e3                    ),  .dout( i1_predpipe_e4                 ) );
+   rvdffe #(PREDPIPESIZE)                                   i1_predpipe_e1_ff   (.*, .clk(clk), .en ( i1_e1_data_en & dec_i1_branch_d ),  .din( i1_predpipe_d   ),  .dout( i1_predpipe_e1 ) );
+   rvdffe #(PREDPIPESIZE)                                   i1_predpipe_e2_ff   (.*, .clk(clk), .en ( i1_e2_data_en & dec_i1_branch_e1),  .din( i1_predpipe_e1  ),  .dout( i1_predpipe_e2 ) );
+   rvdffe #(PREDPIPESIZE)                                   i1_predpipe_e3_ff   (.*, .clk(clk), .en ( i1_e3_data_en & dec_i1_branch_e2),  .din( i1_predpipe_e2  ),  .dout( i1_predpipe_e3 ) );
+   rvdffe #(PREDPIPESIZE)                                   i1_predpipe_e4_ff   (.*, .clk(clk), .en ( i1_e4_ctl_en  & dec_i1_branch_e3),  .din( i1_predpipe_e3  ),  .dout( i1_predpipe_e4 ) );
 
 
    assign exu_pmu_i0_br_misp   = i0_predict_p_e4.misp;
    assign exu_pmu_i0_br_ataken = i0_predict_p_e4.ataken;
-   assign exu_pmu_i0_pc4       = i0_predict_p_e4.pc4;
+   assign exu_pmu_i0_pc4       = dec_i0_pc4_e4;
    assign exu_pmu_i1_br_misp   = i1_predict_p_e4.misp;
    assign exu_pmu_i1_br_ataken = i1_predict_p_e4.ataken;
-   assign exu_pmu_i1_pc4       = i1_predict_p_e4.pc4;
+   assign exu_pmu_i1_pc4       = dec_i1_pc4_e4;
 
 
 
    assign i0_pp_e4_in = i0_pp_e3;
    assign i1_pp_e4_in = i1_pp_e3;
 
-   rvdffe #($bits(eh2_alu_pkt_t)) i0_ap_e1_ff (.*,  .en(i0_e1_ctl_en), .din(i0_ap),   .dout(i0_ap_e1) );
-   rvdffe #($bits(eh2_alu_pkt_t)) i0_ap_e2_ff (.*,  .en(i0_e2_ctl_en), .din(i0_ap_e1),.dout(i0_ap_e2) );
-   rvdffe #($bits(eh2_alu_pkt_t)) i0_ap_e3_ff (.*,  .en(i0_e3_ctl_en), .din(i0_ap_e2),.dout(i0_ap_e3) );
-   rvdffe #($bits(eh2_alu_pkt_t)) i0_ap_e4_ff (.*,  .en(i0_e4_ctl_en), .din(i0_ap_e3),.dout(i0_ap_e4) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i0_ap_e1_ff (.*,  .clk(clk), .en(i0_e1_data_en), .din(i0_ap),   .dout(i0_ap_e1) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i0_ap_e2_ff (.*,  .clk(clk), .en(i0_e2_data_en), .din(i0_ap_e1),.dout(i0_ap_e2) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i0_ap_e3_ff (.*,  .clk(clk), .en(i0_e3_data_en), .din(i0_ap_e2),.dout(i0_ap_e3) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i0_ap_e4_ff (.*,  .clk(clk), .en(i0_e4_data_en), .din(i0_ap_e3),.dout(i0_ap_e4) );
 
-
-   rvdffe #($bits(eh2_alu_pkt_t)) i1_ap_e1_ff (.*,  .en(i1_e1_ctl_en), .din(i1_ap),   .dout(i1_ap_e1) );
-   rvdffe #($bits(eh2_alu_pkt_t)) i1_ap_e2_ff (.*,  .en(i1_e2_ctl_en), .din(i1_ap_e1),.dout(i1_ap_e2) );
-   rvdffe #($bits(eh2_alu_pkt_t)) i1_ap_e3_ff (.*,  .en(i1_e3_ctl_en), .din(i1_ap_e2),.dout(i1_ap_e3) );
-   rvdffe #($bits(eh2_alu_pkt_t)) i1_ap_e4_ff (.*,  .en(i1_e4_ctl_en), .din(i1_ap_e3),.dout(i1_ap_e4) );
-
-
-
-   rvdffe #(76) i0_src_e1_ff (.*,
-                            .en  (i0_e1_data_en),
-                            .din ({i0_rs1_d [31:0], i0_rs2_d [31:0], dec_i0_br_immed_d [12:1]}),
-                            .dout({i0_rs1_e1[31:0], i0_rs2_e1[31:0],     i0_br_immed_e1[12:1]}));
-
-   rvdffe #(76) i0_src_e2_ff (.*,
-                            .en  (i0_e2_data_en),
-                            .din( {i0_rs1_e1[31:0], i0_rs2_e1[31:0], i0_br_immed_e1[12:1]}),
-                            .dout({i0_rs1_e2[31:0], i0_rs2_e2[31:0], i0_br_immed_e2[12:1]}));
-
-   rvdffe #(76) i0_src_e3_ff (.*,
-                            .en  (i0_e3_data_en),
-                            .din( {i0_rs1_e2_final[31:0], i0_rs2_e2_final[31:0], i0_br_immed_e2[12:1]}),
-                            .dout({i0_rs1_e3[31:0],       i0_rs2_e3[31:0],       i0_br_immed_e3[12:1]}));
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i1_ap_e1_ff (.*,  .clk(clk), .en(i1_e1_data_en), .din(i1_ap),   .dout(i1_ap_e1) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i1_ap_e2_ff (.*,  .clk(clk), .en(i1_e2_data_en), .din(i1_ap_e1),.dout(i1_ap_e2) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i1_ap_e3_ff (.*,  .clk(clk), .en(i1_e3_data_en), .din(i1_ap_e2),.dout(i1_ap_e3) );
+   rvdfflie #(.WIDTH($bits(eh2_alu_pkt_t)),.LEFT(25)) i1_ap_e4_ff (.*,  .clk(clk), .en(i1_e4_data_en), .din(i1_ap_e3),.dout(i1_ap_e4) );
 
 
 
-   rvdffe #(76) i1_src_e1_ff (.*,
-                            .en  (i1_e1_data_en),
-                            .din ({i1_rs1_d [31:0], i1_rs2_d [31:0], dec_i1_br_immed_d [12:1]}),
-                            .dout({i1_rs1_e1[31:0], i1_rs2_e1[31:0],     i1_br_immed_e1[12:1]}));
+   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i0_src_e1_ff (.*, .clk(clk),
+                            .en  (i0_e1_data_en & dec_i0_secondary_d),
+                            .din ({i0_rs1_d [31:0], i0_rs2_d [31:0], dec_i0_br_immed_d [pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i0_rs1_e1[31:0], i0_rs2_e1[31:0],     i0_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}));
 
-   rvdffe #(76) i1_src_e2_ff (.*,
-                            .en  (i1_e2_data_en),
-                            .din ({i1_rs1_e1[31:0], i1_rs2_e1[31:0], i1_br_immed_e1[12:1]}),
-                            .dout({i1_rs1_e2[31:0], i1_rs2_e2[31:0], i1_br_immed_e2[12:1]}));
+   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i0_src_e2_ff (.*, .clk(clk),
+                            .en  (i0_e2_data_en & dec_i0_secondary_e1),
+                            .din( {i0_rs1_e1[31:0], i0_rs2_e1[31:0], i0_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i0_rs1_e2[31:0], i0_rs2_e2[31:0], i0_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}));
 
-   rvdffe #(76) i1_src_e3_ff (.*,
-                            .en  (i1_e3_data_en),
-                            .din ({i1_rs1_e2_final[31:0], i1_rs2_e2_final[31:0], i1_br_immed_e2[12:1]}),
-                            .dout({i1_rs1_e3[31:0],       i1_rs2_e3[31:0],       i1_br_immed_e3[12:1]}));
+   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i0_src_e3_ff (.*, .clk(clk),
+                            .en  (i0_e3_data_en & dec_i0_secondary_e2),
+                            .din( {i0_rs1_e2_final[31:0], i0_rs2_e2_final[31:0], i0_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i0_rs1_e3[31:0],       i0_rs2_e3[31:0],       i0_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]}));
+
+
+
+   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i1_src_e1_ff (.*, .clk(clk),
+                            .en  (i1_e1_data_en & dec_i1_secondary_d),
+                            .din ({i1_rs1_d [31:0], i1_rs2_d [31:0], dec_i1_br_immed_d [pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i1_rs1_e1[31:0], i1_rs2_e1[31:0],     i1_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}));
+
+   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i1_src_e2_ff (.*, .clk(clk),
+                            .en  (i1_e2_data_en & dec_i1_secondary_e1),
+                            .din ({i1_rs1_e1[31:0], i1_rs2_e1[31:0], i1_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i1_rs1_e2[31:0], i1_rs2_e2[31:0], i1_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}));
+
+   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i1_src_e3_ff (.*, .clk(clk),
+                            .en  (i1_e3_data_en & dec_i1_secondary_e2),
+                            .din ({i1_rs1_e2_final[31:0], i1_rs2_e2_final[31:0], i1_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i1_rs1_e3[31:0],       i1_rs2_e3[31:0],       i1_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]}));
 
 
 
@@ -535,49 +559,50 @@ import eh2_pkg::*;
    assign i0_taken_e1  = (i0_predict_p_e1.ataken & dec_i0_alu_decode_e1) | (i0_predict_p_e1.hist[1] & ~dec_i0_alu_decode_e1);
    assign i1_taken_e1  = (i1_predict_p_e1.ataken & dec_i1_alu_decode_e1) | (i1_predict_p_e1.hist[1] & ~dec_i1_alu_decode_e1);
 
-   rvdff #(2) e1ghrdecff                  (.*, .clk(active_clk), .din({dec_i0_alu_decode_d, dec_i1_alu_decode_d}), .dout({dec_i0_alu_decode_e1, dec_i1_alu_decode_e1}));
 
 
 
 
    eh2_exu_alu_ctl #(.pt(pt)) i0_alu_e4 (.*,
-                          .enable        ( i0_e4_ctl_en                ),   // I
-                          .predict_p     ( i0_pp_e4_in                 ),   // I
-                          .valid         ( dec_i0_sec_decode_e3        ),   // I
-                          .flush         ( dec_tlu_flush_lower_wb      ),   // I
-                          .a             ( i0_rs1_e3_final[31:0]       ),   // I
-                          .b             ( i0_rs2_e3_final[31:0]       ),   // I
-                          .pc            ( dec_i0_pc_e3[31:1]          ),   // I
-                          .brimm         ( i0_br_immed_e3[12:1]        ),   // I
-                          .ap_in_tid     ( i0_ap_e3.tid                ),   // I
-                          .ap            ( i0_ap_e4                    ),   // I
-                          .out           ( exu_i0_result_e4[31:0]      ),   // O
-                          .flush_upper   ( exu_i0_flush_lower_e4       ),   // O
-                          .flush_path    ( exu_i0_flush_path_e4[31:1]  ),   // O
-                          .predict_p_ff  ( i0_predict_p_e4             ),   // O
-                          .pc_ff         ( i0_alu_pc_unused[31:1]      ),   // O
-                          .pred_correct  ( i0_pred_correct_lower_e4    )    // O
-                          );
+                          .b_enable      ( dec_i0_branch_e3                         ),   // I
+                          .c_enable      ( i0_e4_ctl_en                             ),   // I
+                          .d_enable      ( i0_e4_data_en                            ),   // I
+                          .predict_p     ( i0_pp_e4_in                              ),   // I
+                          .valid         ( dec_i0_sec_decode_e3                     ),   // I
+                          .flush         ( dec_tlu_flush_lower_wb                   ),   // I
+                          .a             ( i0_rs1_e3_final[31:0]                    ),   // I
+                          .b             ( i0_rs2_e3_final[31:0]                    ),   // I
+                          .pc            ( dec_i0_pc_e3[31:1]                       ),   // I
+                          .brimm         ( i0_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]    ),   // I
+                          .ap_in_tid     ( i0_ap_e3.tid                             ),   // I
+                          .ap            ( i0_ap_e4                                 ),   // I
+                          .out           ( exu_i0_result_e4[31:0]                   ),   // O
+                          .flush_upper   ( exu_i0_flush_lower_e4                    ),   // O
+                          .flush_path    ( exu_i0_flush_path_e4[31:1]               ),   // O
+                          .predict_p_ff  ( i0_predict_p_e4                          ),   // O
+                          .pc_ff         ( i0_alu_pc_unused[31:1]                   ),   // O
+                          .pred_correct  ( i0_pred_correct_lower_e4                 ));  // O
 
 
    eh2_exu_alu_ctl #(.pt(pt)) i1_alu_e4 (.*,
-                          .enable        ( i1_e4_ctl_en                ),   // I
-                          .predict_p     ( i1_pp_e4_in                 ),   // I
-                          .valid         ( dec_i1_sec_decode_e3        ),   // I
-                          .flush         ( dec_tlu_flush_lower_wb      ),   // I
-                          .a             ( i1_rs1_e3_final[31:0]       ),   // I
-                          .b             ( i1_rs2_e3_final[31:0]       ),   // I
-                          .pc            ( dec_i1_pc_e3[31:1]          ),   // I
-                          .brimm         ( i1_br_immed_e3[12:1]        ),   // I
-                          .ap_in_tid     ( i1_ap_e3.tid                ),   // I
-                          .ap            ( i1_ap_e4                    ),   // I
-                          .out           ( exu_i1_result_e4[31:0]      ),   // O
-                          .flush_upper   ( exu_i1_flush_lower_e4       ),   // O
-                          .flush_path    ( exu_i1_flush_path_e4[31:1]  ),   // O
-                          .predict_p_ff  ( i1_predict_p_e4             ),   // O
-                          .pc_ff         ( i1_alu_pc_unused[31:1]      ),   // O
-                          .pred_correct  ( i1_pred_correct_lower_e4    )    // O
-                          );
+                          .b_enable      ( dec_i1_branch_e3                         ),   // I
+                          .c_enable      ( i1_e4_ctl_en                             ),   // I
+                          .d_enable      ( i1_e4_data_en                            ),   // I
+                          .predict_p     ( i1_pp_e4_in                              ),   // I
+                          .valid         ( dec_i1_sec_decode_e3                     ),   // I
+                          .flush         ( dec_tlu_flush_lower_wb                   ),   // I
+                          .a             ( i1_rs1_e3_final[31:0]                    ),   // I
+                          .b             ( i1_rs2_e3_final[31:0]                    ),   // I
+                          .pc            ( dec_i1_pc_e3[31:1]                       ),   // I
+                          .brimm         ( i1_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]    ),   // I
+                          .ap_in_tid     ( i1_ap_e3.tid                             ),   // I
+                          .ap            ( i1_ap_e4                                 ),   // I
+                          .out           ( exu_i1_result_e4[31:0]                   ),   // O
+                          .flush_upper   ( exu_i1_flush_lower_e4                    ),   // O
+                          .flush_path    ( exu_i1_flush_path_e4[31:1]               ),   // O
+                          .predict_p_ff  ( i1_predict_p_e4                          ),   // O
+                          .pc_ff         ( i1_alu_pc_unused[31:1]                   ),   // O
+                          .pred_correct  ( i1_pred_correct_lower_e4                 ));  // O
 
 
    assign exu_i0_br_hist_e4[1:0]               =  i0_predict_p_e4.hist[1:0];
@@ -593,7 +618,7 @@ import eh2_pkg::*;
    assign exu_i0_br_way_e4                     =  i0_predict_p_e4.way;
 
    assign {exu_i0_br_fghr_e4[pt.BHT_GHR_SIZE-1:0],
-           exu_i0_br_index_e4[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]} =  i0_predpipe_e4[PREDPIPESIZE-1:pt.BTB_BTAG_SIZE];
+           exu_i0_br_index_e4[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]} =  i0_predpipe_e4[PREDPIPESIZE-1:pt.BTB_BTAG_SIZE+pt.BTB_TOFFSET_SIZE];
 
    assign exu_i1_br_hist_e4[1:0]               =  i1_predict_p_e4.hist[1:0];
    assign exu_i1_br_bank_e4                    =  i1_predict_p_e4.bank;
@@ -608,7 +633,7 @@ import eh2_pkg::*;
    assign exu_i1_br_call_e4                    =  i1_predict_p_e4.pcall;
 
    assign {exu_i1_br_fghr_e4[pt.BHT_GHR_SIZE-1:0],
-           exu_i1_br_index_e4[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]} =  i1_predpipe_e4[PREDPIPESIZE-1:pt.BTB_BTAG_SIZE];
+           exu_i1_br_index_e4[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]} =  i1_predpipe_e4[PREDPIPESIZE-1:pt.BTB_BTAG_SIZE+pt.BTB_TOFFSET_SIZE];
 
 
 
@@ -633,13 +658,15 @@ import eh2_pkg::*;
       assign exu_mp_fghr[i][pt.BHT_GHR_SIZE-1:0]      =  after_flush_eghr[i][pt.BHT_GHR_SIZE-1:0];     // fghr repair value
 
       assign {exu_mp_index[i][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],
-              exu_mp_btag[i][pt.BTB_BTAG_SIZE-1:0]}   =  final_predpipe_mp_ff[i][PREDPIPESIZE-pt.BHT_GHR_SIZE-1:0];
-      assign  exu_mp_eghr[i][pt.BHT_GHR_SIZE-1:0]     =  final_predpipe_mp_ff[i][PREDPIPESIZE-1:pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+pt.BTB_BTAG_SIZE+1]; // mp ghr for bht write
+              exu_mp_btag[i][pt.BTB_BTAG_SIZE-1:0],
+              exu_mp_toffset[i][pt.BTB_TOFFSET_SIZE-1:0]}   =  final_predpipe_mp_ff[i][PREDPIPESIZE-pt.BHT_GHR_SIZE-1:0];
+      assign  exu_mp_eghr[i][pt.BHT_GHR_SIZE-1:0]     =  final_predpipe_mp_ff[i][PREDPIPESIZE-1:pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+pt.BTB_BTAG_SIZE+pt.BTB_TOFFSET_SIZE+1]; // mp ghr for bht write
 
 
-      // E1 GHR - fill in the ptaken for secondary branches.
-      assign i0_valid_e1[i]  = ~exu_flush_final[i] & ~flush_final_f[i] & (i0_predict_p_e1.valid | i0_predict_p_e1.misp);
-      assign i1_valid_e1[i]  = ~exu_flush_final[i] & ~flush_final_f[i] & (i1_predict_p_e1.valid | i1_predict_p_e1.misp) & ~(i0_flush_upper_e1[i]);
+     // E1 GHR - fill in the ptaken for secondary branches.
+
+      assign i0_valid_e1[i]  = ~exu_flush_final[i] & (i0_ap_e1.tid==i) & ~flush_final_f[i] & (i0_predict_p_e1.valid | i0_predict_p_e1.misp);
+      assign i1_valid_e1[i]  = ~exu_flush_final[i] & (i1_ap_e1.tid==i) & ~flush_final_f[i] & (i1_predict_p_e1.valid | i1_predict_p_e1.misp) & ~(i0_flush_upper_e1[i]);
 
       assign ghr_e1_ns[i][pt.BHT_GHR_SIZE-1:0]  = ({pt.BHT_GHR_SIZE{ dec_tlu_flush_lower_wb[i]}}                                                                  &  ghr_e4[i][pt.BHT_GHR_SIZE-1:0]) |
                                                   ({pt.BHT_GHR_SIZE{~dec_tlu_flush_lower_wb[i] & ~i0_valid_e1[i] &  ~i1_valid_e1[i]}}                             &  ghr_e1[i][pt.BHT_GHR_SIZE-1:0]) |
@@ -657,42 +684,17 @@ import eh2_pkg::*;
                                                   ({pt.BHT_GHR_SIZE{~i0_valid_e4[i] &                             ~i1_pred_valid_e4[i]}}  &  ghr_e4[i][pt.BHT_GHR_SIZE-1:0]);
 
 
-      rvdff  #(1)                         e4ghrflushff      (.*, .clk(active_clk),                    .din (exu_flush_final[i]),                 .dout(flush_final_f[i]));
-      rvdff  #(1)                         final_predict_ff  (.*, .clk(active_clk),                    .din(fp_enable[i]),                        .dout(fp_enable_ff[i]));
-      rvdffe #($bits(eh2_predict_pkt_t)) predict_mp_ff     (.*, .en(fp_enable[i] | fp_enable_ff[i]), .din(final_predict_mp [i]),                .dout(exu_mp_pkt[i]));
-      rvdffe #(PREDPIPESIZE)              predictpipe_mp_ff (.*, .en(fp_enable[i] | fp_enable_ff[i]), .din(final_predpipe_mp[i]),                .dout(final_predpipe_mp_ff[i]));
-      rvdff #(pt.BHT_GHR_SIZE)            e1ghrff           (.*, .clk(active_clk),                    .din (ghr_e1_ns[i][pt.BHT_GHR_SIZE-1:0]),  .dout(ghr_e1[i][pt.BHT_GHR_SIZE-1:0]));
-      rvdff #(pt.BHT_GHR_SIZE)            e4ghrff           (.*, .clk(active_clk),                    .din (ghr_e4_ns[i][pt.BHT_GHR_SIZE-1:0]),  .dout(ghr_e4[i][pt.BHT_GHR_SIZE-1:0]));
 
-   end
+      rvdfflie #(.WIDTH($bits(eh2_predict_pkt_t)),.LEFT(24)) predict_mp_ff     (.*, .clk(active_thread_l2clk[i]), .en(fp_enable[i] | fp_enable_ff[i]), .din(final_predict_mp [i]),                .dout(exu_mp_pkt[i]));
+      rvdffe #(PREDPIPESIZE)                                  predictpipe_mp_ff (.*, .clk(active_thread_l2clk[i]), .en(fp_enable[i] | fp_enable_ff[i]), .din(final_predpipe_mp[i]),                .dout(final_predpipe_mp_ff[i]));
 
 
-
-
-
-
-   rvdffe #(31+pt.NUM_THREADS) i0_upper_flush_e2_ff (.*,
-                                    .en  ( i0_e2_ctl_en),
-                                    .din ({i0_flush_path_e1[31:1],
-                                           i0_flush_upper_e1[pt.NUM_THREADS-1:0]}),
-                                    .dout({i0_flush_path_upper_e2[31:1],
-                                           i0_flush_upper_e2[pt.NUM_THREADS-1:0]}));
-
-   rvdffe #(32+pt.NUM_THREADS) i1_upper_flush_e2_ff (.*,
-                                    .en  ( i1_e2_ctl_en),
-                                    .din ({dec_i1_valid_e1,
-                                           i1_flush_path_e1[31:1],
-                                           i1_flush_upper_e1[pt.NUM_THREADS-1:0]}),
-                                    .dout({i1_valid_e2,
-                                           i1_flush_path_upper_e2[31:1],
-                                           i1_flush_upper_e2[pt.NUM_THREADS-1:0]}));
-
-
-
-   for (genvar i=0; i<pt.NUM_THREADS; i++) begin
 
       assign flush_path_e2[i][31:1]           = (i0_flush_upper_e2[i])       ?  i0_flush_path_upper_e2[31:1]    :  i1_flush_path_upper_e2[31:1];
-      assign exu_flush_path_final[i][31:1]    = (dec_tlu_flush_lower_wb[i])  ?  dec_tlu_flush_path_wb[i][31:1]  :  flush_path_e2[i][31:1];
+
+      // quiet this bus when there are no flushes
+      assign exu_flush_path_final[i][31:1]    = (dec_tlu_flush_lower_wb[i])                     ?  dec_tlu_flush_path_wb[i][31:1]  :
+                                                ((i0_flush_upper_e2[i] | i1_flush_upper_e2[i])  ?  flush_path_e2[i][31:1]          : '0);
 
 
 
@@ -700,64 +702,92 @@ import eh2_pkg::*;
       assign exu_i1_flush_final[i]         =    dec_tlu_flush_lower_wb[i] | i1_flush_upper_e2[i];
       assign exu_flush_final[i]            =    dec_tlu_flush_lower_wb[i] | i0_flush_upper_e2[i]  | i1_flush_upper_e2[i];
 
+      rvdffie #(6+pt.BHT_GHR_SIZE+pt.BHT_GHR_SIZE,1)  i_misc_thr_ff  (.*, .clk(clk),
+                                                                      .din ({exu_flush_final[i]  , fp_enable[i]        , ghr_e1_ns[i][pt.BHT_GHR_SIZE-1:0], ghr_e4_ns[i][pt.BHT_GHR_SIZE-1:0],
+                                                                             i0_flush_upper_e1[i], i1_flush_upper_e1[i], i0_flush_upper_e2[i]             , i0_flush_upper_e3[i]  }),
+                                                                      .dout({flush_final_f[i]    , fp_enable_ff[i]     , ghr_e1[i][pt.BHT_GHR_SIZE-1:0]   , ghr_e4[i][pt.BHT_GHR_SIZE-1:0]   ,
+                                                                             i0_flush_upper_e2[i], i1_flush_upper_e2[i], i0_flush_upper_e3[i]             , i0_flush_upper_e4[i] }));
+
+
+      logic [pt.NUM_THREADS-1:0] [31:1] flush_path_e1, flush_path_e4, flush_path_wb;
+      if(pt.BTB_USE_SRAM) begin
+         assign flush_path_e1[i][31:1]           = (i0_flush_upper_e1[i])       ?  i0_flush_path_e1[31:1]     :  i1_flush_path_e1[31:1];
+         assign flush_path_e4[i][31:1]           = (exu_i0_flush_lower_e4[i])         ?  exu_i0_flush_path_e4[31:1] :  exu_i1_flush_path_e4[31:1];
+
+         // SRAM BTB arch moves flushes to BF stage, but only mispredicts. TLU flushes are still a cycle later
+         assign exu_flush_path_final_early[i][31:1]    =  (exu_i0_flush_lower_e4[i] | exu_i1_flush_lower_e4[i])     ?  flush_path_e4[i][31:1]  :
+                                                         ((i0_flush_upper_e1[i] | i1_flush_upper_e1[i]) ?  flush_path_e1[i][31:1]   : '0);
+         assign exu_flush_final_early[i]            =    exu_i0_flush_lower_e4[i] | exu_i1_flush_lower_e4[i] | i0_flush_upper_e1[i]  | i1_flush_upper_e1[i];
+      end
+      else begin
+         assign exu_flush_path_final_early[i][31:1] =    '0;
+         assign exu_flush_final_early[i]            =    '0;
+      end
+
+
+   rvdffpcie #(31) i_pred_correct_npc_e3 (.*, .clk(clk),
+                                    .en  ( i0_e3_data_en | i1_e3_data_en),
+                                    .din ( pred_correct_npc_e2[i]       ),
+                                    .dout( pred_correct_npc_e3[i]       ));
+
+   rvdffpcie #(31) i_pred_correct_npc_e4 (.*, .clk(clk),
+                                    .en  ( i0_e4_data_en | i1_e4_data_en),
+                                    .din ( pred_correct_npc_e3[i]       ),
+                                    .dout( pred_correct_npc_e4[i]       ));
+
    end
 
 
-   rvdffe #(31+pt.NUM_THREADS*32) i0_upper_flush_e3_ff (.*,
-                                    .en  ( i0_e3_ctl_en | i1_e3_ctl_en),
-                                    .din ({i0_flush_path_upper_e2[31:1],
-                                           pred_correct_npc_e2,
-                                           i0_flush_upper_e2}),
-                                    .dout({i0_flush_path_upper_e3[31:1],
-                                           pred_correct_npc_e3,
-                                           i0_flush_upper_e3}));
 
-   rvdffe #(32) i1_upper_flush_e3_ff (.*,
-                                    .en  ( i1_e3_ctl_en),
-                                    .din ({i1_valid_e2,
-                                           i1_flush_path_upper_e2[31:1]}),
-                                    .dout({i1_valid_e3,
-                                           i1_flush_path_upper_e3[31:1]}));
 
-   rvdffe #(31+pt.NUM_THREADS*32) i0_upper_flush_e4_ff (.*,
-                                    .en  ( i0_e4_ctl_en | i1_e4_ctl_en),
-                                    .din ({i0_flush_path_upper_e3[31:1],
-                                           pred_correct_npc_e3,
-                                           i0_flush_upper_e3}),
-                                    .dout({i0_flush_path_upper_e4[31:1],
-                                           pred_correct_npc_e4,
-                                           i0_flush_upper_e4}));
 
-   rvdffe #(32) i1_upper_flush_e4_ff (.*,
-                                    .en  ( i1_e4_ctl_en),
-                                    .din ({i1_valid_e3,
-                                           i1_flush_path_upper_e3[31:1]}),
-                                    .dout({i1_valid_e4,
-                                           i1_flush_path_upper_e4[31:1]}));
+
+   rvdffpcie #(31) i0_upper_flush_e2_ff  (.*, .clk(clk),
+                                    .en  ( i0_e2_data_en                ),
+                                    .din ( i0_flush_path_e1[31:1]       ),
+                                    .dout( i0_flush_path_upper_e2[31:1] ));
+
+   rvdffpcie #(31) i0_upper_flush_e3_ff  (.*, .clk(clk),
+                                    .en  ( i0_e3_data_en                ),
+                                    .din ( i0_flush_path_upper_e2[31:1] ),
+                                    .dout( i0_flush_path_upper_e3[31:1] ));
+
+   rvdffpcie #(31) i0_upper_flush_e4_ff  (.*, .clk(clk),
+                                    .en  ( i0_e4_data_en                ),
+                                    .din ( i0_flush_path_upper_e3[31:1] ),
+                                    .dout( i0_flush_path_upper_e4[31:1] ));
+
+
+   rvdffpcie #(31) i1_upper_flush_e2_ff  (.*, .clk(clk),
+                                    .en  ( i1_e2_data_en                ),
+                                    .din ( i1_flush_path_e1[31:1]       ),
+                                    .dout( i1_flush_path_upper_e2[31:1] ));
+
+   rvdffpcie #(31) i1_upper_flush_e3_ff  (.*, .clk(clk                  ),
+                                    .en  ( i1_e3_data_en                ),
+                                    .din ( i1_flush_path_upper_e2[31:1] ),
+                                    .dout( i1_flush_path_upper_e3[31:1] ));
+
+   rvdffpcie #(31) i1_upper_flush_e4_ff  (.*, .clk(clk),
+                                    .en  ( i1_e4_data_en                ),
+                                    .din ( i1_flush_path_upper_e3[31:1] ),
+                                    .dout( i1_flush_path_upper_e4[31:1] ));
 
 
    // npc for commit
-
-   rvdff #(2) pred_correct_upper_e2_ff  (.*,
-                                         .clk ( active_clk),
-                                         .din ({i1_pred_correct_upper_e1,i0_pred_correct_upper_e1}),
-                                         .dout({i1_pred_correct_upper_e2,i0_pred_correct_upper_e2}));
-
-   rvdff #(2) pred_correct_upper_e3_ff  (.*,
-                                         .clk ( active_clk),
-                                         .din ({i1_pred_correct_upper_e2,i0_pred_correct_upper_e2}),
-                                         .dout({i1_pred_correct_upper_e3,i0_pred_correct_upper_e3}));
-
-   rvdff #(2) pred_correct_upper_e4_ff  (.*,
-                                         .clk ( active_clk),
-                                         .din ({i1_pred_correct_upper_e3,i0_pred_correct_upper_e3}),
-                                         .dout({i1_pred_correct_upper_e4,i0_pred_correct_upper_e4}));
-
-   rvdff #(2) sec_decode_e4_ff          (.*,
-                                         .clk ( active_clk),
-                                         .din ({dec_i0_sec_decode_e3,dec_i1_sec_decode_e3}),
-                                         .dout({i0_sec_decode_e4,i1_sec_decode_e4}));
-
+   rvdffie #(13) i_misc_ff              (.*, .clk (clk),
+                                         .din ({i1_pred_correct_upper_e1,i0_pred_correct_upper_e1,
+                                                i1_pred_correct_upper_e2,i0_pred_correct_upper_e2,
+                                                i1_pred_correct_upper_e3,i0_pred_correct_upper_e3,
+                                                dec_i0_alu_decode_d     , dec_i1_alu_decode_d,
+                                                dec_i1_valid_e1,          i1_valid_e2             , i1_valid_e3,
+                                                dec_i0_sec_decode_e3    , dec_i1_sec_decode_e3    }),
+                                         .dout({i1_pred_correct_upper_e2,i0_pred_correct_upper_e2,
+                                                i1_pred_correct_upper_e3,i0_pred_correct_upper_e3,
+                                                i1_pred_correct_upper_e4,i0_pred_correct_upper_e4,
+                                                dec_i0_alu_decode_e1    , dec_i1_alu_decode_e1,
+                                                i1_valid_e2             , i1_valid_e3             , i1_valid_e4,
+                                                i0_sec_decode_e4        , i1_sec_decode_e4        }));
 
 
    assign i1_pred_correct_e4_eff     = (i1_sec_decode_e4) ? i1_pred_correct_lower_e4 : i1_pred_correct_upper_e4;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0]        dec_tlu_lr_reset_wb,
    input logic [pt.NUM_THREADS-1:0]        dec_tlu_force_halt,
 
-   // chicken signals
    input logic                             dec_tlu_external_ldfwd_disable,     // disable load to load forwarding for externals
    input logic                             dec_tlu_wb_coalescing_disable,      // disable the write buffer coalesce
    input logic                             dec_tlu_sideeffect_posted_disable,  // disable posted writes to sideeffect addr to the bus
@@ -65,6 +64,7 @@ import eh2_pkg::*;
    output logic [pt.NUM_THREADS-1:0]       lsu_load_stall_any,  // This is for blocking loads in the decode
    output logic [pt.NUM_THREADS-1:0]       lsu_amo_stall_any,   // This is for blocking amo in the decode
    output logic [pt.NUM_THREADS-1:0]       lsu_idle_any,        // This is used to enter halt mode. Exclude DMA
+   output logic                            lsu_active,          // Used for clock gating
 
    output logic [31:1]                     lsu_fir_addr,        // fast interrupt address
    output logic [1:0]                      lsu_fir_error,       // Error during fast interrupt lookup
@@ -193,7 +193,9 @@ import eh2_pkg::*;
    input logic                             clk_override,        // Disable clock gating
    input logic                             scan_mode,           // scan
    input logic                             clk,
+   input logic                             active_clk,
    input logic                             free_clk,
+   input logic [pt.NUM_THREADS-1:0]        active_thread_l2clk, // Per thread l2 clock
    input logic                             rst_l
 
    );
@@ -237,6 +239,7 @@ import eh2_pkg::*;
    logic [31:0] lsu_addr_dc2, lsu_addr_dc3, lsu_addr_dc4, lsu_addr_dc5;
    logic [31:0] end_addr_dc1, end_addr_dc2, end_addr_dc3, end_addr_dc4, end_addr_dc5;
    logic        core_ldst_dual_dc1;
+   logic        ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5;
 
 
    eh2_lsu_pkt_t  lsu_pkt_dc1_pre, lsu_pkt_dc1, lsu_pkt_dc2, lsu_pkt_dc3, lsu_pkt_dc4, lsu_pkt_dc5;
@@ -269,15 +272,15 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]  lsu_stbuf_full_any;
 
     // Bus signals
-   logic        lsu_busreq_dc5;
-   logic        lsu_busreq_dc1;
+   logic        lsu_busreq_dc1, lsu_busreq_dc2, lsu_busreq_dc3, lsu_busreq_dc4, lsu_busreq_dc5;
    logic [pt.NUM_THREADS-1:0]  lsu_bus_idle_any;
    logic [pt.NUM_THREADS-1:0]  lsu_bus_buffer_pend_any;
    logic [pt.NUM_THREADS-1:0]  lsu_bus_buffer_empty_any;
    logic [pt.NUM_THREADS-1:0]  lsu_bus_buffer_full_any;
+   logic [pt.NUM_THREADS-1:0]  dec_tlu_force_halt_bus;           // Bus synchronized version of force halt
    logic [31:0] bus_read_data_dc3;
 
-   logic [pt.NUM_THREADS-1:0]  flush_dc2_up, flush_dc3, flush_dc4, flush_dc5;// flush_prior_dc5;
+   logic [pt.NUM_THREADS-1:0]  flush_dc2_up, flush_dc3, flush_dc4, flush_dc5;
    logic        is_sideeffects_dc2, is_sideeffects_dc3;
    logic        ldst_nodma_dc2todc5;
    logic        dma_dccm_wen, dma_dccm_spec_wen, dma_pic_wen;
@@ -286,8 +289,11 @@ import eh2_pkg::*;
    logic [31:0] dma_dccm_wdata_hi, dma_dccm_wdata_lo;
 
    // Clocks
+   logic        lsu_busm_clken;
+   logic [pt.NUM_THREADS-1:0] lsu_bus_obuf_c1_clken;
    logic        lsu_c1_dc1_clk, lsu_c1_dc2_clk, lsu_c1_dc3_clk, lsu_c1_dc4_clk, lsu_c1_dc5_clk;
    logic        lsu_c2_dc1_clk, lsu_c2_dc2_clk, lsu_c2_dc3_clk, lsu_c2_dc4_clk, lsu_c2_dc5_clk;
+   logic        lsu_c1_dc1_clken, lsu_c1_dc2_clken, lsu_c1_dc3_clken, lsu_c1_dc4_clken, lsu_c1_dc5_clken;
 
    logic        lsu_store_c1_dc1_clk, lsu_store_c1_dc2_clk, lsu_store_c1_dc3_clk;
    logic        lsu_dccm_c1_dc3_clk, lsu_pic_c1_dc3_clk;
@@ -315,8 +321,8 @@ import eh2_pkg::*;
    assign dma_mem_tag_dc1[2:0] = dma_mem_tag[2:0];
 
    assign dma_pic_wen  = dma_dccm_req & dma_mem_write & ~dma_mem_addr_in_dccm;
-   assign dma_dccm_wen = dma_dccm_req & dma_mem_write & dma_mem_addr_in_dccm;
-   assign dma_dccm_spec_wen = dma_dccm_spec_req & dma_mem_write;
+   assign dma_dccm_wen = dma_dccm_req & dma_mem_write & dma_mem_addr_in_dccm & dma_mem_sz[1];
+   assign dma_dccm_spec_wen = dma_dccm_spec_req & dma_mem_write & dma_mem_sz[1];
    assign dma_start_addr_dc1[31:0] = dma_mem_addr[31:0];
    assign dma_end_addr_dc1[31:3]   = dma_mem_addr[31:3];
    assign dma_end_addr_dc1[2:0]    = (dma_mem_sz[2:0] == 3'b11) ? 3'b100 : dma_mem_addr[2:0];
@@ -331,6 +337,12 @@ import eh2_pkg::*;
    end
 
    assign lsu_fastint_stall_any = ld_single_ecc_error_dc3;
+
+   // Dual ld-st
+   assign ldst_dual_dc2          = (lsu_addr_dc2[2] != end_addr_dc2[2]);
+   assign ldst_dual_dc3          = (lsu_addr_dc3[2] != end_addr_dc3[2]);
+   assign ldst_dual_dc4          = (lsu_addr_dc4[2] != end_addr_dc4[2]);
+   assign ldst_dual_dc5          = (lsu_addr_dc5[2] != end_addr_dc5[2]);
 
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin: GenThreadLoop
       // block stores in decode  - for either bus or stbuf reasons
@@ -359,12 +371,21 @@ import eh2_pkg::*;
                                  lsu_bus_idle_any[i] & lsu_bus_buffer_empty_any[i];
    end
 
-   assign       lsu_raw_fwd_lo_dc3 = (|stbuf_fwdbyteen_lo_dc3[pt.DCCM_BYTE_WIDTH-1:0]);
-   assign       lsu_raw_fwd_hi_dc3 = (|stbuf_fwdbyteen_hi_dc3[pt.DCCM_BYTE_WIDTH-1:0]);
+   assign  lsu_active = (lsu_pkt_dc1.valid | lsu_pkt_dc2.valid | lsu_pkt_dc3.valid | lsu_pkt_dc4.valid | lsu_pkt_dc5.valid) |
+                        ~(&lsu_bus_idle_any[pt.NUM_THREADS-1:0]) | ~(&lsu_bus_buffer_empty_any[pt.NUM_THREADS-1:0]) |
+                        ld_single_ecc_error_dc5_ff;
+
+   assign  lsu_raw_fwd_lo_dc3 = (|stbuf_fwdbyteen_lo_dc3[pt.DCCM_BYTE_WIDTH-1:0]);
+   assign  lsu_raw_fwd_hi_dc3 = (|stbuf_fwdbyteen_hi_dc3[pt.DCCM_BYTE_WIDTH-1:0]);
+
+   assign store_data_dc3[31:0] = (picm_mask_data_dc3[31:0] | {32{~addr_in_pic_dc3}}) &
+                                 ((lsu_pkt_dc3.store_data_bypass_e4_c3[1]) ? i1_result_e4_eff[31:0] :
+                                  (lsu_pkt_dc3.store_data_bypass_e4_c3[0]) ? i0_result_e4_eff[31:0] : store_data_pre_dc3[31:0]);
 
    // Instantiate the store buffer
-   assign store_stbuf_reqvld_dc5 = lsu_pkt_dc5.valid & (lsu_pkt_dc5.store | (lsu_pkt_dc5.atomic & ~lsu_pkt_dc5.lr)) &
-                                   (~lsu_pkt_dc5.sc | lsu_sc_success_dc5 | (lsu_single_ecc_error_dc5 & ~lsu_raw_fwd_lo_dc5)) & addr_in_dccm_dc5 & lsu_commit_dc5;
+   assign store_stbuf_reqvld_dc5 = lsu_pkt_dc5.valid & (~lsu_pkt_dc5.sc | lsu_sc_success_dc5 | (lsu_single_ecc_error_dc5 & ~lsu_raw_fwd_lo_dc5)) & addr_in_dccm_dc5 &
+                                   (((lsu_pkt_dc5.store | (lsu_pkt_dc5.atomic & ~lsu_pkt_dc5.lr)) & lsu_commit_dc5) |
+                                    (lsu_pkt_dc5.dma & lsu_pkt_dc5.store & (lsu_pkt_dc5.by | lsu_pkt_dc5.half) & ~lsu_double_ecc_error_dc5));
 
    // Disable Forwarding for now
    assign lsu_cmpen_dc2 = lsu_pkt_dc2.valid & (lsu_pkt_dc2.load | lsu_pkt_dc2.store | lsu_pkt_dc1.atomic) & (addr_in_dccm_dc2 | addr_in_pic_dc2);
@@ -379,7 +400,12 @@ import eh2_pkg::*;
       assign lsu_pmu_store_external_dc3[i] = lsu_pkt_dc3.valid & ~lsu_pkt_dc3.dma & lsu_pkt_dc3.store & addr_external_dc3 & (i == lsu_pkt_dc3.tid);
    end
 
-   eh2_lsu_amo #(.pt(pt))  lsu_amo (.*);
+   if (pt.ATOMIC_ENABLE == 1) begin: GenAMO
+      eh2_lsu_amo #(.pt(pt))  lsu_amo (.*);
+   end
+   else begin: GenNoAMO
+      assign amo_data_dc3[31:0] = '0;
+   end
 
    eh2_lsu_dccm_ctl #(.pt(pt)) dccm_ctl (
       .lsu_addr_dc1(lsu_addr_dc1[31:0]),
@@ -418,7 +444,23 @@ import eh2_pkg::*;
    eh2_lsu_clkdomain #(.pt(pt)) clkdomain (.*);
 
    // Bus interface
-   eh2_lsu_bus_intf #(.pt(pt)) bus_intf (.*);
+   eh2_lsu_bus_intf #(.pt(pt)) bus_intf (
+      .lsu_addr_dc2(lsu_addr_dc2[31:0] & {32{lsu_busreq_dc2}}),
+      .lsu_addr_dc3(lsu_addr_dc3[31:0] & {32{lsu_busreq_dc3}}),
+      .lsu_addr_dc4(lsu_addr_dc4[31:0] & {32{lsu_busreq_dc4}}),
+      .lsu_addr_dc5(lsu_addr_dc5[31:0] & {32{lsu_busreq_dc5}}),
+
+      .end_addr_dc2(end_addr_dc2[31:0] & {32{lsu_busreq_dc2}}),
+      .end_addr_dc3(end_addr_dc3[31:0] & {32{lsu_busreq_dc3}}),
+      .end_addr_dc4(end_addr_dc4[31:0] & {32{lsu_busreq_dc4}}),
+      .end_addr_dc5(end_addr_dc5[31:0] & {32{lsu_busreq_dc5}}),
+
+      .store_data_ext_dc3(store_data_ext_dc3[63:0] & {64{lsu_busreq_dc3}}),
+      .store_data_ext_dc4(store_data_ext_dc4[63:0] & {64{lsu_busreq_dc4}}),
+      .store_data_ext_dc5(store_data_ext_dc5[63:0] & {64{lsu_busreq_dc5}}),
+
+      .*
+   );
 
    //Flops
    rvdff #(1) single_ecc_err_hidc4  (.*, .din(single_ecc_error_hi_dc3),     .dout(single_ecc_error_hi_dc4), .clk(lsu_c2_dc4_clk));
@@ -432,7 +474,7 @@ import eh2_pkg::*;
    rvdff #(2) lsu_raw_fwd_dc4_ff    (.*, .din({lsu_raw_fwd_hi_dc3, lsu_raw_fwd_lo_dc3}),     .dout({lsu_raw_fwd_hi_dc4, lsu_raw_fwd_lo_dc4}),     .clk(lsu_c2_dc4_clk));
    rvdff #(2) lsu_raw_fwd_dc5_ff    (.*, .din({lsu_raw_fwd_hi_dc4, lsu_raw_fwd_lo_dc4}),     .dout({lsu_raw_fwd_hi_dc5, lsu_raw_fwd_lo_dc5}),     .clk(lsu_c2_dc5_clk));
 
-`ifdef ASSERT_ON
+`ifdef RV_ASSERT_ON
    logic [8:0] store_data_bypass_sel;
    assign store_data_bypass_sel[8:0] =  {lsu_p.store_data_bypass_c1,
                                          lsu_p.store_data_bypass_c2,
@@ -442,7 +484,6 @@ import eh2_pkg::*;
                                          lsu_p.store_data_bypass_e4_c3[1:0]} & {9{lsu_p.valid}};
    assert_store_data_bypass_onehot: assert #0 ($onehot0(store_data_bypass_sel[8:0]));
 
-   //assert_no_exceptions: assert #0 (lsu_exc_pkt_dc3.exc_valid == 1'b0);
    property exception_no_lsu_flush;
       logic    tid;
       @(posedge clk)  disable iff(~rst_l) (lsu_error_pkt_dc3.exc_valid, tid = lsu_pkt_dc3.tid) |-> ##[1:2] (flush_dc4[tid] | flush_dc5[tid]);

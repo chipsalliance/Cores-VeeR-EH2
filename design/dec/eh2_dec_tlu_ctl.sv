@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2019 Western Digital Corporation or it's affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,11 +30,13 @@ import eh2_pkg::*;
 )
   (
    input logic clk,
-   input logic active_clk,
    input logic free_clk,
+   input logic active_clk,
+   input logic free_l2clk,
    input logic rst_l,
    input logic scan_mode,
    input logic mytid, // tid of this instance
+
 
    input logic tlu_select_tid, // selected tid for fast int
 
@@ -93,6 +95,8 @@ import eh2_pkg::*;
    input logic mice_ce_req,
    input logic miccme_ce_req,
    input logic mdccme_ce_req,
+
+   input logic dec_tlu_trace_disable,
 
    input logic [5:0] mfdht, // halt timeout threshold
 
@@ -185,6 +189,8 @@ import eh2_pkg::*;
    output logic dec_tlu_force_halt, // halt has been forced
    // Debug end
 
+   output logic dec_tlu_core_empty,
+
    output logic dec_tlu_flush_extint, // fast ext int started
    output logic [31:2] dec_tlu_meihap, // meihap for fast int
 
@@ -207,7 +213,10 @@ import eh2_pkg::*;
    output logic tlu_i1_kill_writeb_wb,    // I1 is flushed, don't writeback any results to arch state
 
    output logic dec_tlu_flush_lower_wb,       // commit has a flush (exception, int, mispredict at e4)
+   output logic dec_tlu_flush_mp_wb,          // flush is due to e4 mp
    output logic [31:1] dec_tlu_flush_path_wb, // flush pc
+
+   output logic dec_tlu_flush_lower_wb1,
    output logic dec_tlu_fence_i_wb,           // flush is a fence_i rfnpc, flush icache
 
    output logic tlu_i0_commit_cmt,        // goes to IFU for commit 1 instruction in the FSM
@@ -216,7 +225,6 @@ import eh2_pkg::*;
    output logic tlu_flush_pause_wb,        // Flush is due to pause
 
    output logic tlu_lr_reset_wb, // Reset the reservation on certain events
-
 
    output logic tlu_i0_valid_wb1,  // pipe 0 valid
    output logic tlu_i1_valid_wb1,  // pipe 1 valid
@@ -232,6 +240,8 @@ import eh2_pkg::*;
    output logic [1:0] tlu_perfcnt2, // toggles when pipe0 perf counter 2 has an event inc
    output logic [1:0] tlu_perfcnt3, // toggles when pipe0 perf counter 3 has an event inc
 
+   output logic tlu_btb_write_kill, // kill writes until forward progress is made
+
    output logic ic_perr_wb,
    output logic iccm_sbecc_wb,
    output logic allow_dbg_halt_csr_write,
@@ -239,11 +249,11 @@ import eh2_pkg::*;
    )
 ;
 
-   logic         clk_override, e4e5_int_clk, nmi_lsu_load_type, nmi_lsu_store_type, nmi_int_detected_f, nmi_lsu_load_type_f,
-                 nmi_lsu_store_type_f, dbg_cmd_done_ns, i_cpu_run_req_d1_raw, debug_mode_status,
+   logic         clk_override, e4e5_int_clk, nmi_fir_type, nmi_lsu_load_type, nmi_lsu_store_type, nmi_int_detected_f, nmi_lsu_load_type_f,
+                 nmi_fir_type_f, nmi_lsu_store_type_f, dbg_cmd_done_ns, i_cpu_run_req_d1_raw, debug_mode_status,
                  i0_mp_e4, i1_mp_e4, sel_npc_e4, sel_npc_wb, ce_int, mtval_capture_lsu_wb, wr_mdeau_wb,
                  nmi_in_debug_mode, dpc_capture_npc, dpc_capture_pc, tdata_load, tdata_opcode, tdata_action, perfcnt_halted,
-                 tlu_i0_valid_e4, tlu_i1_valid_e4;
+                 tlu_i0_valid_e4, tlu_i1_valid_e4, tdata_chain, tdata_kill_write;
 
    eh2_trap_pkt_t  tlu_packet_e4;
    eh2_lsu_error_pkt_t lsu_error_pkt_e4, lsu_error_pkt_dc4;
@@ -299,7 +309,7 @@ import eh2_pkg::*;
    logic [31:0] mtval_ns, mtval;
    logic       mret_wb;
    logic dec_pause_state_f, tlu_wr_pause_wb_f, pause_expired_e4, pause_expired_wb;
-   logic       tlu_flush_lower_e4, tlu_flush_lower_wb;
+   logic       tlu_flush_lower_e4, tlu_flush_lower_wb, tlu_flush_lower_wb1, tlu_flush_mp_e4;
    logic [31:1] tlu_flush_path_e4, tlu_flush_path_wb;
    logic i0_valid_wb, i1_valid_wb;
    logic [5:1] vectored_cause;
@@ -317,11 +327,11 @@ import eh2_pkg::*;
    logic synchronous_flush_e4;
    logic [4:0] exc_cause_e4, exc_cause_wb;
    logic [1:0] lsu_fir_error_d1;
-   logic        mcyclel_cout, mcyclel_cout_f;
+   logic        mcyclel_cout, mcyclel_cout_f, mcyclela_cout;
    logic [31:0] mcyclel_inc;
    logic        mcycleh_cout_nc;
    logic [31:0] mcycleh_inc;
-   logic        minstretl_cout, minstretl_cout_f, minstret_enable;
+   logic        minstretl_cout, minstretl_cout_f, minstret_enable, minstretl_couta, minstretl_cout_ns;
    logic [31:0] minstretl_inc, minstretl_read;
    logic        minstreth_cout_nc;
    logic [31:0] minstreth_inc, minstreth_read;
@@ -338,7 +348,7 @@ import eh2_pkg::*;
 
     logic take_halt, halt_taken, halt_taken_f, internal_dbg_halt_mode, dbg_tlu_halted_f, take_reset,
          dbg_tlu_halted, core_empty, lsu_idle_any_f, ifu_miss_state_idle_f, resume_ack_ns,
-         debug_halt_req_f, debug_resume_req_f, enter_debug_halt_req, dcsr_single_step_done, dcsr_single_step_done_f,
+         debug_halt_req_f, debug_resume_req_f_raw, debug_resume_req_f, enter_debug_halt_req, dcsr_single_step_done, dcsr_single_step_done_f,
          debug_halt_req_d1, debug_halt_req_ns, dcsr_single_step_running, dcsr_single_step_running_f, internal_dbg_halt_timers;
 
  logic [3:0] i0_trigger_e4, i1_trigger_e4, trigger_action, trigger_enabled,
@@ -346,7 +356,7 @@ import eh2_pkg::*;
    logic [2:0] trigger_chain;
    logic       i0_trigger_hit_e4, i0_trigger_hit_raw_e4, i0_trigger_action_e4,
                trigger_hit_e4, trigger_hit_wb, i0_trigger_hit_wb,
-               mepc_trigger_hit_sel_pc_e4,
+               mepc_trigger_hit_sel_pc_e4, i0_trigger_set_hit_e4, i1_trigger_set_hit_e4,
                mepc_trigger_hit_sel_pc_wb;
    logic       i1_trigger_hit_e4, i1_trigger_hit_raw_e4, i1_trigger_action_e4;
    logic [3:0] update_hit_bit_e4, update_hit_bit_wb, i0_iside_trigger_has_pri_e4, i1_iside_trigger_has_pri_e4,
@@ -366,6 +376,7 @@ import eh2_pkg::*;
    logic       dec_timer_t0_pulse, dec_timer_t1_pulse;
    logic dec_tlu_pmu_fw_halted;
 
+   // new from lx2, review
    logic mpc_run_state_ns, debug_brkpt_status_ns, mpc_debug_halt_ack_ns, mpc_debug_run_ack_ns, dbg_halt_state_ns, dbg_run_state_ns,
          dbg_halt_state_f, mpc_debug_halt_req_sync_f, mpc_debug_run_req_sync_f, mpc_halt_state_f, mpc_halt_state_ns, mpc_run_state_f, debug_brkpt_status_f,
          mpc_debug_halt_ack_f, mpc_debug_run_ack_f, dbg_run_state_f, mpc_debug_halt_req_sync_pulse,
@@ -386,13 +397,15 @@ import eh2_pkg::*;
    logic            mhpmc4h_wr_en0, mhpmc4h_wr_en;
    logic            mhpmc5h_wr_en0, mhpmc5h_wr_en;
    logic            mhpmc6h_wr_en0, mhpmc6h_wr_en;
-   logic            tlu_commit_lsu_op_e4;
+   logic            tlu_commit_lsu_op_e4, zero_event_wb;
    logic [63:0]     mhpmc3_incr, mhpmc4_incr, mhpmc5_incr, mhpmc6_incr;
-   logic trace_tclk;
-   logic [9:0] event_saturate_wb;
+   logic [9:0] event_wb;
    logic [3:0] perfcnt_during_sleep;
 
    logic icache_rd_valid, icache_wr_valid, icache_rd_valid_f, icache_wr_valid_f;
+
+   logic [4:0] tlu_exc_cause_wb1_raw, tlu_exc_cause_wb2;
+   logic tlu_int_valid_wb2;
 
 if (pt.ICACHE_ECC == 1) begin
    logic [3:0] dicad1_raw, dicad1_ns;
@@ -418,6 +431,10 @@ end
    logic csr_wr_clk;
    logic timer_int_sync, soft_int_sync, i_cpu_halt_req_sync, i_cpu_run_req_sync, mpc_debug_halt_req_sync, mpc_debug_run_req_sync, mpc_debug_halt_req_sync_raw;
    logic take_halt_f, ifu_ic_error_start_d1, ifu_iccm_rd_ecc_single_err_d1, sel_fir_addr, sel_hold_npc_e4, tlu_dcsr_ss;
+   logic tlu_int_valid_wb1_raw;
+   logic dbg_halt_req_no_start, dbg_halt_req_no_start_f;
+
+   logic tlu_btb_write_kill_ns;
 
      eh2_dec_timer_ctl #(.pt(pt)) int_timers(.*);
    // end of internal timers
@@ -440,7 +457,7 @@ end
          tlu_packet_e4.i0legal = 'b0;
          tlu_packet_e4.i0icaf = 'b0;
          tlu_packet_e4.i0icaf_type = 'b0;
-         tlu_packet_e4.i0icaf_f1 = 'b0;
+         tlu_packet_e4.i0icaf_second = 'b0;
          tlu_packet_e4.i0fence_i = 'b0;
          tlu_packet_e4.i0trigger = 'b0;
          tlu_packet_e4.pmu_i0_br_unpred = '0;
@@ -482,55 +499,60 @@ end
 
    assign e4_valid = tlu_i0_valid_e4 | tlu_i1_valid_e4;
    assign e4e5_valid = e4_valid | e5_valid;
-   rvoclkhdr e4e5_int_cgc ( .en(e4e5_valid | internal_dbg_halt_mode_f | i_cpu_run_req_d1 | interrupt_valid | interrupt_valid_wb |
+
+   rvoclkhdr e4e5_int_cgc ( .clk(free_l2clk), .en(e4e5_valid | internal_dbg_halt_mode_f | i_cpu_run_req_d1 | interrupt_valid | interrupt_valid_wb |
                                reset_allowed | pause_expired_e4 | pause_expired_wb | iccm_sbecc_e4 | iccm_sbecc_wb | ic_perr_e4 |
                                ic_perr_wb |clk_override), .l1clk(e4e5_int_clk), .* );
 
-   rvdff #(12)  freeff (.*,   .clk(free_clk),
-                       .din ({internal_dbg_halt_mode_f2,internal_dbg_halt_mode_f, force_halt,
-                              dec_tlu_packet_e4.i0tid, iccm_repair_state_ns, e4_valid, internal_dbg_halt_mode,
-                              tlu_flush_lower_e4, tlu_i0_kill_writeb_e4, tlu_i1_kill_writeb_e4,
-                              lsu_pmu_load_external_dc3, lsu_pmu_store_external_dc3}),
-                       .dout({internal_dbg_halt_mode_f3, internal_dbg_halt_mode_f2, dec_tlu_force_halt,
-                              i0tid_wb, iccm_repair_state_d1, e5_valid, internal_dbg_halt_mode_f,
-                              tlu_flush_lower_wb, tlu_i0_kill_writeb_wb, tlu_i1_kill_writeb_wb,
-                              lsu_pmu_load_external_dc4, lsu_pmu_store_external_dc4}));
+   rvdffie #(23)  bundle_freeff (.*,   .clk(free_l2clk),
+                                 .din ({nmi_int_sync, nmi_int_detected, nmi_fir_type, nmi_lsu_load_type, nmi_lsu_store_type,
+                                        1'b1, reset_detect, reset_delayed,
+                                        ifu_ic_error_start, ifu_iccm_rd_ecc_single_err, mdseac_locked_ns,
+                                        internal_dbg_halt_mode_f2, internal_dbg_halt_mode_f, force_halt,
+                                        iccm_repair_state_ns, internal_dbg_halt_mode,
+                                        tlu_flush_lower_e4, tlu_flush_lower_wb, tlu_flush_mp_e4, tlu_i0_kill_writeb_e4, tlu_i1_kill_writeb_e4,
+                                        lsu_pmu_load_external_dc3, lsu_pmu_store_external_dc3}),
+                                 .dout({nmi_int_delayed, nmi_int_detected_f, nmi_fir_type_f, nmi_lsu_load_type_f, nmi_lsu_store_type_f,
+                                        reset_detect, reset_detected, reset_delayed_f,
+                                        ifu_ic_error_start_d1, ifu_iccm_rd_ecc_single_err_d1, mdseac_locked_f,
+                                        internal_dbg_halt_mode_f3, internal_dbg_halt_mode_f2, dec_tlu_force_halt,
+                                        iccm_repair_state_d1, internal_dbg_halt_mode_f,
+                                        tlu_flush_lower_wb, tlu_flush_lower_wb1, dec_tlu_flush_mp_wb, tlu_i0_kill_writeb_wb, tlu_i1_kill_writeb_wb,
+                                        lsu_pmu_load_external_dc4, lsu_pmu_store_external_dc4}));
 
+   rvdff #(2) free_ff (.*, .clk(active_clk), .din({dec_tlu_packet_e4.i0tid, e4_valid }), .dout({i0tid_wb, e5_valid }));
 
-   rvdff #(3) reset_ff (.*, .clk(free_clk), .din({1'b1, reset_detect, reset_delayed}), .dout({reset_detect, reset_detected, reset_delayed_f}));
    assign reset_delayed = (reset_detect ^ reset_detected) | (reset_delayed_f & ~dec_tlu_flush_lower_wb);
    assign reset_allowed = reset_delayed & mhartstart_csr;
 
-   rvdff #(4) nmi_ff (.*, .clk(free_clk), .din({nmi_int_sync, nmi_int_detected, nmi_lsu_load_type, nmi_lsu_store_type}),
-                                         .dout({nmi_int_delayed, nmi_int_detected_f, nmi_lsu_load_type_f, nmi_lsu_store_type_f}));
-
    // Filter subsequent bus errors after the first, until the lock on MDSEAC is cleared
-   assign nmi_lsu_detected = ~mdseac_locked_f & (lsu_imprecise_error_load_any | lsu_imprecise_error_store_any);
+   assign nmi_lsu_detected = ~mdseac_locked_f & (lsu_imprecise_error_load_any | lsu_imprecise_error_store_any) & ~nmi_fir_type;
 
-   assign nmi_int_detected = (nmi_int_sync & ~nmi_int_delayed) | nmi_lsu_detected | (nmi_int_detected_f & ~take_nmi_wb) | (take_ext_int_start_d6 & |lsu_fir_error[1:0]);
+   assign nmi_int_detected = (nmi_int_sync & ~nmi_int_delayed) | nmi_lsu_detected | (nmi_int_detected_f & ~take_nmi_wb) | nmi_fir_type;
    // if the first nmi is a lsu type, note it. If there's already an nmi pending, ignore
    assign nmi_lsu_load_type = (nmi_lsu_detected & lsu_imprecise_error_load_any & ~(nmi_int_detected_f & ~take_nmi_wb)) | (nmi_lsu_load_type_f & ~take_nmi_wb);
    assign nmi_lsu_store_type = (nmi_lsu_detected & lsu_imprecise_error_store_any & ~(nmi_int_detected_f & ~take_nmi_wb)) | (nmi_lsu_store_type_f & ~take_nmi_wb);
+   assign nmi_fir_type = (take_ext_int_start_d6 & |lsu_fir_error[1:0]) & ~nmi_int_detected_f;
 
-`define MSTATUS_MIE 0
-`define MIP_MCEIP 5
-`define MIP_MITIP0 4
-`define MIP_MITIP1 3
-`define MIP_MEIP 2
-`define MIP_MTIP 1
-`define MIP_MSIP 0
+localparam MSTATUS_MIE   = 0;
+localparam MIP_MCEIP     = 5;
+localparam MIP_MITIP0    = 4;
+localparam MIP_MITIP1    = 3;
+localparam MIP_MEIP      = 2;
+localparam MIP_MTIP      = 1;
+localparam MIP_MSIP      = 0;
 
-`define MIE_MCEIE 5
-`define MIE_MITIE0 4
-`define MIE_MITIE1 3
-`define MIE_MEIE 2
-`define MIE_MTIE 1
-`define MIE_MSIE 0
+localparam MIE_MCEIE     = 5;
+localparam MIE_MITIE0    = 4;
+localparam MIE_MITIE1    = 3;
+localparam MIE_MEIE      = 2;
+localparam MIE_MTIE      = 1;
+localparam MIE_MSIE      = 0;
 
-`define DCSR_EBREAKM 15
-`define DCSR_STEPIE 11
-`define DCSR_STOPC 10
-`define DCSR_STEP 2
+localparam DCSR_EBREAKM  = 15;
+localparam DCSR_STEPIE   = 11;
+localparam DCSR_STOPC    = 10;
+localparam DCSR_STEP     = 2;
    // ----------------------------------------------------------------------
    // MPC halt
    // - can interact with debugger halt and v-v
@@ -538,13 +560,18 @@ end
    // fast ints in progress have priority
    assign mpc_debug_halt_req_sync = mpc_debug_halt_req_sync_raw & ~ext_int_freeze_d1;
 
-    rvdff #(10)  mpvhalt_ff (.*, .clk(free_clk),
-                                 .din({mpc_debug_halt_req_sync, mpc_debug_run_req_sync & debug_mode_status,
+   //hold dbg request when hart isn't started
+   assign dbg_halt_req_no_start = (dbg_halt_req | dbg_halt_req_no_start_f) & ~mhartstart_csr;
+
+    rvdffie #(11)  mpvhalt_ff (.*, .clk(free_l2clk),
+                                 .din({dbg_halt_req_no_start,
+                                       mpc_debug_halt_req_sync, mpc_debug_run_req_sync & debug_mode_status,
                                        mpc_halt_state_ns, mpc_run_state_ns, debug_brkpt_status_ns,
                                        mpc_debug_halt_ack_ns, mpc_debug_run_ack_ns,
                                        dbg_halt_state_ns, dbg_run_state_ns,
                                        dec_tlu_mpc_halted_only_ns}),
-                                .dout({mpc_debug_halt_req_sync_f, mpc_debug_run_req_sync_f,
+                                .dout({dbg_halt_req_no_start_f,
+                                       mpc_debug_halt_req_sync_f, mpc_debug_run_req_sync_f,
                                        mpc_halt_state_f, mpc_run_state_f, debug_brkpt_status_f,
                                        mpc_debug_halt_ack_f, mpc_debug_run_ack_f,
                                        dbg_halt_state_f, dbg_run_state_f,
@@ -558,6 +585,9 @@ end
    assign mpc_halt_state_ns = (mpc_halt_state_f | mpc_debug_halt_req_sync_pulse | (reset_allowed & ~mpc_reset_run_req)) & ~mpc_debug_run_req_sync;
    assign mpc_run_state_ns = (mpc_run_state_f | (mpc_debug_run_req_sync_pulse & ~mpc_debug_run_ack_f)) & (internal_dbg_halt_mode_f & ~dcsr_single_step_running_f);
 
+   // note, MPC halt can allow the jtag debugger to just start sending commands. When that happens, set the interal debugger halt state to prevent
+   // MPC run from starting the core.
+
    assign dbg_halt_state_ns = (dbg_halt_state_f | (dbg_halt_req_final | dcsr_single_step_done_f | trigger_hit_dmode_wb | ebreak_to_debug_mode_wb)) & ~dbg_resume_req;
    assign dbg_run_state_ns = (dbg_run_state_f | dbg_resume_req) & (internal_dbg_halt_mode_f & ~dcsr_single_step_running_f);
 
@@ -569,8 +599,8 @@ end
    assign debug_brkpt_status_ns = (debug_brkpt_valid | debug_brkpt_status_f) & (internal_dbg_halt_mode & ~dcsr_single_step_running_f);
 
    // acks back to interface
-   assign mpc_debug_halt_ack_ns = mpc_halt_state_f & internal_dbg_halt_mode_f & mpc_debug_halt_req_sync & core_empty;
-   assign mpc_debug_run_ack_ns = (mpc_debug_run_req_sync & ~dbg_halt_state_ns & ~mpc_debug_halt_req_sync) | (mpc_debug_run_ack_f & mpc_debug_run_req_sync) ;
+   assign mpc_debug_halt_ack_ns =(mpc_halt_state_f & internal_dbg_halt_mode_f & mpc_debug_halt_req_sync & core_empty) | (mpc_debug_halt_ack_f & mpc_debug_halt_req_sync);
+   assign mpc_debug_run_ack_ns = (mpc_debug_run_req_sync & ~internal_dbg_halt_mode & ~mpc_debug_halt_req_sync) | (mpc_debug_run_ack_f & mpc_debug_run_req_sync) ;
 
    // Pins
    assign mpc_debug_halt_ack = mpc_debug_halt_ack_f;
@@ -578,8 +608,8 @@ end
    assign debug_brkpt_status = debug_brkpt_status_f;
 
    // DBG halt req is a pulse, fast ext int in progress has priority
-   assign dbg_halt_req_held_ns = (dbg_halt_req | dbg_halt_req_held) & ext_int_freeze_d1;
-   assign dbg_halt_req_final = (dbg_halt_req | dbg_halt_req_held) & ~ext_int_freeze_d1;
+   assign dbg_halt_req_held_ns = ((dbg_halt_req | dbg_halt_req_held)  & mhartstart_csr) & ext_int_freeze_d1;
+   assign dbg_halt_req_final = ((dbg_halt_req | dbg_halt_req_held | dbg_halt_req_no_start_f) & mhartstart_csr) & ~ext_int_freeze_d1;
 
    // combine MPC and DBG halt requests
    assign debug_halt_req = (dbg_halt_req_final | mpc_debug_halt_req_sync | (reset_allowed & ~mpc_reset_run_req)) & ~internal_dbg_halt_mode_f & ~ext_int_freeze_d1;
@@ -601,6 +631,7 @@ end
    // It takes a cycle for mb_empty to assert after a fetch, take_halt covers that cycle
    assign core_empty = force_halt |
                        (lsu_idle_any & lsu_idle_any_f & ifu_miss_state_idle & ifu_miss_state_idle_f & ~debug_halt_req & ~debug_halt_req_d1 & ~dec_div_active);
+   assign dec_tlu_core_empty = core_empty;
 
 //--------------------------------------------------------------------------------
 // Debug start
@@ -609,7 +640,7 @@ end
    assign enter_debug_halt_req = (~internal_dbg_halt_mode_f & debug_halt_req) | dcsr_single_step_done_f | trigger_hit_dmode_wb | ebreak_to_debug_mode_wb;
 
    // dbg halt state active from request until non-step resume
-   assign internal_dbg_halt_mode = debug_halt_req_ns | (internal_dbg_halt_mode_f & ~(debug_resume_req_f & ~dcsr[`DCSR_STEP]));
+   assign internal_dbg_halt_mode = debug_halt_req_ns | (internal_dbg_halt_mode_f & ~(debug_resume_req_f & ~dcsr[DCSR_STEP]));
    // dbg halt can access csrs as long as we are not stepping
    assign allow_dbg_halt_csr_write = internal_dbg_halt_mode_f & ~dcsr_single_step_running_f;
 
@@ -621,9 +652,9 @@ end
 
    assign resume_ack_ns = (debug_resume_req_f & dbg_tlu_halted_f & dbg_run_state_ns);
 
-   assign dcsr_single_step_done = tlu_i0_valid_e4 & ~dec_tlu_dbg_halted & dcsr[`DCSR_STEP] & ~rfpc_i0_e4;
+   assign dcsr_single_step_done = tlu_i0_valid_e4 & ~dec_tlu_dbg_halted & dcsr[DCSR_STEP] & ~rfpc_i0_e4;
 
-   assign dcsr_single_step_running = (debug_resume_req_f & dcsr[`DCSR_STEP]) | (dcsr_single_step_running_f & ~dcsr_single_step_done_f);
+   assign dcsr_single_step_running = (debug_resume_req_f & dcsr[DCSR_STEP]) | (dcsr_single_step_running_f & ~dcsr_single_step_done_f);
 
    assign dbg_cmd_done_ns = tlu_i0_valid_e4 & dec_tlu_dbg_halted;
 
@@ -632,14 +663,17 @@ end
 
    assign request_debug_mode_done = (request_debug_mode_wb | request_debug_mode_done_f) & ~dbg_tlu_halted_f;
 
-    rvdff #(22)  halt_ff (.*, .clk(free_clk), .din({halt_taken, take_halt, lsu_idle_any, ifu_miss_state_idle, dbg_tlu_halted,
+    rvdffie #(22)  halt_ff (.*, .clk(free_l2clk), .din({halt_taken, take_halt, lsu_idle_any, ifu_miss_state_idle, dbg_tlu_halted,
                                   resume_ack_ns, dbg_cmd_done_ns, debug_halt_req_ns, debug_resume_req, trigger_hit_dmode_e4,
                                   dcsr_single_step_done, debug_halt_req,  update_hit_bit_e4[3:0], tlu_wr_pause_wb, dec_pause_state,
                                   request_debug_mode_e4, request_debug_mode_done, dcsr_single_step_running, dbg_halt_req_held_ns}),
                            .dout({halt_taken_f, take_halt_f, lsu_idle_any_f, ifu_miss_state_idle_f, dbg_tlu_halted_f,
-                                  dec_tlu_resume_ack, dec_dbg_cmd_done, debug_halt_req_f, debug_resume_req_f, trigger_hit_dmode_wb,
+                                  dec_tlu_resume_ack, dec_dbg_cmd_done, debug_halt_req_f, debug_resume_req_f_raw, trigger_hit_dmode_wb,
                                   dcsr_single_step_done_f, debug_halt_req_d1, update_hit_bit_wb[3:0], tlu_wr_pause_wb_f, dec_pause_state_f,
                                   request_debug_mode_wb, request_debug_mode_done_f, dcsr_single_step_running_f, dbg_halt_req_held}));
+
+   // MPC run collides with DBG halt, fix it here
+   assign debug_resume_req_f = debug_resume_req_f_raw & ~dbg_halt_req;
 
    assign dec_tlu_debug_stall = debug_halt_req_f;
    assign dec_tlu_dbg_halted = dbg_tlu_halted_f;
@@ -658,7 +692,7 @@ end
                              ~(ext_int_ready | ce_int_ready | timer_int_ready | soft_int_ready | int_timer0_int_hold_f | int_timer1_int_hold_f | nmi_int_detected | ext_int_freeze_d1) &
                              ~interrupt_valid_wb & ~debug_halt_req_f & ~pmu_fw_halt_req_f & ~halt_taken_f;
 
-   assign dec_tlu_flush_leak_one_wb = dec_tlu_flush_lower_wb & ~dec_tlu_flush_noredir_wb & ( (dcsr[`DCSR_STEP] & (dec_tlu_resume_ack | dcsr_single_step_running)) |
+   assign dec_tlu_flush_leak_one_wb = dec_tlu_flush_lower_wb & ~dec_tlu_flush_noredir_wb & ( (dcsr[DCSR_STEP] & (dec_tlu_resume_ack | dcsr_single_step_running)) |
                                                                                              iccm_sbecc_wb);
    assign dec_tlu_flush_err_wb = dec_tlu_flush_lower_wb & (ic_perr_wb | iccm_sbecc_wb);
 
@@ -670,30 +704,31 @@ end
    //--------------------------------------------------------------------------------
    // Triggers
    //
-`define MTDATA1_DMODE 9
-`define MTDATA1_SEL 7
-`define MTDATA1_ACTION 6
-`define MTDATA1_CHAIN 5
-`define MTDATA1_MATCH 4
-`define MTDATA1_M_ENABLED 3
-`define MTDATA1_EXE 2
-`define MTDATA1_ST 1
-`define MTDATA1_LD 0
+localparam MTDATA1_DMODE             = 9;
+localparam MTDATA1_SEL   = 7;
+localparam MTDATA1_ACTION            = 6;
+localparam MTDATA1_CHAIN             = 5;
+localparam MTDATA1_MATCH             = 4;
+localparam MTDATA1_M_ENABLED         = 3;
+localparam MTDATA1_EXE   = 2;
+localparam MTDATA1_ST    = 1;
+localparam MTDATA1_LD    = 0;
 
    // Prioritize trigger hits with other exceptions.
    //
    // Trigger should have highest priority except:
    // - trigger is an execute-data and there is an inst_access exception (lsu triggers won't fire, inst. is nop'd by decode)
    // - trigger is a store-data and there is a lsu_acc_exc or lsu_ma_exc.
-   assign trigger_execute[3:0] = {mtdata1_t3[`MTDATA1_EXE], mtdata1_t2[`MTDATA1_EXE], mtdata1_t1[`MTDATA1_EXE], mtdata1_t0[`MTDATA1_EXE]};
-   assign trigger_data[3:0] = {mtdata1_t3[`MTDATA1_SEL], mtdata1_t2[`MTDATA1_SEL], mtdata1_t1[`MTDATA1_SEL], mtdata1_t0[`MTDATA1_SEL]};
-   assign trigger_store[3:0] = {mtdata1_t3[`MTDATA1_ST], mtdata1_t2[`MTDATA1_ST], mtdata1_t1[`MTDATA1_ST], mtdata1_t0[`MTDATA1_ST]};
+   assign trigger_execute[3:0] = {mtdata1_t3[MTDATA1_EXE], mtdata1_t2[MTDATA1_EXE], mtdata1_t1[MTDATA1_EXE], mtdata1_t0[MTDATA1_EXE]};
+   assign trigger_data[3:0] = {mtdata1_t3[MTDATA1_SEL], mtdata1_t2[MTDATA1_SEL], mtdata1_t1[MTDATA1_SEL], mtdata1_t0[MTDATA1_SEL]};
+   assign trigger_store[3:0] = {mtdata1_t3[MTDATA1_ST], mtdata1_t2[MTDATA1_ST], mtdata1_t1[MTDATA1_ST], mtdata1_t0[MTDATA1_ST]};
 
+   // testing proxy until RV debug committee figures out how to prevent triggers from firing inside exception handlers.
    // MSTATUS[MIE] needs to be on to take triggers unless the action is trigger to debug mode.
-   assign trigger_enabled[3:0] = {(mtdata1_t3[`MTDATA1_ACTION] | mstatus[`MSTATUS_MIE]) & mtdata1_t3[`MTDATA1_M_ENABLED],
-                                  (mtdata1_t2[`MTDATA1_ACTION] | mstatus[`MSTATUS_MIE]) & mtdata1_t2[`MTDATA1_M_ENABLED],
-                                  (mtdata1_t1[`MTDATA1_ACTION] | mstatus[`MSTATUS_MIE]) & mtdata1_t1[`MTDATA1_M_ENABLED],
-                                  (mtdata1_t0[`MTDATA1_ACTION] | mstatus[`MSTATUS_MIE]) & mtdata1_t0[`MTDATA1_M_ENABLED]};
+   assign trigger_enabled[3:0] = {(mtdata1_t3[MTDATA1_ACTION] | mstatus[MSTATUS_MIE]) & mtdata1_t3[MTDATA1_M_ENABLED],
+                                  (mtdata1_t2[MTDATA1_ACTION] | mstatus[MSTATUS_MIE]) & mtdata1_t2[MTDATA1_M_ENABLED],
+                                  (mtdata1_t1[MTDATA1_ACTION] | mstatus[MSTATUS_MIE]) & mtdata1_t1[MTDATA1_M_ENABLED],
+                                  (mtdata1_t0[MTDATA1_ACTION] | mstatus[MSTATUS_MIE]) & mtdata1_t0[MTDATA1_M_ENABLED]};
 
    // iside exceptions are always in i0
    assign i0_iside_trigger_has_pri_e4[3:0] = ~( (trigger_execute[3:0] & trigger_data[3:0] & {4{inst_acc_e4_raw}}) | // exe-data with inst_acc
@@ -709,7 +744,7 @@ end
    assign i1_trigger_e4[3:0] = {4{tlu_i1_valid_e4}} & tlu_packet_e4.i1trigger[3:0] & i1_iside_trigger_has_pri_e4[3:0] & i1_lsu_trigger_has_pri_e4[3:0] & trigger_enabled[3:0];
 
 
-   assign trigger_chain[2:0] = {mtdata1_t2[`MTDATA1_CHAIN], mtdata1_t1[`MTDATA1_CHAIN], mtdata1_t0[`MTDATA1_CHAIN]};
+   assign trigger_chain[2:0] = {mtdata1_t2[MTDATA1_CHAIN], mtdata1_t1[MTDATA1_CHAIN], mtdata1_t0[MTDATA1_CHAIN]};
 
    // chaining can mask raw trigger info
    assign i0_trigger_chain_masked_e4[3:0] = {i0_trigger_e4[3] & (~trigger_chain[2] | i0_trigger_e4[2]),
@@ -733,14 +768,17 @@ end
 
    // Actions include breakpoint, or dmode. Dmode is only possible if the DMODE bit is set.
    // Otherwise, take a breakpoint.
-   assign trigger_action[3:0] = {mtdata1_t3[`MTDATA1_ACTION] & mtdata1_t3[`MTDATA1_DMODE],
-                                 mtdata1_t2[`MTDATA1_ACTION] & mtdata1_t2[`MTDATA1_DMODE],
-                                 mtdata1_t1[`MTDATA1_ACTION] & mtdata1_t1[`MTDATA1_DMODE],
-                                 mtdata1_t0[`MTDATA1_ACTION] & mtdata1_t0[`MTDATA1_DMODE]};
+   assign trigger_action[3:0] = {mtdata1_t3[MTDATA1_ACTION] & mtdata1_t3[MTDATA1_DMODE],
+                                 mtdata1_t2[MTDATA1_ACTION] & mtdata1_t2[MTDATA1_DMODE] & ~mtdata1_t2[MTDATA1_CHAIN],
+                                 mtdata1_t1[MTDATA1_ACTION] & mtdata1_t1[MTDATA1_DMODE],
+                                 mtdata1_t0[MTDATA1_ACTION] & mtdata1_t0[MTDATA1_DMODE] & ~mtdata1_t0[MTDATA1_CHAIN]};
 
    // this is needed to set the HIT bit in the triggers
-   assign update_hit_bit_e4[3:0] = ({4{i0_trigger_hit_e4                     }} & i0_trigger_chain_masked_e4[3:0]) |
-                                   ({4{i1_trigger_hit_e4 & ~i0_trigger_hit_e4}} & i1_trigger_chain_masked_e4[3:0]);
+   assign i0_trigger_set_hit_e4 = |i0_trigger_e4[3:0] & ~(dec_tlu_flush_lower_wb | dec_tlu_dbg_halted | rfpc_i0_e4);
+   assign i1_trigger_set_hit_e4 = |i1_trigger_e4[3:0] & ~(dec_tlu_flush_lower_wb | dec_tlu_dbg_halted | i0_problem_kills_i1_trigger | rfpc_i1_e4);
+
+   assign update_hit_bit_e4[3:0] = ({4{i0_trigger_set_hit_e4}} & {i0_trigger_chain_masked_e4[3], i0_trigger_e4[2], i0_trigger_chain_masked_e4[1], i0_trigger_e4[0]} ) |
+                                   ({4{i1_trigger_set_hit_e4}} & {i1_trigger_chain_masked_e4[3], i1_trigger_e4[2], i1_trigger_chain_masked_e4[1], i1_trigger_e4[0]} );
 
    // action, 1 means dmode. Simultaneous triggers with at least 1 set for dmode force entire action to dmode.
    assign i0_trigger_action_e4 = |(i0_trigger_chain_masked_e4[3:0] & trigger_action[3:0]);
@@ -780,7 +818,7 @@ end
    assign i_cpu_halt_req_sync_qual = i_cpu_halt_req_sync & ~dec_tlu_debug_mode & ~ext_int_freeze_d1;
    assign i_cpu_run_req_sync_qual = i_cpu_run_req_sync & ~dec_tlu_debug_mode & pmu_fw_tlu_halted_f & ~ext_int_freeze_d1;
 
-   rvdff #(10) exthaltff (.*, .clk(free_clk), .din({i_cpu_halt_req_sync_qual, i_cpu_run_req_sync_qual,   cpu_halt_status,
+   rvdffie #(10) exthaltff (.*, .clk(free_l2clk), .din({i_cpu_halt_req_sync_qual, i_cpu_run_req_sync_qual,   cpu_halt_status,
                                                    cpu_halt_ack,   cpu_run_ack, internal_pmu_fw_halt_mode,
                                                    pmu_fw_halt_req_ns, pmu_fw_tlu_halted,
                                                    int_timer0_int_hold, int_timer1_int_hold}),
@@ -801,15 +839,18 @@ end
    // debug halt has priority
    assign pmu_fw_tlu_halted = ((pmu_fw_halt_req_f & core_empty & halt_taken) | (pmu_fw_tlu_halted_f & ~i_cpu_run_req_d1)) & ~debug_halt_req_f;
 
-   assign cpu_halt_ack = i_cpu_halt_req_d1 & pmu_fw_tlu_halted_f;
+   assign cpu_halt_ack = (i_cpu_halt_req_d1 & pmu_fw_tlu_halted_f) | (o_cpu_halt_ack & i_cpu_halt_req_sync);
    assign cpu_halt_status = ((pmu_fw_tlu_halted_f & ~i_cpu_run_req_d1) | (o_cpu_halt_status & ~i_cpu_run_req_d1)) & ~internal_dbg_halt_mode_f;
-   assign cpu_run_ack = (o_cpu_halt_status & i_cpu_run_req_sync_qual) | (o_cpu_run_ack & i_cpu_run_req_sync_qual);
+   assign cpu_run_ack = (~pmu_fw_tlu_halted_f & i_cpu_run_req_sync) | (o_cpu_halt_status & i_cpu_run_req_d1_raw) | (o_cpu_run_ack & i_cpu_run_req_sync);
    assign debug_mode_status = internal_dbg_halt_mode_f;
    assign o_debug_mode_status = debug_mode_status;
 
-`ifdef ASSERT_ON
+
+`ifdef RV_ASSERT_ON
   assert_commit_while_halted: assert #0 (~((tlu_i0_commit_cmt | tlu_i1_commit_cmt) & o_cpu_halt_status)) else $display("ERROR: Commiting while cpu_halt_status asserted!");
   assert_flush_while_fastint: assert #0 (~((take_ext_int_start_d1 | take_ext_int_start_d2| take_ext_int_start_d3| take_ext_int_start_d4| take_ext_int_start_d5) & tlu_flush_lower_e4)) else $display("ERROR: TLU Flushing inside fast interrupt procedure!");
+
+  assert_double_ras_case: assert #0 (~( iside_oop_rfpc & (lsu_i0_rfnpc_dc4 | lsu_i1_rfnpc_dc4) & (|tlu_packet_e4.i0trigger[3:0]))) else $display("ERROR: DOUBLE RAS WITH TRIGGER, IGNORE TEST");
 `endif
 
    // high priority interrupts can wakeup from external halt, so can unmasked timer interrupts
@@ -822,10 +863,6 @@ end
 
    rvdff #( $bits(eh2_lsu_error_pkt_t) ) lsu_error_dc4ff (.*, .clk(lsu_e3_e4_clk), .din(lsu_error_pkt_dc3),  .dout(lsu_error_pkt_dc4));
 
-   rvdff #(3) lsu_dccm_errorff (.*, .clk(free_clk), .din({ifu_ic_error_start, ifu_iccm_rd_ecc_single_err,
-                                                          mdseac_locked_ns}),
-                                                   .dout({ifu_ic_error_start_d1, ifu_iccm_rd_ecc_single_err_d1,
-                                                          mdseac_locked_f}));
 
    assign lsu_error_pkt_addr_dc4[31:0] = lsu_error_pkt_e4.addr[31:0];
    rvdff #(38) lsu_error_wbff (.*, .clk(lsu_e4_e5_clk), .din({lsu_error_pkt_addr_dc4[31:0], lsu_exc_valid_e4, lsu_i0_exc_dc4, lsu_error_pkt_e4.mscause[3:0]}),
@@ -891,6 +928,24 @@ end
                        (exu_i1_br_error_e4 | exu_i1_br_start_error_e4) &
                        ~trigger_hit_e4;
 
+   if(pt.NUM_THREADS>1) begin
+      // Sharing a BTB between threads leads to a corner case where 1 thread has a branch error to the same index/offset that the other thread is using to predict a loop.
+      // To ensure forward progress on the thread with the error, the other thread has to be prevented from writing the BTB until forward progress is made or we halt
+      assign tlu_btb_write_kill_ns = ( ((rfpc_i0_e4 & (exu_i0_br_error_e4 | exu_i0_br_start_error_e4)) | // I0 RFPC due to branch error
+                                        (rfpc_i1_e4 & (exu_i1_br_error_e4 | exu_i1_br_start_error_e4)) | // I1 RFPC due to branch error
+                                        // Hold
+                                        tlu_btb_write_kill) &
+                                       // clears
+                                       ~(tlu_i0_commit_cmt | tlu_i1_commit_cmt | // clear due to commit
+                                         internal_pmu_fw_halt_mode_f |  // clear due to PMU/FW halt
+                                         internal_dbg_halt_mode_f // clear due to debug halt
+                                         )
+                                       );
+   end // if (pt.NUM_THREADS>1)
+   else
+     assign tlu_btb_write_kill_ns = 1'b0;
+
+
    // From the indication of a iccm single bit error until the first commit or flush, maintain a repair state. In the repair state, rfnpc i0 commits.
    assign iccm_repair_state_ns = iccm_sbecc_wb | (iccm_repair_state_d1 & ~dec_tlu_flush_lower_wb);
 
@@ -901,23 +956,23 @@ end
    assign iside_oop_rfpc = (ifu_ic_error_start_d1 | ifu_iccm_rd_ecc_single_err_d1) & (~internal_dbg_halt_mode_f | dcsr_single_step_running) & ~internal_pmu_fw_halt_mode_f;
 
    // only expect these in pipe 0
-   assign       ebreak_e4    =  (tlu_packet_e4.pmu_i0_itype == EBREAK)  & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~dcsr[`DCSR_EBREAKM] & ~iside_oop_rfpc;
+   assign       ebreak_e4    =  (tlu_packet_e4.pmu_i0_itype == EBREAK)  & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~dcsr[DCSR_EBREAKM] & ~iside_oop_rfpc;
    assign       ecall_e4     =  (tlu_packet_e4.pmu_i0_itype == ECALL)   & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~iside_oop_rfpc;
    assign       illegal_e4   =  ~tlu_packet_e4.i0legal   & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~iside_oop_rfpc;
    assign       mret_e4      =  (tlu_packet_e4.pmu_i0_itype == MRET)    & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~iside_oop_rfpc;
    // fence_i includes debug only fence_i's
-   assign       fence_i_e4   =  tlu_packet_e4.i0fence_i & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~iside_oop_rfpc;
+   assign       fence_i_e4   =  tlu_packet_e4.i0fence_i & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & ~iside_oop_rfpc; //| csr_fence_i_wb;
    assign       ic_perr_e4    =  ifu_ic_error_start_d1 & ~ext_int_freeze_d1 & ~dec_tlu_flush_lower_wb & (~internal_dbg_halt_mode_f | dcsr_single_step_running) & ~internal_pmu_fw_halt_mode_f;
    assign       iccm_sbecc_e4 =  ifu_iccm_rd_ecc_single_err_d1 & ~ext_int_freeze_d1 & ~dec_tlu_flush_lower_wb & (~internal_dbg_halt_mode_f | dcsr_single_step_running) & ~internal_pmu_fw_halt_mode_f;
    assign       inst_acc_e4_raw  =  tlu_packet_e4.i0icaf & tlu_i0_valid_e4;
    assign       inst_acc_e4 = inst_acc_e4_raw & ~rfpc_i0_e4 & ~i0_trigger_hit_e4;
-   assign       inst_acc_second_e4 = tlu_packet_e4.i0icaf_f1;
+   assign       inst_acc_second_e4 = tlu_packet_e4.i0icaf_second;
 
-   assign       ebreak_to_debug_mode_e4 = (tlu_packet_e4.pmu_i0_itype == EBREAK)  & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & dcsr[`DCSR_EBREAKM] & ~iside_oop_rfpc;
+   assign       ebreak_to_debug_mode_e4 = (tlu_packet_e4.pmu_i0_itype == EBREAK)  & tlu_i0_valid_e4 & ~i0_trigger_hit_e4 & dcsr[DCSR_EBREAKM] & ~iside_oop_rfpc;
 
    assign illegal_e4_qual = illegal_e4 & ~dec_tlu_dbg_halted;
 
-   rvdff #(11)  exctype_wb_ff (.*, .clk(e4e5_int_clk),
+   rvdffie #(11)  exctype_wb_ff (.*,
                                 .din({ebreak_e4, ebreak_to_debug_mode_e4, illegal_e4,  ecall_e4,
                                       illegal_e4_qual,  inst_acc_e4, inst_acc_second_e4, fence_i_e4, mret_e4,
                                       tlu_packet_e4.i0icaf_type[1:0]}),
@@ -969,23 +1024,28 @@ end
    //
    // Interrupts
    //
+   // Priv spec 1.10, 3.1.14
+   // "Multiple simultaneous interrupts and traps at the same privilege level are handled in the following
+   // decreasing priority order: external interrupts, software interrupts, timer interrupts, then finally any
+   // synchronous traps."
+   //
    // For above purposes, exceptions that are committed have already happened and will cause an int at E4 to wait a cycle
    // or more if MSTATUS[MIE] is cleared.
    //
    // -in priority order, highest to lowest
    // -single cycle window where a csr write to MIE/MSTATUS is at E4 when the other conditions for externals are met.
    //  Hold off externals for a cycle to make sure we are consistent with what was just written
-   assign mhwakeup_ready =  ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[`MIP_MEIP]   & mie_ns[`MIE_MEIE];
-   assign ext_int_ready   = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[`MIP_MEIP]   & mie_ns[`MIE_MEIE] & ~ignore_ext_int_due_to_lsu_stall;
-   assign ce_int_ready    = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[`MIP_MCEIP]  & mie_ns[`MIE_MCEIE];
-   assign soft_int_ready  = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[`MIP_MSIP]   & mie_ns[`MIE_MSIE];
-   assign timer_int_ready = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[`MIP_MTIP]   & mie_ns[`MIE_MTIE];
+   assign mhwakeup_ready =  ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[MIP_MEIP]   & mie_ns[MIE_MEIE];
+   assign ext_int_ready   = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[MIP_MEIP]   & mie_ns[MIE_MEIE] & ~ignore_ext_int_due_to_lsu_stall;
+   assign ce_int_ready    = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[MIP_MCEIP]  & mie_ns[MIE_MCEIE];
+   assign soft_int_ready  = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[MIP_MSIP]   & mie_ns[MIE_MSIE];
+   assign timer_int_ready = ~dec_csr_stall_int_ff & mstatus_mie_ns & mip[MIP_MTIP]   & mie_ns[MIE_MTIE];
 
    // MIP for internal timers pulses for 1 clock, resets the timer counter. Mip won't hold past the various stall conditions.
-   assign int_timer0_int_possible = mstatus_mie_ns & mie_ns[`MIE_MITIE0];
-   assign int_timer0_int_ready = mip[`MIP_MITIP0] & int_timer0_int_possible;
-   assign int_timer1_int_possible = mstatus_mie_ns & mie_ns[`MIE_MITIE1];
-   assign int_timer1_int_ready = mip[`MIP_MITIP1] & int_timer1_int_possible;
+   assign int_timer0_int_possible = mstatus_mie_ns & mie_ns[MIE_MITIE0];
+   assign int_timer0_int_ready = mip[MIP_MITIP0] & int_timer0_int_possible;
+   assign int_timer1_int_possible = mstatus_mie_ns & mie_ns[MIE_MITIE1];
+   assign int_timer1_int_ready = mip[MIP_MITIP1] & int_timer1_int_possible;
 
    // Internal timers pulse and reset. If core is PMU/FW halted, the pulse will cause an exit from halt, but won't stick around
    // Make it sticky, also for 1 cycle stall conditions.
@@ -995,7 +1055,7 @@ end
    assign int_timer1_int_hold = (int_timer1_int_ready & (pmu_fw_tlu_halted_f | int_timer_stalled)) | (int_timer1_int_possible & int_timer1_int_hold_f & ~interrupt_valid & ~take_ext_int_start & ~internal_dbg_halt_mode_f);
 
 
-   // mispredicts
+   // mispredicts use exu flush bus with sram timing, otherwise mux into tlu flush bus
    assign i0_mp_e4 = exu_i0_flush_lower_e4 & ~(exu_i0_br_error_e4 | exu_i0_br_start_error_e4 | ic_perr_e4 | iccm_sbecc_e4) & ~i0_trigger_hit_e4;
    assign i1_mp_e4 = exu_i1_flush_lower_e4 & ~(exu_i1_br_error_e4 | exu_i1_br_start_error_e4 | ic_perr_e4 | iccm_sbecc_e4) & ~trigger_hit_e4 & ~lsu_i0_rfnpc_dc4;
 
@@ -1015,7 +1075,7 @@ end
 
 if (pt.FAST_INTERRUPT_REDIRECT) begin
 
-      rvdff #(9)  fastint_ff (.*, .clk(free_clk),
+      rvdffie #(9)  fastint_ff (.*, .clk(free_l2clk),
                                 .din({take_ext_int_start,    take_ext_int_start_d1, take_ext_int_start_d2, take_ext_int_start_d3,
                                       take_ext_int_start_d4, take_ext_int_start_d5, ext_int_freeze, lsu_fir_error[1:0]}),
                                .dout({take_ext_int_start_d1, take_ext_int_start_d2, take_ext_int_start_d3, take_ext_int_start_d4,
@@ -1061,7 +1121,7 @@ end
 
    assign take_reset = reset_allowed & mpc_reset_run_req;
    assign take_nmi = nmi_int_detected & ~internal_pmu_fw_halt_mode &
-                     (~internal_dbg_halt_mode | (dcsr_single_step_running_f & dcsr[`DCSR_STEPIE] & ~tlu_i0_valid_e4 & ~dcsr_single_step_done_f)) &
+                     (~internal_dbg_halt_mode | (dcsr_single_step_running_f & dcsr[DCSR_STEPIE] & ~tlu_i0_valid_e4 & ~dcsr_single_step_done_f)) &
                      ~synchronous_flush_e4 & ~mret_e4 & ~take_reset & ~ebreak_to_debug_mode_e4 & (~ext_int_freeze_d1 | (take_ext_int_start_d6 & |lsu_fir_error[1:0]));
 
    assign interrupt_valid = take_ext_int | take_timer_int | take_soft_int | take_nmi | take_ce_int | take_int_timer0_int | take_int_timer1_int;
@@ -1108,13 +1168,16 @@ end
                                       ({31{~take_nmi & sel_npc_wb}} & npc_wb[31:1]) |
                                       ({31{~take_nmi & mret_e4 & wr_mepc_wb}} & dec_i0_csr_wrdata_wb[31:1]) );
 
-   rvdff #(31)  flush_lower_ff (.*, .clk(e4e5_int_clk),
-                                  .din({tlu_flush_path_e4[31:1]}),
+   assign tlu_flush_mp_e4 = ~take_nmi & (i0_mp_e4 | (i1_mp_e4 & ~rfpc_i0_e4 & ~lsu_i0_exc_dc4));
+
+   rvdffe #(31)  flush_lower_ff (.*, .clk(free_l2clk), .en(tlu_flush_lower_e4),
+                                 .din({tlu_flush_path_e4[31:1]}),
                                  .dout({tlu_flush_path_wb[31:1]}));
 
    assign dec_tlu_flush_lower_wb = tlu_flush_lower_wb ;
    assign dec_tlu_flush_path_wb[31:1] = tlu_flush_path_wb[31:1];
 
+   assign dec_tlu_flush_lower_wb1 = tlu_flush_lower_wb1 ;
 
    // this is used to capture mepc, etc.
    assign exc_or_int_valid = lsu_exc_valid_e4 | i0_exception_valid_e4 | interrupt_valid | (trigger_hit_e4 & ~trigger_hit_dmode_e4);
@@ -1143,13 +1206,13 @@ end
    //  [8]     I    - RV32I
    //  [2]     C    - Compressed extension
    //  [0]     A    - Atomic extension
-   `define MISA 12'h301
+   localparam MISA          = 12'h301;
 
    // MVENDORID, MARCHID, MIMPID, MHARTID
-   `define MVENDORID 12'hf11
-   `define MARCHID 12'hf12
-   `define MIMPID 12'hf13
-   `define MHARTID 12'hf14
+   localparam MVENDORID     = 12'hf11;
+   localparam MARCHID       = 12'hf12;
+   localparam MIMPID        = 12'hf13;
+   localparam MHARTID       = 12'hf14;
 
 
    // ----------------------------------------------------------------------
@@ -1157,18 +1220,18 @@ end
    // [12:11] MPP  : Prior priv level, always 2'b11, not flopped
    // [7]     MPIE : Int enable previous [1]
    // [3]     MIE  : Int enable          [0]
-   `define MSTATUS 12'h300
+   localparam MSTATUS       = 12'h300;
 
 
    //When executing a MRET instruction, supposing MPP holds the value 3, MIE
    //is set to MPIE; the privilege mode is changed to 3; MPIE is set to 1; and MPP is set to 3
    assign dec_i0_csr_wen_wb_mod = dec_i0_csr_wen_wb & ~trigger_hit_wb & (mytid == i0tid_wb);
-   assign wr_mstatus_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MSTATUS);
+   assign wr_mstatus_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MSTATUS);
 
     // set this even if we don't go to fwhalt due to debug halt. We committed the inst, so ...
    assign set_mie_pmu_fw_halt = ~mpmc_b_ns[1] & wr_mpmc_wb & dec_i0_csr_wrdata_wb[0] & ~internal_dbg_halt_mode_f3;
 
-   assign mstatus_ns[1:0] = ( ({2{~wr_mstatus_wb & exc_or_int_valid_wb}} & {(mstatus[`MSTATUS_MIE] | set_mie_pmu_fw_halt), 1'b0}) |
+   assign mstatus_ns[1:0] = ( ({2{~wr_mstatus_wb & exc_or_int_valid_wb}} & {(mstatus[MSTATUS_MIE] | set_mie_pmu_fw_halt), 1'b0}) |
                               ({2{ wr_mstatus_wb & exc_or_int_valid_wb}} & {dec_i0_csr_wrdata_wb[3], 1'b0}) |
                               ({2{mret_wb & ~exc_or_int_valid_wb}} & {1'b1, mstatus[1]}) |
                               ({2{set_mie_pmu_fw_halt & ~exc_or_int_valid_wb}} & {mstatus[1], 1'b1}) |
@@ -1176,17 +1239,16 @@ end
                               ({2{~wr_mstatus_wb & ~exc_or_int_valid_wb & ~mret_wb & ~set_mie_pmu_fw_halt}} & mstatus[1:0]) );
 
    // gate MIE if we are single stepping and DCSR[STEPIE] is off
-   assign mstatus_mie_ns = mstatus_ns[`MSTATUS_MIE] & (~dcsr_single_step_running_f | dcsr[`DCSR_STEPIE]);
-   rvdff #(2)  mstatus_ff (.*, .clk(free_clk), .din(mstatus_ns[1:0]), .dout(mstatus[1:0]));
+   assign mstatus_mie_ns = mstatus_ns[MSTATUS_MIE] & (~dcsr_single_step_running_f | dcsr[DCSR_STEPIE]);
 
    // ----------------------------------------------------------------------
    // MTVEC (RW)
    // [31:2] BASE : Trap vector base address
    // [1] - Reserved, not implemented, reads zero
    // [0]  MODE : 0 = Direct, 1 = Asyncs are vectored to BASE + (4 * CAUSE)
-   `define MTVEC 12'h305
+   localparam MTVEC         = 12'h305;
 
-   assign wr_mtvec_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTVEC);
+   assign wr_mtvec_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTVEC);
    assign mtvec_ns[30:0] = {dec_i0_csr_wrdata_wb[31:2], dec_i0_csr_wrdata_wb[0]} ;
    rvdffe #(31)  mtvec_ff (.*, .en(wr_mtvec_wb), .din(mtvec_ns[30:0]), .dout(mtvec[30:0]));
 
@@ -1199,12 +1261,11 @@ end
    // [11] MEIP   : (RO) M-Mode external interrupt pending
    // [7]  MTIP   : (RO) M-Mode timer interrupt pending
    // [3]  MSIP   : (RO) M-Mode software interrupt pending
-   `define MIP 12'h344
+   localparam MIP           = 12'h344;
 
    assign ce_int = (mdccme_ce_req | miccme_ce_req | mice_ce_req);
 
    assign mip_ns[5:0] = {ce_int, dec_timer_t0_pulse, dec_timer_t1_pulse, mexintpend, timer_int_sync, soft_int_sync};
-   rvdff #(6)  mip_ff (.*, .clk(free_clk), .din(mip_ns[5:0]), .dout(mip[5:0]));
 
    // ----------------------------------------------------------------------
    // MIE (RW)
@@ -1214,9 +1275,9 @@ end
    // [11] MEIE   : (RW) M-Mode external interrupt enable
    // [7]  MTIE   : (RW) M-Mode timer interrupt enable
    // [3]  MSIE   : (RW) M-Mode software interrupt enable
-   `define MIE 12'h304
+   localparam MIE           = 12'h304;
 
-   assign wr_mie_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MIE);
+   assign wr_mie_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MIE);
    assign mie_ns[5:0] = wr_mie_wb ? {dec_i0_csr_wrdata_wb[30:28], dec_i0_csr_wrdata_wb[11], dec_i0_csr_wrdata_wb[7], dec_i0_csr_wrdata_wb[3]} : mie[5:0];
    rvdff #(6)  mie_ff (.*, .clk(csr_wr_clk), .din(mie_ns[5:0]), .dout(mie[5:0]));
 
@@ -1225,33 +1286,37 @@ end
    // MCYCLEL (RW)
    // [31:0] : Lower Cycle count
 
-   `define MCYCLEL 12'hb00
+   localparam MCYCLEL       = 12'hb00;
 
-   assign kill_ebreak_count_wb = ebreak_to_debug_mode_wb & dcsr[`DCSR_STOPC];
+   assign kill_ebreak_count_wb = ebreak_to_debug_mode_wb & dcsr[DCSR_STOPC];
 
-   assign wr_mcyclel_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MCYCLEL);
+   assign wr_mcyclel_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCYCLEL);
 
-   assign mcyclel_cout_in = ~(kill_ebreak_count_wb | (dec_tlu_dbg_halted & dcsr[`DCSR_STOPC]) |
+   assign mcyclel_cout_in = ~(kill_ebreak_count_wb | (dec_tlu_dbg_halted & dcsr[DCSR_STOPC]) |
                               dec_tlu_pmu_fw_halted | mcountinhibit[0] | ~mhartstart_csr);
 
-   assign {mcyclel_cout, mcyclel_inc[31:0]} = mcyclel[31:0] + {31'b0, mcyclel_cout_in};
+   // split for power
+   assign {mcyclela_cout, mcyclel_inc[7:0]}  = mcyclel[7:0] +  {7'b0, 1'b1};
+   assign {mcyclel_cout,  mcyclel_inc[31:8]} = mcyclel[31:8] + {23'b0, mcyclela_cout};
+
    assign mcyclel_ns[31:0] = wr_mcyclel_wb ? dec_i0_csr_wrdata_wb[31:0] : mcyclel_inc[31:0];
 
-   rvdffe #(32) mcyclel_ff      (.*, .en(wr_mcyclel_wb | mcyclel_cout_in), .din(mcyclel_ns[31:0]), .dout(mcyclel[31:0]));
-   rvdff   #(1) mcyclef_cout_ff (.*, .clk(free_clk), .din(mcyclel_cout & ~wr_mcycleh_wb), .dout(mcyclel_cout_f));
+   rvdffe #(24) mcyclel_bff      (.*, .clk(free_l2clk), .en(wr_mcyclel_wb | (mcyclela_cout & mcyclel_cout_in)),    .din(mcyclel_ns[31:8]), .dout(mcyclel[31:8]));
+   rvdffe #(8)  mcyclel_aff      (.*, .clk(free_l2clk), .en(wr_mcyclel_wb | mcyclel_cout_in),  .din(mcyclel_ns[7:0]),  .dout(mcyclel[7:0]));
+
    // ----------------------------------------------------------------------
    // MCYCLEH (RW)
    // [63:32] : Higher Cycle count
    // Chained with mcyclel. Note: mcyclel overflow due to a mcycleh write gets ignored.
 
-   `define MCYCLEH 12'hb80
+   localparam MCYCLEH       = 12'hb80;
 
-   assign wr_mcycleh_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MCYCLEH);
+   assign wr_mcycleh_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCYCLEH);
 
    assign {mcycleh_cout_nc, mcycleh_inc[31:0]} = mcycleh[31:0] + {31'b0, mcyclel_cout_f};
    assign mcycleh_ns[31:0] = wr_mcycleh_wb ? dec_i0_csr_wrdata_wb[31:0] : mcycleh_inc[31:0];
 
-   rvdffe #(32)  mcycleh_ff (.*, .en(wr_mcycleh_wb | mcyclel_cout_f), .din(mcycleh_ns[31:0]), .dout(mcycleh[31:0]));
+   rvdffe #(32)  mcycleh_ff (.*, .clk(free_l2clk), .en(wr_mcycleh_wb | mcyclel_cout_f), .din(mcycleh_ns[31:0]), .dout(mcycleh[31:0]));
 
    // ----------------------------------------------------------------------
    // MINSTRETL (RW)
@@ -1262,19 +1327,25 @@ end
    // update occurs after the execution of the instruction. In particular, a value written to instret by
    // one instruction will be the value read by the following instruction (i.e., the increment of instret
    // caused by the first instruction retiring happens before the write of the new value)."
-   `define MINSTRETL 12'hb02
+   localparam MINSTRETL     = 12'hb02;
 
    assign i0_valid_no_ebreak_ecall_wb = i0_valid_wb & ~(ebreak_wb | ecall_wb | ebreak_to_debug_mode_wb) & ~mcountinhibit[2];
 
-   assign wr_minstretl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MINSTRETL);
+   assign wr_minstretl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MINSTRETL);
 
-   assign {minstretl_cout, minstretl_inc[31:0]} = minstretl[31:0] + {31'b0,i0_valid_no_ebreak_ecall_wb} + {31'b0,i1_valid_wb & ~mcountinhibit[2]};
+   assign {minstretl_couta, minstretl_inc[7:0]} = minstretl[7:0] + {7'b0,i0_valid_no_ebreak_ecall_wb} + {7'b0,i1_valid_wb & ~mcountinhibit[2]};
+   assign {minstretl_cout, minstretl_inc[31:8]} = minstretl[31:8] + {23'b0, minstretl_couta};
 
    assign minstret_enable = (i0_valid_no_ebreak_ecall_wb | i1_valid_wb);
 
+   assign minstretl_cout_ns = minstretl_cout & ~wr_minstreth_wb & ~dec_tlu_dbg_halted;
+
    assign minstretl_ns[31:0] = wr_minstretl_wb ? dec_i0_csr_wrdata_wb[31:0] : minstretl_inc[31:0];
-   rvdffe #(32)  minstretl_ff (.*, .en(minstret_enable | wr_minstretl_wb), .din(minstretl_ns[31:0]), .dout(minstretl[31:0]));
-   rvdff #(2) minstretf_cout_ff (.*, .clk(free_clk), .din({minstret_enable, minstretl_cout & ~wr_minstreth_wb}), .dout({minstret_enable_f, minstretl_cout_f}));
+   rvdffe #(24)  minstretl_bff (.*, .en(wr_minstretl_wb | (minstretl_couta & minstret_enable)),
+                                .din(minstretl_ns[31:8]), .dout(minstretl[31:8]));
+   rvdffe #(8)   minstretl_aff (.*, .en(minstret_enable | wr_minstretl_wb),
+                                .din(minstretl_ns[7:0]),  .dout(minstretl[7:0]));
+
 
    assign minstretl_read[31:0] = minstretl[31:0];
    // ----------------------------------------------------------------------
@@ -1282,29 +1353,29 @@ end
    // [63:32] : Higher Instret count
    // Chained with minstretl. Note: minstretl overflow due to a minstreth write gets ignored.
 
-   `define MINSTRETH 12'hb82
+   localparam MINSTRETH     = 12'hb82;
 
-   assign wr_minstreth_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MINSTRETH);
+   assign wr_minstreth_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MINSTRETH);
 
    assign {minstreth_cout_nc, minstreth_inc[31:0]} = minstreth[31:0] + {31'b0, minstretl_cout_f};
    assign minstreth_ns[31:0] = wr_minstreth_wb ? dec_i0_csr_wrdata_wb[31:0] : minstreth_inc[31:0];
-   rvdffe #(32)  minstreth_ff (.*, .en(minstret_enable_f | wr_minstreth_wb), .din(minstreth_ns[31:0]), .dout(minstreth[31:0]));
+   rvdffe #(32)  minstreth_ff (.*, .en((minstret_enable_f & minstretl_cout_f) | wr_minstreth_wb), .din(minstreth_ns[31:0]), .dout(minstreth[31:0]));
 
    assign minstreth_read[31:0] = minstreth_inc[31:0];
 
    // ----------------------------------------------------------------------
    // MSCRATCH (RW)
    // [31:0] : Scratch register
-   `define MSCRATCH 12'h340
+   localparam MSCRATCH      = 12'h340;
 
-   assign wr_mscratch_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MSCRATCH);
+   assign wr_mscratch_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MSCRATCH);
 
    rvdffe #(32)  mscratch_ff (.*, .en(wr_mscratch_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mscratch[31:0]));
 
    // ----------------------------------------------------------------------
    // MEPC (RW)
    // [31:1] : Exception PC
-   `define MEPC 12'h341
+   localparam MEPC          = 12'h341;
 
    // NPC
 
@@ -1320,7 +1391,7 @@ end
                            ({31{(sel_flush_npc_e4)}} & tlu_flush_path_wb[31:1]) |
                            ({31{(sel_hold_npc_e4)}} & npc_wb[31:1]) );
 
-   rvdffe #(31)  npwbc_ff (.*, .en(sel_exu_npc_e4 | sel_flush_npc_e4 | reset_allowed), .din(npc_e4[31:1]), .dout(npc_wb[31:1]));
+   rvdffpcie #(31)  npwbc_ff (.*, .en(sel_exu_npc_e4 | sel_flush_npc_e4 | reset_allowed), .din(npc_e4[31:1]), .dout(npc_wb[31:1]));
 
    // PC has to be captured for exceptions and interrupts. For MRET, we could execute it and then take an
    // interrupt before the next instruction.
@@ -1331,9 +1402,9 @@ end
                           ({31{ pc1_valid_e4}} & dec_tlu_i1_pc_e4[31:1]) |
                           ({31{~pc0_valid_e4 & ~pc1_valid_e4}} & pc_wb[31:1]));
 
-   rvdffe #(31)  pwbc_ff (.*, .en(pc0_valid_e4 | pc1_valid_e4), .din(pc_e4[31:1]), .dout(pc_wb[31:1]));
+   rvdffpcie #(31)  pwbc_ff (.*, .en(pc0_valid_e4 | pc1_valid_e4), .din(pc_e4[31:1]), .dout(pc_wb[31:1]));
 
-   assign wr_mepc_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MEPC);
+   assign wr_mepc_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEPC);
 
    assign mepc_ns[31:1] = ( ({31{i0_exception_valid_wb | lsu_exc_valid_wb | mepc_trigger_hit_sel_pc_wb}} & pc_wb[31:1]) |
                             ({31{interrupt_valid_wb}} & npc_wb[31:1]) |
@@ -1341,17 +1412,17 @@ end
                             ({31{~wr_mepc_wb & ~exc_or_int_valid_wb}} & mepc[31:1]) );
 
 
-   rvdff #(31)  mepc_ff (.*, .clk(e4e5_int_clk), .din(mepc_ns[31:1]), .dout(mepc[31:1]));
+   rvdffe #(31)  mepc_ff (.*, .en(i0_exception_valid_wb | lsu_exc_valid_wb | mepc_trigger_hit_sel_pc_wb | interrupt_valid_wb | wr_mepc_wb), .din(mepc_ns[31:1]), .dout(mepc[31:1]));
 
    // ----------------------------------------------------------------------
    // MCAUSE (RW)
    // [31:0] : Exception Cause
-   `define MCAUSE 12'h342
+   localparam MCAUSE        = 12'h342;
 
-   assign wr_mcause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MCAUSE);
+   assign wr_mcause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCAUSE);
    assign mcause_sel_nmi_store = exc_or_int_valid_wb & take_nmi_wb & nmi_lsu_store_type_f;
    assign mcause_sel_nmi_load = exc_or_int_valid_wb & take_nmi_wb & nmi_lsu_load_type_f;
-   assign mcause_sel_nmi_ext = exc_or_int_valid_wb & take_nmi_wb & |lsu_fir_error_d1[1:0];
+   assign mcause_sel_nmi_ext = exc_or_int_valid_wb & take_nmi_wb & nmi_fir_type_f;
 
 
    assign mcause_fir_error_type[1:0] = {&lsu_fir_error_d1[1:0], lsu_fir_error_d1[1] & ~lsu_fir_error_d1[0]};
@@ -1363,13 +1434,13 @@ end
                               ({32{wr_mcause_wb & ~exc_or_int_valid_wb}} & dec_i0_csr_wrdata_wb[31:0]) |
                               ({32{~wr_mcause_wb & ~exc_or_int_valid_wb}} & mcause[31:0]) );
 
-   rvdff #(32)  mcause_ff (.*, .clk(e4e5_int_clk), .din(mcause_ns[31:0]), .dout(mcause[31:0]));
+   rvdffe #(32)  mcause_ff (.*, .en(exc_or_int_valid_wb | wr_mcause_wb), .din(mcause_ns[31:0]), .dout(mcause[31:0]));
    // ----------------------------------------------------------------------
    // MSCAUSE (RW)
    // [2:0] : Secondary exception Cause
-   `define MSCAUSE 12'h7ff
+   localparam MSCAUSE       = 12'h7ff;
 
-   assign wr_mscause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MSCAUSE);
+   assign wr_mscause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MSCAUSE);
    assign ifu_mscause[3:0]  =  (icaf_type_wb[1:0] == 2'b00) ? 4'b1001 :
                                {2'b00 , icaf_type_wb[1:0]} ;
 
@@ -1391,9 +1462,9 @@ end
    // ----------------------------------------------------------------------
    // MTVAL (RW)
    // [31:0] : Exception address if relevant
-   `define MTVAL 12'h343
+   localparam MTVAL         = 12'h343;
 
-   assign wr_mtval_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTVAL);
+   assign wr_mtval_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTVAL);
    assign mtval_capture_pc_wb = exc_or_int_valid_wb & (ebreak_wb | (inst_acc_wb & ~inst_acc_second_wb) | mepc_trigger_hit_sel_pc_wb) & ~take_nmi_wb;
    assign mtval_capture_pc_plus2_wb = exc_or_int_valid_wb & (inst_acc_wb & inst_acc_second_wb) & ~take_nmi_wb;
    assign mtval_capture_inst_wb = exc_or_int_valid_wb & illegal_wb & ~take_nmi_wb;
@@ -1409,28 +1480,28 @@ end
                             ({32{~take_nmi_wb & ~wr_mtval_wb & ~mtval_capture_pc_wb & ~mtval_capture_inst_wb & ~mtval_clear_wb & ~mtval_capture_lsu_wb}} & mtval[31:0]) );
 
 
-   rvdff #(32)  mtval_ff (.*, .clk(e4e5_int_clk), .din(mtval_ns[31:0]), .dout(mtval[31:0]));
+   rvdffe #(32)  mtval_ff (.*, .en(tlu_flush_lower_wb | wr_mtval_wb), .din(mtval_ns[31:0]), .dout(mtval[31:0]));
 
    // ----------------------------------------------------------------------
    // MCPC (RW) Pause counter
    // [31:0] : Reads 0x0, decs in the wb register in decode_ctl
 
-   `define MCPC 12'h7c2
-   assign tlu_wr_pause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MCPC) & ~interrupt_valid_wb & ~ext_int_freeze_d1;
+   localparam MCPC          = 12'h7c2;
+   assign tlu_wr_pause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCPC) & ~interrupt_valid_wb & ~ext_int_freeze_d1;
    // ----------------------------------------------------------------------
    // MDEAU (WAR0)
    // [31:0] : Dbus Error Address Unlock register
    //
-   `define MDEAU 12'hbc0
+   localparam MDEAU         = 12'hbc0;
 
-   assign wr_mdeau_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MDEAU);
+   assign wr_mdeau_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MDEAU);
 
 
    // ----------------------------------------------------------------------
    // MDSEAC (R)
    // [31:0] : Dbus Store Error Address Capture register
    //
-   `define MDSEAC 12'hfc0
+   localparam MDSEAC        = 12'hfc0;
 
    // only capture error bus if the MDSEAC reg is not locked
    assign mdseac_locked_ns = mdseac_en | (mdseac_locked_f & ~wr_mdeau_wb);
@@ -1439,13 +1510,12 @@ end
 
    rvdffe #(32)  mdseac_ff (.*, .en(mdseac_en), .din(lsu_imprecise_error_addr_any[31:0]), .dout(mdseac[31:0]));
 
-
    // ----------------------------------------------------------------------
    // MPMC (R0W1)
    // [0:0] : FW halt
    //
-   `define MPMC 12'h7c6
-   assign wr_mpmc_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MPMC);
+   localparam MPMC          = 12'h7c6;
+   assign wr_mpmc_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MPMC);
 
    // allow the cycle of the dbg halt flush that contains the wr_mpmc_wb to
    // set the mstatus bit potentially, use delayed version of internal dbg halt.
@@ -1460,9 +1530,9 @@ end
    // MEIVT (External Interrupt Vector Table (R/W))
    // [31:10]: Base address (R/W)
    // [9:0]  : Reserved, reads 0x0
-   `define MEIVT 12'hbc8
+   localparam MEIVT         = 12'hbc8;
 
-   assign wr_meivt_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MEIVT);
+   assign wr_meivt_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEIVT);
 
    rvdffe #(22)  meivt_ff (.*, .en(wr_meivt_wb), .din(dec_i0_csr_wrdata_wb[31:10]), .dout(meivt[31:10]));
 
@@ -1471,20 +1541,20 @@ end
    // [31:10]: Base address (R/W)
    // [9:2]  : ClaimID (R)
    // [1:0]  : Reserved, 0x0
-   `define MEIHAP 12'hfc8
+   localparam MEIHAP        = 12'hfc8;
 
    assign wr_meihap_wb = wr_meicpct_wb;
 
-   rvdffe #(8)  meihap_ff (.*, .en(wr_meihap_wb), .din(pic_claimid[7:0]), .dout(meihap[9:2]));
+   rvdffe #(8)  meihap_ff (.*, .clk(free_l2clk), .en(wr_meihap_wb), .din(pic_claimid[7:0]), .dout(meihap[9:2]));
    assign dec_tlu_meihap[31:2] = {meivt[31:10], meihap[9:2]};
 
    // ----------------------------------------------------------------------
    // MEICURPL (R/W)
    // [31:4] : Reserved (read 0x0)
    // [3:0]  : CURRPRI - Priority level of current interrupt service routine (R/W)
-   `define MEICURPL 12'hbcc
+   localparam MEICURPL      = 12'hbcc;
 
-   assign wr_meicurpl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MEICURPL);
+   assign wr_meicurpl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEICURPL);
    assign meicurpl_ns[3:0] = wr_meicurpl_wb ? dec_i0_csr_wrdata_wb[3:0] : meicurpl[3:0];
 
    rvdff #(4)  meicurpl_ff (.*, .clk(csr_wr_clk), .din(meicurpl_ns[3:0]), .dout(meicurpl[3:0]));
@@ -1497,32 +1567,30 @@ end
    // MEICIDPL (R/W)
    // [31:4] : Reserved (read 0x0)
    // [3:0]  : External Interrupt Claim ID's Priority Level Register
-   `define MEICIDPL 12'hbcb
+   localparam MEICIDPL      = 12'hbcb;
 
-   assign wr_meicidpl_wb = (dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MEICIDPL)) | take_ext_int_start;
+   assign wr_meicidpl_wb = (dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEICIDPL)) | take_ext_int_start;
 
    assign meicidpl_ns[3:0] = wr_meicpct_wb ? pic_pl[3:0] : (wr_meicidpl_wb ? dec_i0_csr_wrdata_wb[3:0] : meicidpl[3:0]);
 
-   rvdff #(4)  meicidpl_ff (.*, .clk(free_clk), .din(meicidpl_ns[3:0]), .dout(meicidpl[3:0]));
 
    // ----------------------------------------------------------------------
    // MEICPCT (Capture CLAIMID in MEIHAP and PL in MEICIDPL
    // [31:1] : Reserved (read 0x0)
    // [0]    : Capture (W1, Read 0)
-   `define MEICPCT 12'hbca
+   localparam MEICPCT       = 12'hbca;
 
-   assign wr_meicpct_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MEICPCT) | take_ext_int_start;
+   assign wr_meicpct_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEICPCT) | take_ext_int_start;
 
    // ----------------------------------------------------------------------
    // MEIPT (External Interrupt Priority Threshold)
    // [31:4] : Reserved (read 0x0)
    // [3:0]  : PRITHRESH
-   `define MEIPT 12'hbc9
+   localparam MEIPT         = 12'hbc9;
 
-   assign wr_meipt_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MEIPT);
+   assign wr_meipt_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEIPT);
    assign meipt_ns[3:0] = wr_meipt_wb ? dec_i0_csr_wrdata_wb[3:0] : meipt[3:0];
 
-   rvdff #(4)  meipt_ff (.*, .clk(active_clk), .din(meipt_ns[3:0]), .dout(meipt[3:0]));
 
    // to PIC
    assign tlu_meipt[3:0] = meipt[3:0];
@@ -1543,7 +1611,7 @@ end
    // [2]     : step
    // [1:0]   : prv (0x3 for this core)
    //
-   `define DCSR 12'h7b0
+   localparam DCSR          = 12'h7b0;
 
    // RV has clarified that 'priority 4' in the spec means top priority.
    // 4. single step. 3. Debugger request. 2. Ebreak. 1. Trigger.
@@ -1556,7 +1624,7 @@ end
                               ({3{ebreak_to_debug_mode_wb & ~trigger_hit_for_dscr_cause_wb}} &  3'b001) |
                               ({3{trigger_hit_for_dscr_cause_wb}} & 3'b010));
 
-   assign wr_dcsr_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DCSR);
+   assign wr_dcsr_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DCSR);
 
 
 
@@ -1570,16 +1638,16 @@ end
                           (wr_dcsr_wb ? {dec_i0_csr_wrdata_wb[15], 3'b0, dec_i0_csr_wrdata_wb[11:10], 1'b0, dcsr[8:6], 2'b00, nmi_in_debug_mode | dcsr[3], dec_i0_csr_wrdata_wb[2]} :
                            {dcsr[15:4], nmi_in_debug_mode, dcsr[2]});
 
-   rvdffe #(14)  dcsr_ff (.*, .en(enter_debug_halt_req_le | wr_dcsr_wb | internal_dbg_halt_mode | take_nmi_wb), .din(dcsr_ns[15:2]), .dout(dcsr[15:2]));
+   rvdffe #(14)  dcsr_ff (.*, .clk(free_l2clk), .en(enter_debug_halt_req_le | wr_dcsr_wb | internal_dbg_halt_mode | take_nmi_wb), .din(dcsr_ns[15:2]), .dout(dcsr[15:2]));
 
    assign tlu_dcsr_ss = dcsr[2];
 
    // ----------------------------------------------------------------------
    // DPC (R/W) (Only accessible in debug mode)
    // [31:0] : Debug PC
-   `define DPC 12'h7b1
+   localparam DPC           = 12'h7b1;
 
-   assign wr_dpc_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DPC);
+   assign wr_dpc_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DPC);
    assign dpc_capture_npc = dbg_tlu_halted & ~dbg_tlu_halted_f & ~request_debug_mode_done_f;
    assign dpc_capture_pc = request_debug_mode_wb;
 
@@ -1599,10 +1667,10 @@ end
    // [19:17] : Reserved
    // [16:3]  : Index
    // [2:0]   : Reserved
-   `define DICAWICS 12'h7c8
+   localparam DICAWICS      = 12'h7c8;
 
    assign dicawics_ns[16:0] = {dec_i0_csr_wrdata_wb[24], dec_i0_csr_wrdata_wb[21:20], dec_i0_csr_wrdata_wb[16:3]};
-   assign wr_dicawics_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DICAWICS);
+   assign wr_dicawics_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DICAWICS);
 
    rvdffe #(17)  dicawics_ff (.*, .en(wr_dicawics_wb), .din(dicawics_ns[16:0]), .dout(dicawics[16:0]));
 
@@ -1618,11 +1686,11 @@ end
    // [6:4]   : LRU
    // [3:1]   : Reserved
    // [0]     : Valid
-   `define DICAD0 12'h7c9
+   localparam DICAD0        = 12'h7c9;
 
    assign dicad0_ns[31:0] = wr_dicad0_wb ? dec_i0_csr_wrdata_wb[31:0] : ifu_ic_debug_rd_data[31:0];
 
-   assign wr_dicad0_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DICAD0);
+   assign wr_dicad0_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DICAD0);
 
    rvdffe #(32)  dicad0_ff (.*, .en(wr_dicad0_wb | ifu_ic_debug_rd_data_valid), .din(dicad0_ns[31:0]), .dout(dicad0[31:0]));
 
@@ -1632,11 +1700,11 @@ end
    // If dicawics[array] is 0
    // [63:32]  : inst data
    //
-   `define DICAD0H 12'h7cc
+   localparam DICAD0H       = 12'h7cc;
 
    assign dicad0h_ns[31:0] = wr_dicad0h_wb ? dec_i0_csr_wrdata_wb[31:0] : ifu_ic_debug_rd_data[63:32];
 
-   assign wr_dicad0h_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DICAD0H);
+   assign wr_dicad0h_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DICAD0H);
 
    rvdffe #(32)  dicad0h_ff (.*, .en(wr_dicad0h_wb | ifu_ic_debug_rd_data_valid), .din(dicad0h_ns[31:0]), .dout(dicad0h[31:0]));
 
@@ -1646,13 +1714,13 @@ if (pt.ICACHE_ECC == 1) begin
    // ----------------------------------------------------------------------
    // DICAD1 (R/W) (Only accessible in debug mode)
    // [6:0]     : ECC
-   `define DICAD1 12'h7ca
+   localparam DICAD1        = 12'h7ca;
 
    assign dicad1_ns[6:0] = wr_dicad1_wb ? dec_i0_csr_wrdata_wb[6:0] : ifu_ic_debug_rd_data[70:64];
 
-   assign wr_dicad1_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DICAD1);
+   assign wr_dicad1_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DICAD1);
 
-   rvdffs #(7)  dicad1_ff (.*, .clk(active_clk), .en(wr_dicad1_wb | ifu_ic_debug_rd_data_valid), .din(dicad1_ns[6:0]), .dout(dicad1_raw[6:0]));
+   rvdffe #(.WIDTH(7), .OVERRIDE(1))  dicad1_ff (.*, .clk(free_l2clk), .en(wr_dicad1_wb | ifu_ic_debug_rd_data_valid), .din(dicad1_ns[6:0]), .dout(dicad1_raw[6:0]));
 
    assign dicad1[31:0] = {25'b0, dicad1_raw[6:0]};
 end
@@ -1660,11 +1728,11 @@ else begin
    // ----------------------------------------------------------------------
    // DICAD1 (R/W) (Only accessible in debug mode)
    // [3:0]     : Parity
-   `define DICAD1 12'h7ca
+   localparam DICAD1        = 12'h7ca;
 
    assign dicad1_ns[3:0] = wr_dicad1_wb ? dec_i0_csr_wrdata_wb[3:0] : ifu_ic_debug_rd_data[67:64];
 
-   assign wr_dicad1_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `DICAD1);
+   assign wr_dicad1_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DICAD1);
 
    rvdffs #(4)  dicad1_ff (.*, .clk(active_clk), .en(wr_dicad1_wb | ifu_ic_debug_rd_data_valid), .din(dicad1_ns[3:0]), .dout(dicad1_raw[3:0]));
 
@@ -1673,20 +1741,18 @@ end
    // ----------------------------------------------------------------------
    // DICAGO (R/W) (Only accessible in debug mode)
    // [0]     : Go
-   `define DICAGO 12'h7cb
+   localparam DICAGO        = 12'h7cb;
 
 if (pt.ICACHE_ECC == 1) begin
-   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {dicad1[6:0], dicad0h[31:0], dicad0[31:0]};
+   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {      dicad1[6:0], dicad0h[31:0], dicad0[31:0]};
 end
 else begin
-   assign dec_tlu_ic_diag_pkt.icache_wrdata[67:0] = {dicad1[3:0], dicad0h[31:0], dicad0[31:0]};
+   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {3'b0, dicad1[3:0], dicad0h[31:0], dicad0[31:0]};
 end
    assign dec_tlu_ic_diag_pkt.icache_dicawics[16:0] = dicawics[16:0];
 
-   assign icache_rd_valid = allow_dbg_halt_csr_write & dec_i0_csr_any_unq_d & dec_i0_decode_d & ~dec_i0_csr_wen_unq_d & (dec_i0_csr_rdaddr_d[11:0] == `DICAGO);
-   assign icache_wr_valid = allow_dbg_halt_csr_write & dec_i0_csr_any_unq_d & dec_i0_decode_d & dec_i0_csr_wen_unq_d & (dec_i0_csr_rdaddr_d[11:0] == `DICAGO);
-
-   rvdff #(2)  dicgo_ff (.*, .clk(active_clk), .din({icache_rd_valid, icache_wr_valid}), .dout({icache_rd_valid_f, icache_wr_valid_f}));
+   assign icache_rd_valid = allow_dbg_halt_csr_write & dec_i0_csr_any_unq_d & dec_i0_decode_d & ~dec_i0_csr_wen_unq_d & (dec_i0_csr_rdaddr_d[11:0] == DICAGO);
+   assign icache_wr_valid = allow_dbg_halt_csr_write & dec_i0_csr_any_unq_d & dec_i0_decode_d & dec_i0_csr_wen_unq_d & (dec_i0_csr_rdaddr_d[11:0] == DICAGO);
 
    assign dec_tlu_ic_diag_pkt.icache_rd_valid = icache_rd_valid_f;
    assign dec_tlu_ic_diag_pkt.icache_wr_valid = icache_wr_valid_f;
@@ -1694,9 +1760,9 @@ end
    // ----------------------------------------------------------------------
    // MTSEL (R/W)
    // [1:0] : Trigger select : 00, 01, 10 are data/address triggers. 11 is inst count
-   `define MTSEL 12'h7a0
+   localparam MTSEL         = 12'h7a0;
 
-   assign wr_mtsel_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTSEL);
+   assign wr_mtsel_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTSEL);
    assign mtsel_ns[1:0] = wr_mtsel_wb ? {dec_i0_csr_wrdata_wb[1:0]} : mtsel[1:0];
 
    rvdff #(2)  mtsel_ff (.*, .clk(csr_wr_clk), .din(mtsel_ns[1:0]), .dout(mtsel[1:0]));
@@ -1704,7 +1770,7 @@ end
    // ----------------------------------------------------------------------
    // MTDATA1 (R/W)
    // [31:0] : Trigger Data 1
-   `define MTDATA1 12'h7a1
+   localparam MTDATA1       = 12'h7a1;
 
    // for triggers 0, 1, 2 and 3 aka Match Control
    // [31:28] : type, hard coded to 0x2
@@ -1742,70 +1808,79 @@ end
    // don't allow clearing DMODE and action=1
    assign tdata_action = (dec_i0_csr_wrdata_wb[27] & dbg_tlu_halted_f) & dec_i0_csr_wrdata_wb[12];
 
+   // Chain bit has conditions: WARL for triggers without chains. Force to zero if dmode is 0 but next trigger dmode is 1.
+   assign tdata_chain = mtsel[0] ? 1'b0 : // triggers 1 and 3 chain bit is always zero
+                        mtsel[1] ?  dec_i0_csr_wrdata_wb[11] & ~(mtdata1_t3[MTDATA1_DMODE] & ~dec_i0_csr_wrdata_wb[27]) : // trigger 2
+                                    dec_i0_csr_wrdata_wb[11] & ~(mtdata1_t1[MTDATA1_DMODE] & ~dec_i0_csr_wrdata_wb[27]);  // trigger 0
+
+   // Kill mtdata1 write if dmode=1 but prior trigger has dmode=0/chain=1. Only applies to T1 and T3
+   assign tdata_kill_write = mtsel[1] ? dec_i0_csr_wrdata_wb[27] & (~mtdata1_t2[MTDATA1_DMODE] & mtdata1_t2[MTDATA1_CHAIN]) : // trigger 3
+                                        dec_i0_csr_wrdata_wb[27] & (~mtdata1_t0[MTDATA1_DMODE] & mtdata1_t0[MTDATA1_CHAIN]) ; // trigger 1
+
    assign tdata_wrdata_wb[9:0]  = {dec_i0_csr_wrdata_wb[27] & dbg_tlu_halted_f,
                                    dec_i0_csr_wrdata_wb[20:19],
                                    tdata_action,
-                                   dec_i0_csr_wrdata_wb[11],
+                                   tdata_chain,
                                    dec_i0_csr_wrdata_wb[7:6],
                                    tdata_opcode,
                                    dec_i0_csr_wrdata_wb[1],
                                    tdata_load};
 
    // If the DMODE bit is set, tdata1 can only be updated in debug_mode
-   assign wr_mtdata1_t0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA1) & (mtsel[1:0] == 2'b0) & (~mtdata1_t0[`MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata1_t0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA1) & (mtsel[1:0] == 2'b0) & (~mtdata1_t0[MTDATA1_DMODE] | dbg_tlu_halted_f);
    assign mtdata1_t0_ns[9:0] = wr_mtdata1_t0_wb ? tdata_wrdata_wb[9:0] :
                                 {mtdata1_t0[9], update_hit_bit_wb[0] | mtdata1_t0[8], mtdata1_t0[7:0]};
 
-   assign wr_mtdata1_t1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA1) & (mtsel[1:0] == 2'b01) & (~mtdata1_t1[`MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata1_t1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA1) & (mtsel[1:0] == 2'b01) & (~mtdata1_t1[MTDATA1_DMODE] | dbg_tlu_halted_f) & ~tdata_kill_write;
    assign mtdata1_t1_ns[9:0] = wr_mtdata1_t1_wb ? tdata_wrdata_wb[9:0] :
                                 {mtdata1_t1[9], update_hit_bit_wb[1] | mtdata1_t1[8], mtdata1_t1[7:0]};
 
-   assign wr_mtdata1_t2_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA1) & (mtsel[1:0] == 2'b10) & (~mtdata1_t2[`MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata1_t2_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA1) & (mtsel[1:0] == 2'b10) & (~mtdata1_t2[MTDATA1_DMODE] | dbg_tlu_halted_f);
    assign mtdata1_t2_ns[9:0] = wr_mtdata1_t2_wb ? tdata_wrdata_wb[9:0] :
                                 {mtdata1_t2[9], update_hit_bit_wb[2] | mtdata1_t2[8], mtdata1_t2[7:0]};
 
-   assign wr_mtdata1_t3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA1) & (mtsel[1:0] == 2'b11) & (~mtdata1_t3[`MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata1_t3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA1) & (mtsel[1:0] == 2'b11) & (~mtdata1_t3[MTDATA1_DMODE] | dbg_tlu_halted_f) & ~tdata_kill_write;
    assign mtdata1_t3_ns[9:0] = wr_mtdata1_t3_wb ? tdata_wrdata_wb[9:0] :
                                 {mtdata1_t3[9], update_hit_bit_wb[3] | mtdata1_t3[8], mtdata1_t3[7:0]};
 
 
-   rvdff #(10)  mtdata1_t0_ff (.*, .clk(active_clk), .din(mtdata1_t0_ns[9:0]), .dout(mtdata1_t0[9:0]));
-   rvdff #(10)  mtdata1_t1_ff (.*, .clk(active_clk), .din(mtdata1_t1_ns[9:0]), .dout(mtdata1_t1[9:0]));
-   rvdff #(10)  mtdata1_t2_ff (.*, .clk(active_clk), .din(mtdata1_t2_ns[9:0]), .dout(mtdata1_t2[9:0]));
-   rvdff #(10)  mtdata1_t3_ff (.*, .clk(active_clk), .din(mtdata1_t3_ns[9:0]), .dout(mtdata1_t3[9:0]));
+   rvdffe #(10)  mtdata1_t0_ff (.*, .en((trigger_enabled[0] | wr_mtdata1_t0_wb)), .din(mtdata1_t0_ns[9:0]), .dout(mtdata1_t0[9:0]));
+   rvdffe #(10)  mtdata1_t1_ff (.*, .en((trigger_enabled[1] | wr_mtdata1_t1_wb)), .din(mtdata1_t1_ns[9:0]), .dout(mtdata1_t1[9:0]));
+   rvdffe #(10)  mtdata1_t2_ff (.*, .en((trigger_enabled[2] | wr_mtdata1_t2_wb)), .din(mtdata1_t2_ns[9:0]), .dout(mtdata1_t2[9:0]));
+   rvdffe #(10)  mtdata1_t3_ff (.*, .en((trigger_enabled[3] | wr_mtdata1_t3_wb)), .din(mtdata1_t3_ns[9:0]), .dout(mtdata1_t3[9:0]));
 
    assign mtdata1_tsel_out[31:0] = ( ({32{(mtsel[1:0] == 2'b00)}} & {4'h2, mtdata1_t0[9], 6'b011111, mtdata1_t0[8:7], 6'b0, mtdata1_t0[6:5], 3'b0, mtdata1_t0[4:3], 3'b0, mtdata1_t0[2:0]}) |
                                      ({32{(mtsel[1:0] == 2'b01)}} & {4'h2, mtdata1_t1[9], 6'b011111, mtdata1_t1[8:7], 6'b0, mtdata1_t1[6:5], 3'b0, mtdata1_t1[4:3], 3'b0, mtdata1_t1[2:0]}) |
                                      ({32{(mtsel[1:0] == 2'b10)}} & {4'h2, mtdata1_t2[9], 6'b011111, mtdata1_t2[8:7], 6'b0, mtdata1_t2[6:5], 3'b0, mtdata1_t2[4:3], 3'b0, mtdata1_t2[2:0]}) |
                                      ({32{(mtsel[1:0] == 2'b11)}} & {4'h2, mtdata1_t3[9], 6'b011111, mtdata1_t3[8:7], 6'b0, mtdata1_t3[6:5], 3'b0, mtdata1_t3[4:3], 3'b0, mtdata1_t3[2:0]}));
 
-   assign tlu_trigger_pkt_any[0].select = mtdata1_t0[`MTDATA1_SEL];
-   assign tlu_trigger_pkt_any[0].match = mtdata1_t0[`MTDATA1_MATCH];
-   assign tlu_trigger_pkt_any[0].store = mtdata1_t0[`MTDATA1_ST];
-   assign tlu_trigger_pkt_any[0].load = mtdata1_t0[`MTDATA1_LD];
-   assign tlu_trigger_pkt_any[0].execute = mtdata1_t0[`MTDATA1_EXE];
-   assign tlu_trigger_pkt_any[0].m = mtdata1_t0[`MTDATA1_M_ENABLED];
+   assign tlu_trigger_pkt_any[0].select = mtdata1_t0[MTDATA1_SEL];
+   assign tlu_trigger_pkt_any[0].match = mtdata1_t0[MTDATA1_MATCH];
+   assign tlu_trigger_pkt_any[0].store = mtdata1_t0[MTDATA1_ST];
+   assign tlu_trigger_pkt_any[0].load = mtdata1_t0[MTDATA1_LD];
+   assign tlu_trigger_pkt_any[0].execute = mtdata1_t0[MTDATA1_EXE];
+   assign tlu_trigger_pkt_any[0].m = mtdata1_t0[MTDATA1_M_ENABLED];
 
-   assign tlu_trigger_pkt_any[1].select = mtdata1_t1[`MTDATA1_SEL];
-   assign tlu_trigger_pkt_any[1].match = mtdata1_t1[`MTDATA1_MATCH];
-   assign tlu_trigger_pkt_any[1].store = mtdata1_t1[`MTDATA1_ST];
-   assign tlu_trigger_pkt_any[1].load = mtdata1_t1[`MTDATA1_LD];
-   assign tlu_trigger_pkt_any[1].execute = mtdata1_t1[`MTDATA1_EXE];
-   assign tlu_trigger_pkt_any[1].m = mtdata1_t1[`MTDATA1_M_ENABLED];
+   assign tlu_trigger_pkt_any[1].select = mtdata1_t1[MTDATA1_SEL];
+   assign tlu_trigger_pkt_any[1].match = mtdata1_t1[MTDATA1_MATCH];
+   assign tlu_trigger_pkt_any[1].store = mtdata1_t1[MTDATA1_ST];
+   assign tlu_trigger_pkt_any[1].load = mtdata1_t1[MTDATA1_LD];
+   assign tlu_trigger_pkt_any[1].execute = mtdata1_t1[MTDATA1_EXE];
+   assign tlu_trigger_pkt_any[1].m = mtdata1_t1[MTDATA1_M_ENABLED];
 
-   assign tlu_trigger_pkt_any[2].select = mtdata1_t2[`MTDATA1_SEL];
-   assign tlu_trigger_pkt_any[2].match = mtdata1_t2[`MTDATA1_MATCH];
-   assign tlu_trigger_pkt_any[2].store = mtdata1_t2[`MTDATA1_ST];
-   assign tlu_trigger_pkt_any[2].load = mtdata1_t2[`MTDATA1_LD];
-   assign tlu_trigger_pkt_any[2].execute = mtdata1_t2[`MTDATA1_EXE];
-   assign tlu_trigger_pkt_any[2].m = mtdata1_t2[`MTDATA1_M_ENABLED];
+   assign tlu_trigger_pkt_any[2].select = mtdata1_t2[MTDATA1_SEL];
+   assign tlu_trigger_pkt_any[2].match = mtdata1_t2[MTDATA1_MATCH];
+   assign tlu_trigger_pkt_any[2].store = mtdata1_t2[MTDATA1_ST];
+   assign tlu_trigger_pkt_any[2].load = mtdata1_t2[MTDATA1_LD];
+   assign tlu_trigger_pkt_any[2].execute = mtdata1_t2[MTDATA1_EXE];
+   assign tlu_trigger_pkt_any[2].m = mtdata1_t2[MTDATA1_M_ENABLED];
 
-   assign tlu_trigger_pkt_any[3].select = mtdata1_t3[`MTDATA1_SEL];
-   assign tlu_trigger_pkt_any[3].match = mtdata1_t3[`MTDATA1_MATCH];
-   assign tlu_trigger_pkt_any[3].store = mtdata1_t3[`MTDATA1_ST];
-   assign tlu_trigger_pkt_any[3].load = mtdata1_t3[`MTDATA1_LD];
-   assign tlu_trigger_pkt_any[3].execute = mtdata1_t3[`MTDATA1_EXE];
-   assign tlu_trigger_pkt_any[3].m = mtdata1_t3[`MTDATA1_M_ENABLED];
+   assign tlu_trigger_pkt_any[3].select = mtdata1_t3[MTDATA1_SEL];
+   assign tlu_trigger_pkt_any[3].match = mtdata1_t3[MTDATA1_MATCH];
+   assign tlu_trigger_pkt_any[3].store = mtdata1_t3[MTDATA1_ST];
+   assign tlu_trigger_pkt_any[3].load = mtdata1_t3[MTDATA1_LD];
+   assign tlu_trigger_pkt_any[3].execute = mtdata1_t3[MTDATA1_EXE];
+   assign tlu_trigger_pkt_any[3].m = mtdata1_t3[MTDATA1_M_ENABLED];
 
 
 
@@ -1814,13 +1889,13 @@ end
    // ----------------------------------------------------------------------
    // MTDATA2 (R/W)
    // [31:0] : Trigger Data 2
-   `define MTDATA2 12'h7a2
+   localparam MTDATA2       = 12'h7a2;
 
    // If the DMODE bit is set, tdata2 can only be updated in debug_mode
-   assign wr_mtdata2_t0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA2) & (mtsel[1:0] == 2'b0)  & (~mtdata1_t0[`MTDATA1_DMODE] | dbg_tlu_halted_f);
-   assign wr_mtdata2_t1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA2) & (mtsel[1:0] == 2'b01) & (~mtdata1_t1[`MTDATA1_DMODE] | dbg_tlu_halted_f);
-   assign wr_mtdata2_t2_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA2) & (mtsel[1:0] == 2'b10) & (~mtdata1_t2[`MTDATA1_DMODE] | dbg_tlu_halted_f);
-   assign wr_mtdata2_t3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MTDATA2) & (mtsel[1:0] == 2'b11) & (~mtdata1_t3[`MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata2_t0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA2) & (mtsel[1:0] == 2'b0)  & (~mtdata1_t0[MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata2_t1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA2) & (mtsel[1:0] == 2'b01) & (~mtdata1_t1[MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata2_t2_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA2) & (mtsel[1:0] == 2'b10) & (~mtdata1_t2[MTDATA1_DMODE] | dbg_tlu_halted_f);
+   assign wr_mtdata2_t3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA2) & (mtsel[1:0] == 2'b11) & (~mtdata1_t3[MTDATA1_DMODE] | dbg_tlu_halted_f);
 
    rvdffe #(32)  mtdata2_t0_ff (.*, .en(wr_mtdata2_t0_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mtdata2_t0[31:0]));
    rvdffe #(32)  mtdata2_t1_ff (.*, .en(wr_mtdata2_t1_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mtdata2_t1[31:0]));
@@ -1841,68 +1916,68 @@ end
    //----------------------------------------------------------------------
    // Performance Monitor Counters section starts
    //----------------------------------------------------------------------
-   `define MHPME_NOEVENT         10'd0
-   `define MHPME_CLK_ACTIVE      10'd1 // OOP - out of pipe
-   `define MHPME_ICACHE_HIT      10'd2 // OOP
-   `define MHPME_ICACHE_MISS     10'd3 // OOP
-   `define MHPME_INST_COMMIT     10'd4
-   `define MHPME_INST_COMMIT_16B 10'd5
-   `define MHPME_INST_COMMIT_32B 10'd6
-   `define MHPME_INST_ALIGNED    10'd7 // OOP
-   `define MHPME_INST_DECODED    10'd8 // OOP
-   `define MHPME_INST_MUL        10'd9
-   `define MHPME_INST_DIV        10'd10
-   `define MHPME_INST_LOAD       10'd11
-   `define MHPME_INST_STORE      10'd12
-   `define MHPME_INST_MALOAD     10'd13
-   `define MHPME_INST_MASTORE    10'd14
-   `define MHPME_INST_ALU        10'd15
-   `define MHPME_INST_CSRREAD    10'd16
-   `define MHPME_INST_CSRRW      10'd17
-   `define MHPME_INST_CSRWRITE   10'd18
-   `define MHPME_INST_EBREAK     10'd19
-   `define MHPME_INST_ECALL      10'd20
-   `define MHPME_INST_FENCE      10'd21
-   `define MHPME_INST_FENCEI     10'd22
-   `define MHPME_INST_MRET       10'd23
-   `define MHPME_INST_BRANCH     10'd24
-   `define MHPME_BRANCH_MP       10'd25
-   `define MHPME_BRANCH_TAKEN    10'd26
-   `define MHPME_BRANCH_NOTP     10'd27
-   `define MHPME_FETCH_STALL     10'd28 // OOP
-   `define MHPME_ALGNR_STALL     10'd29 // OOP
-   `define MHPME_DECODE_STALL    10'd30 // OOP
-   `define MHPME_POSTSYNC_STALL  10'd31 // OOP
-   `define MHPME_PRESYNC_STALL   10'd32 // OOP
-   `define MHPME_LSU_SB_WB_STALL 10'd34 // OOP
-   `define MHPME_DMA_DCCM_STALL  10'd35 // OOP
-   `define MHPME_DMA_ICCM_STALL  10'd36 // OOP
-   `define MHPME_EXC_TAKEN       10'd37
-   `define MHPME_TIMER_INT_TAKEN 10'd38
-   `define MHPME_EXT_INT_TAKEN   10'd39
-   `define MHPME_FLUSH_LOWER     10'd40
-   `define MHPME_BR_ERROR        10'd41
-   `define MHPME_IBUS_TRANS      10'd42 // OOP
-   `define MHPME_DBUS_TRANS      10'd43 // OOP
-   `define MHPME_DBUS_MA_TRANS   10'd44 // OOP
-   `define MHPME_IBUS_ERROR      10'd45 // OOP
-   `define MHPME_DBUS_ERROR      10'd46 // OOP
-   `define MHPME_IBUS_STALL      10'd47 // OOP
-   `define MHPME_DBUS_STALL      10'd48 // OOP
-   `define MHPME_INT_DISABLED    10'd49 // OOP
-   `define MHPME_INT_STALLED     10'd50 // OOP
-   `define MHPME_INST_AMO        10'd51
-   `define MHPME_INST_LR         10'd52
-   `define MHPME_INST_SC         10'd53
-   `define MHPME_INST_BITMANIP     10'd54
-   `define MHPME_DBUS_LOAD       10'd55
-   `define MHPME_DBUS_STORE      10'd56
+   localparam MHPME_NOEVENT             = 10'd0;
+   localparam MHPME_CLK_ACTIVE          = 10'd1; // OOP - out of pipe
+   localparam MHPME_ICACHE_HIT          = 10'd2; // OOP
+   localparam MHPME_ICACHE_MISS         = 10'd3; // OOP
+   localparam MHPME_INST_COMMIT         = 10'd4;
+   localparam MHPME_INST_COMMIT_16B     = 10'd5;
+   localparam MHPME_INST_COMMIT_32B     = 10'd6;
+   localparam MHPME_INST_ALIGNED        = 10'd7; // OOP
+   localparam MHPME_INST_DECODED        = 10'd8; // OOP
+   localparam MHPME_INST_MUL            = 10'd9;
+   localparam MHPME_INST_DIV            = 10'd10;
+   localparam MHPME_INST_LOAD           = 10'd11;
+   localparam MHPME_INST_STORE          = 10'd12;
+   localparam MHPME_INST_MALOAD         = 10'd13;
+   localparam MHPME_INST_MASTORE        = 10'd14;
+   localparam MHPME_INST_ALU            = 10'd15;
+   localparam MHPME_INST_CSRREAD        = 10'd16;
+   localparam MHPME_INST_CSRRW          = 10'd17;
+   localparam MHPME_INST_CSRWRITE       = 10'd18;
+   localparam MHPME_INST_EBREAK         = 10'd19;
+   localparam MHPME_INST_ECALL          = 10'd20;
+   localparam MHPME_INST_FENCE          = 10'd21;
+   localparam MHPME_INST_FENCEI         = 10'd22;
+   localparam MHPME_INST_MRET           = 10'd23;
+   localparam MHPME_INST_BRANCH         = 10'd24;
+   localparam MHPME_BRANCH_MP           = 10'd25;
+   localparam MHPME_BRANCH_TAKEN        = 10'd26;
+   localparam MHPME_BRANCH_NOTP         = 10'd27;
+   localparam MHPME_FETCH_STALL         = 10'd28; // OOP
+   localparam MHPME_ALGNR_STALL         = 10'd29; // OOP
+   localparam MHPME_DECODE_STALL        = 10'd30; // OOP
+   localparam MHPME_POSTSYNC_STALL      = 10'd31; // OOP
+   localparam MHPME_PRESYNC_STALL       = 10'd32; // OOP
+   localparam MHPME_LSU_SB_WB_STALL     = 10'd34; // OOP
+   localparam MHPME_DMA_DCCM_STALL      = 10'd35; // OOP
+   localparam MHPME_DMA_ICCM_STALL      = 10'd36; // OOP
+   localparam MHPME_EXC_TAKEN           = 10'd37;
+   localparam MHPME_TIMER_INT_TAKEN     = 10'd38;
+   localparam MHPME_EXT_INT_TAKEN       = 10'd39;
+   localparam MHPME_FLUSH_LOWER         = 10'd40;
+   localparam MHPME_BR_ERROR            = 10'd41;
+   localparam MHPME_IBUS_TRANS          = 10'd42; // OOP
+   localparam MHPME_DBUS_TRANS          = 10'd43; // OOP
+   localparam MHPME_DBUS_MA_TRANS       = 10'd44; // OOP
+   localparam MHPME_IBUS_ERROR          = 10'd45; // OOP
+   localparam MHPME_DBUS_ERROR          = 10'd46; // OOP
+   localparam MHPME_IBUS_STALL          = 10'd47; // OOP
+   localparam MHPME_DBUS_STALL          = 10'd48; // OOP
+   localparam MHPME_INT_DISABLED        = 10'd49; // OOP
+   localparam MHPME_INT_STALLED         = 10'd50; // OOP
+   localparam MHPME_INST_AMO            = 10'd51;
+   localparam MHPME_INST_LR             = 10'd52;
+   localparam MHPME_INST_SC             = 10'd53;
+   localparam MHPME_INST_BITMANIP       = 10'd54;
+   localparam MHPME_DBUS_LOAD           = 10'd55;
+   localparam MHPME_DBUS_STORE          = 10'd56;
    // Counts even during sleep state
-   `define MHPME_SLEEP_CYC       10'd512 // OOP
-   `define MHPME_DMA_READ_ALL    10'd513 // OOP
-   `define MHPME_DMA_WRITE_ALL   10'd514 // OOP
-   `define MHPME_DMA_READ_DCCM   10'd515 // OOP
-   `define MHPME_DMA_WRITE_DCCM  10'd516 // OOP
+   localparam MHPME_SLEEP_CYC           = 10'd512; // OOP
+   localparam MHPME_DMA_READ_ALL        = 10'd513; // OOP
+   localparam MHPME_DMA_WRITE_ALL       = 10'd514; // OOP
+   localparam MHPME_DMA_READ_DCCM       = 10'd515; // OOP
+   localparam MHPME_DMA_WRITE_DCCM      = 10'd516; // OOP
 
    // Pack the event selects into a vector for genvar
    assign mhpme_vec[0][9:0] = mhpme3[9:0];
@@ -1910,7 +1985,7 @@ end
    assign mhpme_vec[2][9:0] = mhpme5[9:0];
    assign mhpme_vec[3][9:0] = mhpme6[9:0];
 
-   assign tlu_commit_lsu_op_e4 = (tlu_i0_commit_cmt &  tlu_packet_e4.lsu_pipe0) |
+   assign tlu_commit_lsu_op_e4 = (tlu_i0_commit_cmt &  tlu_packet_e4.lsu_pipe0  & ~illegal_e4) |
                                  (tlu_i1_commit_cmt & ~tlu_packet_e4.lsu_pipe0) ;
    // only consider committed itypes
    eh2_inst_pkt_t pmu_i0_itype_qual ;
@@ -1922,87 +1997,102 @@ end
    for (genvar i=0 ; i < 4; i++) begin
       assign mhpmc_inc_e4[i][1:0] =  {2{~mcountinhibit[i+3]}} &
            (
-             ({2{(mhpme_vec[i][9:0] == `MHPME_CLK_ACTIVE      )}} & 2'b01) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_ICACHE_HIT      )}} & {1'b0, ifu_pmu_ic_hit}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_ICACHE_MISS     )}} & {1'b0, ifu_pmu_ic_miss}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_COMMIT     )}} & {tlu_i1_commit_cmt, tlu_i0_commit_cmt & ~illegal_e4}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_COMMIT_16B )}} & {tlu_i1_commit_cmt & ~exu_pmu_i1_pc4,
+             ({2{(mhpme_vec[i][9:0] == MHPME_CLK_ACTIVE      )}} & 2'b01) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_ICACHE_HIT      )}} & {1'b0, ifu_pmu_ic_hit}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_ICACHE_MISS     )}} & {1'b0, ifu_pmu_ic_miss}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_COMMIT     )}} & {tlu_i1_commit_cmt, tlu_i0_commit_cmt & ~illegal_e4}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_COMMIT_16B )}} & {tlu_i1_commit_cmt & ~exu_pmu_i1_pc4,
                                                                      tlu_i0_commit_cmt & ~exu_pmu_i0_pc4 & ~illegal_e4}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_COMMIT_32B )}} & {tlu_i1_commit_cmt &  exu_pmu_i1_pc4,
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_COMMIT_32B )}} & {tlu_i1_commit_cmt &  exu_pmu_i1_pc4,
                                                                      tlu_i0_commit_cmt &  exu_pmu_i0_pc4 & ~illegal_e4}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_ALIGNED    )}} & ifu_pmu_instr_aligned[1:0])  |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_DECODED    )}} & dec_pmu_instr_decoded[1:0])  |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_ALGNR_STALL     )}} & {1'b0,ifu_pmu_align_stall})  |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DECODE_STALL    )}} & {1'b0,dec_pmu_decode_stall}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_MUL        )}} & {(pmu_i1_itype_qual == MUL),     (pmu_i0_itype_qual == MUL)})     |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_DIV        )}} & {1'b0, tlu_packet_e4.pmu_divide & tlu_i0_commit_cmt})     |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_LOAD       )}} & {(pmu_i1_itype_qual == LOAD),    (pmu_i0_itype_qual == LOAD)})    |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_STORE      )}} & {(pmu_i1_itype_qual == STORE),   (pmu_i0_itype_qual == STORE)})   |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_MALOAD     )}} & {(pmu_i1_itype_qual == LOAD),    (pmu_i0_itype_qual == LOAD)} &
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_ALIGNED    )}} & ifu_pmu_instr_aligned[1:0])  |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_DECODED    )}} & dec_pmu_instr_decoded[1:0])  |
+             ({2{(mhpme_vec[i][9:0] == MHPME_ALGNR_STALL     )}} & {1'b0,ifu_pmu_align_stall})  |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DECODE_STALL    )}} & {1'b0,dec_pmu_decode_stall}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_MUL        )}} & {(pmu_i1_itype_qual == MUL),     (pmu_i0_itype_qual == MUL)})     |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_DIV        )}} & {1'b0, tlu_packet_e4.pmu_divide & tlu_i0_commit_cmt & ~illegal_e4})     |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_LOAD       )}} & {(pmu_i1_itype_qual == LOAD),    (pmu_i0_itype_qual == LOAD)})    |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_STORE      )}} & {(pmu_i1_itype_qual == STORE),   (pmu_i0_itype_qual == STORE)})   |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_MALOAD     )}} & {(pmu_i1_itype_qual == LOAD),    (pmu_i0_itype_qual == LOAD)} &
                                                                       {2{tlu_packet_e4.pmu_lsu_misaligned}})    |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_MASTORE    )}} & {(pmu_i1_itype_qual == STORE),   (pmu_i0_itype_qual == STORE)} &
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_MASTORE    )}} & {(pmu_i1_itype_qual == STORE),   (pmu_i0_itype_qual == STORE)} &
                                                                       {2{tlu_packet_e4.pmu_lsu_misaligned}})    |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_ALU        )}} & {(pmu_i1_itype_qual == ALU),     (pmu_i0_itype_qual == ALU)})     |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_CSRREAD    )}} & {1'b0, (pmu_i0_itype_qual == CSRREAD)}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_CSRWRITE   )}} & {1'b0, (pmu_i0_itype_qual == CSRWRITE)})|
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_CSRRW      )}} & {1'b0, (pmu_i0_itype_qual == CSRRW)})   |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_EBREAK     )}} & {1'b0, (pmu_i0_itype_qual == EBREAK)})  |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_ECALL      )}} & {1'b0, (pmu_i0_itype_qual == ECALL)})   |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_FENCE      )}} & {1'b0, (pmu_i0_itype_qual == FENCE)})   |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_FENCEI     )}} & {1'b0, (pmu_i0_itype_qual == FENCEI)})  |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_MRET       )}} & {1'b0, (pmu_i0_itype_qual == MRET)})    |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_BRANCH     )}} & {((pmu_i1_itype_qual == CONDBR) | (pmu_i1_itype_qual == JAL)),
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_ALU        )}} & {(pmu_i1_itype_qual == ALU),     (pmu_i0_itype_qual == ALU)})     |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_CSRREAD    )}} & {1'b0, (pmu_i0_itype_qual == CSRREAD)}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_CSRWRITE   )}} & {1'b0, (pmu_i0_itype_qual == CSRWRITE)})|
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_CSRRW      )}} & {1'b0, (pmu_i0_itype_qual == CSRRW)})   |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_EBREAK     )}} & {1'b0, (pmu_i0_itype_qual == EBREAK)})  |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_ECALL      )}} & {1'b0, (pmu_i0_itype_qual == ECALL)})   |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_FENCE      )}} & {(pmu_i1_itype_qual == FENCE),   (pmu_i0_itype_qual == FENCE)})   |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_FENCEI     )}} & {1'b0, (pmu_i0_itype_qual == FENCEI)})  |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_MRET       )}} & {1'b0, (pmu_i0_itype_qual == MRET)})    |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_BRANCH     )}} & {((pmu_i1_itype_qual == CONDBR) | (pmu_i1_itype_qual == JAL)),
                                                                      ((pmu_i0_itype_qual == CONDBR) | (pmu_i0_itype_qual == JAL))})   |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_BRANCH_MP       )}} & {exu_pmu_i1_br_misp & tlu_i1_commit_cmt,
-                                                                     exu_pmu_i0_br_misp & tlu_i0_commit_cmt}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_BRANCH_TAKEN    )}} & {exu_pmu_i1_br_ataken & tlu_i1_commit_cmt,
-                                                                     exu_pmu_i0_br_ataken & tlu_i0_commit_cmt}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_BRANCH_NOTP     )}} & {tlu_packet_e4.pmu_i1_br_unpred & tlu_i1_commit_cmt,
-                                                                     tlu_packet_e4.pmu_i0_br_unpred & tlu_i0_commit_cmt}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_FETCH_STALL     )}} & {1'b0, ifu_pmu_fetch_stall}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_ALGNR_STALL     )}} & {1'b0, ifu_pmu_align_stall}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DECODE_STALL    )}} & {1'b0, dec_pmu_decode_stall}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_POSTSYNC_STALL  )}} & {1'b0,dec_pmu_postsync_stall}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_PRESYNC_STALL   )}} & {1'b0,dec_pmu_presync_stall}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_LSU_SB_WB_STALL )}} & {1'b0, lsu_store_stall_any}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DMA_DCCM_STALL  )}} & {1'b0, dma_dccm_stall_any}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DMA_ICCM_STALL  )}} & {1'b0, dma_iccm_stall_any}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_EXC_TAKEN       )}} & {1'b0, (i0_exception_valid_e4 | trigger_hit_e4 | lsu_exc_valid_e4)}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_TIMER_INT_TAKEN )}} & {1'b0, take_timer_int | take_int_timer0_int | take_int_timer1_int}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_EXT_INT_TAKEN   )}} & {1'b0, take_ext_int}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_FLUSH_LOWER     )}} & {1'b0, tlu_flush_lower_e4}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_BR_ERROR        )}} & {(dec_tlu_br1_error_e4 | dec_tlu_br1_start_error_e4) & rfpc_i1_e4,
+             ({2{(mhpme_vec[i][9:0] == MHPME_BRANCH_MP       )}} & {exu_pmu_i1_br_misp & tlu_i1_commit_cmt,
+                                                                     exu_pmu_i0_br_misp & tlu_i0_commit_cmt & ~illegal_e4}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_BRANCH_TAKEN    )}} & {exu_pmu_i1_br_ataken & tlu_i1_commit_cmt,
+                                                                     exu_pmu_i0_br_ataken & tlu_i0_commit_cmt & ~illegal_e4}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_BRANCH_NOTP     )}} & {tlu_packet_e4.pmu_i1_br_unpred & tlu_i1_commit_cmt,
+                                                                     tlu_packet_e4.pmu_i0_br_unpred & tlu_i0_commit_cmt & ~illegal_e4}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_FETCH_STALL     )}} & {1'b0, ifu_pmu_fetch_stall}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_ALGNR_STALL     )}} & {1'b0, ifu_pmu_align_stall}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DECODE_STALL    )}} & {1'b0, dec_pmu_decode_stall}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_POSTSYNC_STALL  )}} & {1'b0,dec_pmu_postsync_stall}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_PRESYNC_STALL   )}} & {1'b0,dec_pmu_presync_stall}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_LSU_SB_WB_STALL )}} & {1'b0, lsu_store_stall_any}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DMA_DCCM_STALL  )}} & {1'b0, dma_dccm_stall_any}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DMA_ICCM_STALL  )}} & {1'b0, dma_iccm_stall_any}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_EXC_TAKEN       )}} & {1'b0, (i0_exception_valid_e4 | trigger_hit_e4 | lsu_exc_valid_e4)}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_TIMER_INT_TAKEN )}} & {1'b0, take_timer_int | take_int_timer0_int | take_int_timer1_int}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_EXT_INT_TAKEN   )}} & {1'b0, take_ext_int}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_FLUSH_LOWER     )}} & {1'b0, tlu_flush_lower_e4}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_BR_ERROR        )}} & {(dec_tlu_br1_error_e4 | dec_tlu_br1_start_error_e4) & rfpc_i1_e4,
                                                                      (dec_tlu_br0_error_e4 | dec_tlu_br0_start_error_e4) & rfpc_i0_e4}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_IBUS_TRANS      )}} & {1'b0, ifu_pmu_bus_trxn}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DBUS_TRANS      )}} & {1'b0, lsu_pmu_bus_trxn}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DBUS_MA_TRANS   )}} & {1'b0, lsu_pmu_bus_misaligned}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_IBUS_ERROR      )}} & {1'b0, ifu_pmu_bus_error}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DBUS_ERROR      )}} & {1'b0, lsu_pmu_bus_error}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_IBUS_STALL      )}} & {1'b0, ifu_pmu_bus_busy}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DBUS_STALL      )}} & {1'b0, lsu_pmu_bus_busy}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INT_DISABLED    )}} & {1'b0, ~mstatus[`MSTATUS_MIE]}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INT_STALLED     )}} & {1'b0, ~mstatus[`MSTATUS_MIE] & |(mip[5:0] & mie[5:0])}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_AMO        )}} & {(pmu_i1_itype_qual == ATOMIC),    (pmu_i0_itype_qual == ATOMIC)}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_LR         )}} & {(pmu_i1_itype_qual == LR),    (pmu_i0_itype_qual == LR)}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_SC         )}} & {(pmu_i1_itype_qual == SC),    (pmu_i0_itype_qual == SC)}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_INST_BITMANIP     )}} & {(pmu_i1_itype_qual == BITMANIPU),    (pmu_i0_itype_qual == BITMANIPU)}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DBUS_LOAD       )}} & {1'b0, tlu_commit_lsu_op_e4 & lsu_pmu_load_external_dc4}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DBUS_STORE      )}} & {1'b0, tlu_commit_lsu_op_e4 & lsu_pmu_store_external_dc4}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_IBUS_TRANS      )}} & {1'b0, ifu_pmu_bus_trxn}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DBUS_TRANS      )}} & {1'b0, lsu_pmu_bus_trxn}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DBUS_MA_TRANS   )}} & {1'b0, lsu_pmu_bus_misaligned}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_IBUS_ERROR      )}} & {1'b0, ifu_pmu_bus_error}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DBUS_ERROR      )}} & {1'b0, lsu_pmu_bus_error}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_IBUS_STALL      )}} & {1'b0, ifu_pmu_bus_busy}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DBUS_STALL      )}} & {1'b0, lsu_pmu_bus_busy}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INT_DISABLED    )}} & {1'b0, ~mstatus[MSTATUS_MIE]}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INT_STALLED     )}} & {1'b0, ~mstatus[MSTATUS_MIE] & |(mip[5:0] & mie[5:0])}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_AMO        )}} & {(pmu_i1_itype_qual == ATOMIC),    (pmu_i0_itype_qual == ATOMIC)}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_LR         )}} & {(pmu_i1_itype_qual == LR),    (pmu_i0_itype_qual == LR)}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_SC         )}} & {(pmu_i1_itype_qual == SC),    (pmu_i0_itype_qual == SC)}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_INST_BITMANIP     )}} & {(pmu_i1_itype_qual == BITMANIPU),    (pmu_i0_itype_qual == BITMANIPU)}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DBUS_LOAD       )}} & {1'b0, tlu_commit_lsu_op_e4 & lsu_pmu_load_external_dc4 }) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DBUS_STORE      )}} & {1'b0, tlu_commit_lsu_op_e4 & lsu_pmu_store_external_dc4}) |
              // These count even during sleep
-             ({2{(mhpme_vec[i][9:0] == `MHPME_SLEEP_CYC       )}} & {1'b0, dec_tlu_pmu_fw_halted}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DMA_READ_ALL    )}} & {1'b0, dma_pmu_any_read}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DMA_WRITE_ALL   )}} & {1'b0, dma_pmu_any_write}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DMA_READ_DCCM   )}} & {1'b0, dma_pmu_dccm_read}) |
-             ({2{(mhpme_vec[i][9:0] == `MHPME_DMA_WRITE_DCCM  )}} & {1'b0, dma_pmu_dccm_write})
+             ({2{(mhpme_vec[i][9:0] == MHPME_SLEEP_CYC       )}} & {1'b0, dec_tlu_pmu_fw_halted}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DMA_READ_ALL    )}} & {1'b0, dma_pmu_any_read}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DMA_WRITE_ALL   )}} & {1'b0, dma_pmu_any_write}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DMA_READ_DCCM   )}} & {1'b0, dma_pmu_dccm_read}) |
+             ({2{(mhpme_vec[i][9:0] == MHPME_DMA_WRITE_DCCM  )}} & {1'b0, dma_pmu_dccm_write})
              );
    end
-   rvdff #(2) pmu0inc_ff (.*, .clk(free_clk), .din(mhpmc_inc_e4[0][1:0]), .dout(mhpmc_inc_wb[0][1:0]));
-   rvdff #(2) pmu1inc_ff (.*, .clk(free_clk), .din(mhpmc_inc_e4[1][1:0]), .dout(mhpmc_inc_wb[1][1:0]));
-   rvdff #(2) pmu2inc_ff (.*, .clk(free_clk), .din(mhpmc_inc_e4[2][1:0]), .dout(mhpmc_inc_wb[2][1:0]));
-   rvdff #(2) pmu3inc_ff (.*, .clk(free_clk), .din(mhpmc_inc_e4[3][1:0]), .dout(mhpmc_inc_wb[3][1:0]));
 
-   assign perfcnt_halted = ((dec_tlu_dbg_halted & dcsr[`DCSR_STOPC]) | dec_tlu_pmu_fw_halted);
-   assign perfcnt_during_sleep[3:0] = {4{~(dec_tlu_dbg_halted & dcsr[`DCSR_STOPC])}} &
+   rvdffie #(20) bundle_ff (.*, .clk(free_l2clk),
+                           .din({tlu_btb_write_kill_ns, mstatus_ns[1:0], mip_ns[5:0], mcyclel_cout & ~wr_mcycleh_wb & mcyclel_cout_in,
+                                 minstret_enable, minstretl_cout_ns,
+                                 meicidpl_ns[3:0], meipt_ns[3:0]
+                                 }),
+                           .dout({tlu_btb_write_kill, mstatus[1:0], mip[5:0], mcyclel_cout_f,
+                                  minstret_enable_f, minstretl_cout_f,
+                                  meicidpl[3:0], meipt[3:0]
+                                  }));
+
+   rvdffie #(12) bundle2_ff (.*, .clk(free_l2clk),
+                           .din({mfdhs_ns[1:0],
+                                 icache_rd_valid, icache_wr_valid,
+                                 mhpmc_inc_e4[0][1:0],  mhpmc_inc_e4[1][1:0], mhpmc_inc_e4[2][1:0], mhpmc_inc_e4[3][1:0] }),
+                           .dout({mfdhs[1:0],
+                                  icache_rd_valid_f, icache_wr_valid_f,
+                                  mhpmc_inc_wb[0][1:0], mhpmc_inc_wb[1][1:0], mhpmc_inc_wb[2][1:0], mhpmc_inc_wb[3][1:0]}));
+
+
+   assign perfcnt_halted = ((dec_tlu_dbg_halted & dcsr[DCSR_STOPC]) | dec_tlu_pmu_fw_halted);
+   assign perfcnt_during_sleep[3:0] = {4{~(dec_tlu_dbg_halted & dcsr[DCSR_STOPC])}} &
                                       {mhpme_vec[3][9],mhpme_vec[2][9],mhpme_vec[1][9],mhpme_vec[0][9]};
 
 
@@ -2015,106 +2105,116 @@ end
    // ----------------------------------------------------------------------
    // MHPMC3H(RW), MHPMC3(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 3
-   `define MHPMC3 12'hB03
-   `define MHPMC3H 12'hB83
+   localparam MHPMC3        = 12'hB03;
+   localparam MHPMC3H       = 12'hB83;
 
-   assign mhpmc3_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC3);
+   assign mhpmc3_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC3);
    assign mhpmc3_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[0]) & (|(mhpmc_inc_wb[0][1:0]));
    assign mhpmc3_wr_en  = mhpmc3_wr_en0 | mhpmc3_wr_en1;
    assign mhpmc3_incr[63:0] = {mhpmc3h[31:0],mhpmc3[31:0]} + {63'b0,mhpmc_inc_wb[0][1]} + {63'b0,mhpmc_inc_wb[0][0]};
    assign mhpmc3_ns[31:0] = mhpmc3_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc3_incr[31:0];
-   rvdffe #(32)  mhpmc3_ff (.*, .en(mhpmc3_wr_en), .din(mhpmc3_ns[31:0]), .dout(mhpmc3[31:0]));
+   rvdffe #(32)  mhpmc3_ff (.*, .clk(free_l2clk), .en(mhpmc3_wr_en), .din(mhpmc3_ns[31:0]), .dout(mhpmc3[31:0]));
 
-   assign mhpmc3h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC3H);
+   assign mhpmc3h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC3H);
    assign mhpmc3h_wr_en  = mhpmc3h_wr_en0 | mhpmc3_wr_en1;
    assign mhpmc3h_ns[31:0] = mhpmc3h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc3_incr[63:32];
-   rvdffe #(32)  mhpmc3h_ff (.*, .en(mhpmc3h_wr_en), .din(mhpmc3h_ns[31:0]), .dout(mhpmc3h[31:0]));
+   rvdffe #(32)  mhpmc3h_ff (.*, .clk(free_l2clk), .en(mhpmc3h_wr_en), .din(mhpmc3h_ns[31:0]), .dout(mhpmc3h[31:0]));
 
    // ----------------------------------------------------------------------
    // MHPMC4H(RW), MHPMC4(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 4
-   `define MHPMC4 12'hB04
-   `define MHPMC4H 12'hB84
+   localparam MHPMC4        = 12'hB04;
+   localparam MHPMC4H       = 12'hB84;
 
-   assign mhpmc4_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC4);
+   assign mhpmc4_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC4);
    assign mhpmc4_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[1]) & (|(mhpmc_inc_wb[1][1:0]));
    assign mhpmc4_wr_en  = mhpmc4_wr_en0 | mhpmc4_wr_en1;
    assign mhpmc4_incr[63:0] = {mhpmc4h[31:0],mhpmc4[31:0]} + {63'b0,mhpmc_inc_wb[1][1]} + {63'b0,mhpmc_inc_wb[1][0]};
    assign mhpmc4_ns[31:0] = mhpmc4_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc4_incr[31:0];
-   rvdffe #(32)  mhpmc4_ff (.*, .en(mhpmc4_wr_en), .din(mhpmc4_ns[31:0]), .dout(mhpmc4[31:0]));
+   rvdffe #(32)  mhpmc4_ff (.*, .clk(free_l2clk), .en(mhpmc4_wr_en), .din(mhpmc4_ns[31:0]), .dout(mhpmc4[31:0]));
 
-   assign mhpmc4h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC4H);
+   assign mhpmc4h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC4H);
    assign mhpmc4h_wr_en  = mhpmc4h_wr_en0 | mhpmc4_wr_en1;
    assign mhpmc4h_ns[31:0] = mhpmc4h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc4_incr[63:32];
-   rvdffe #(32)  mhpmc4h_ff (.*, .en(mhpmc4h_wr_en), .din(mhpmc4h_ns[31:0]), .dout(mhpmc4h[31:0]));
+   rvdffe #(32)  mhpmc4h_ff (.*, .clk(free_l2clk), .en(mhpmc4h_wr_en), .din(mhpmc4h_ns[31:0]), .dout(mhpmc4h[31:0]));
 
    // ----------------------------------------------------------------------
    // MHPMC5H(RW), MHPMC5(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 5
-   `define MHPMC5 12'hB05
-   `define MHPMC5H 12'hB85
+   localparam MHPMC5        = 12'hB05;
+   localparam MHPMC5H       = 12'hB85;
 
-   assign mhpmc5_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC5);
+   assign mhpmc5_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC5);
    assign mhpmc5_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[2]) & (|(mhpmc_inc_wb[2][1:0]));
    assign mhpmc5_wr_en  = mhpmc5_wr_en0 | mhpmc5_wr_en1;
    assign mhpmc5_incr[63:0] = {mhpmc5h[31:0],mhpmc5[31:0]} + {63'b0,mhpmc_inc_wb[2][1]} + {63'b0,mhpmc_inc_wb[2][0]};
    assign mhpmc5_ns[31:0] = mhpmc5_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc5_incr[31:0];
-   rvdffe #(32)  mhpmc5_ff (.*, .en(mhpmc5_wr_en), .din(mhpmc5_ns[31:0]), .dout(mhpmc5[31:0]));
+   rvdffe #(32)  mhpmc5_ff (.*, .clk(free_l2clk), .en(mhpmc5_wr_en), .din(mhpmc5_ns[31:0]), .dout(mhpmc5[31:0]));
 
-   assign mhpmc5h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC5H);
+   assign mhpmc5h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC5H);
    assign mhpmc5h_wr_en  = mhpmc5h_wr_en0 | mhpmc5_wr_en1;
    assign mhpmc5h_ns[31:0] = mhpmc5h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc5_incr[63:32];
-   rvdffe #(32)  mhpmc5h_ff (.*, .en(mhpmc5h_wr_en), .din(mhpmc5h_ns[31:0]), .dout(mhpmc5h[31:0]));
+   rvdffe #(32)  mhpmc5h_ff (.*, .clk(free_l2clk), .en(mhpmc5h_wr_en), .din(mhpmc5h_ns[31:0]), .dout(mhpmc5h[31:0]));
 
    // ----------------------------------------------------------------------
    // MHPMC6H(RW), MHPMC6(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 6
-   `define MHPMC6 12'hB06
-   `define MHPMC6H 12'hB86
+   localparam MHPMC6        = 12'hB06;
+   localparam MHPMC6H       = 12'hB86;
 
-   assign mhpmc6_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC6);
+   assign mhpmc6_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC6);
    assign mhpmc6_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[3]) & (|(mhpmc_inc_wb[3][1:0]));
    assign mhpmc6_wr_en  = mhpmc6_wr_en0 | mhpmc6_wr_en1;
    assign mhpmc6_incr[63:0] = {mhpmc6h[31:0],mhpmc6[31:0]} + {63'b0,mhpmc_inc_wb[3][1]} + {63'b0,mhpmc_inc_wb[3][0]};
    assign mhpmc6_ns[31:0] = mhpmc6_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc6_incr[31:0];
-   rvdffe #(32)  mhpmc6_ff (.*, .en(mhpmc6_wr_en), .din(mhpmc6_ns[31:0]), .dout(mhpmc6[31:0]));
+   rvdffe #(32)  mhpmc6_ff (.*, .clk(free_l2clk), .en(mhpmc6_wr_en), .din(mhpmc6_ns[31:0]), .dout(mhpmc6[31:0]));
 
-   assign mhpmc6h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPMC6H);
+   assign mhpmc6h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC6H);
    assign mhpmc6h_wr_en  = mhpmc6h_wr_en0 | mhpmc6_wr_en1;
    assign mhpmc6h_ns[31:0] = mhpmc6h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc6_incr[63:32];
-   rvdffe #(32)  mhpmc6h_ff (.*, .en(mhpmc6h_wr_en), .din(mhpmc6h_ns[31:0]), .dout(mhpmc6h[31:0]));
+   rvdffe #(32)  mhpmc6h_ff (.*, .clk(free_l2clk), .en(mhpmc6h_wr_en), .din(mhpmc6h_ns[31:0]), .dout(mhpmc6h[31:0]));
 
    // ----------------------------------------------------------------------
    // MHPME3(RW)
    // [9:0] : Hardware Performance Monitor Event 3
-   `define MHPME3 12'h323
+   localparam MHPME3        = 12'h323;
 
-   // we only have events 0-56, 512-516, HPME* are WARL so saturate otherwise
-   assign event_saturate_wb[9:0] = ((dec_i0_csr_wrdata_wb[9:0] > 10'd516) | (|dec_i0_csr_wrdata_wb[31:10])) ? 10'd516 : dec_i0_csr_wrdata_wb[9:0];
+   // we only have events 0-56, 512-516, not 33, HPME* are WARL so zero otherwise
+   assign zero_event_wb = ( (dec_i0_csr_wrdata_wb[9:0] > 10'd516) |
+                            (|dec_i0_csr_wrdata_wb[31:10]) |
+                            ((dec_i0_csr_wrdata_wb[9:0] < 10'd512) & (dec_i0_csr_wrdata_wb[9:0] > 10'd56)) |
+                            (dec_i0_csr_wrdata_wb[9:0] == 10'd33)
+                           );
 
-   assign wr_mhpme3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPME3);
-   rvdffs #(10)  mhpme3_ff (.*, .clk(active_clk), .en(wr_mhpme3_wb), .din(event_saturate_wb[9:0]), .dout(mhpme3[9:0]));
+   assign event_wb[9:0] =  zero_event_wb ? '0 : dec_i0_csr_wrdata_wb[9:0];
+
+   assign wr_mhpme3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPME3);
+
+   rvdffe #(10)  mhpme3_ff (.*, .en(wr_mhpme3_wb), .din(event_wb[9:0]), .dout(mhpme3[9:0]));
    // ----------------------------------------------------------------------
    // MHPME4(RW)
    // [9:0] : Hardware Performance Monitor Event 4
-   `define MHPME4 12'h324
+   localparam MHPME4        = 12'h324;
 
-   assign wr_mhpme4_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPME4);
-   rvdffs #(10)  mhpme4_ff (.*, .clk(active_clk), .en(wr_mhpme4_wb), .din(event_saturate_wb[9:0]), .dout(mhpme4[9:0]));
+   assign wr_mhpme4_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPME4);
+
+   rvdffe #(10)  mhpme4_ff (.*, .en(wr_mhpme4_wb), .din(event_wb[9:0]), .dout(mhpme4[9:0]));
    // ----------------------------------------------------------------------
    // MHPME5(RW)
    // [9:0] : Hardware Performance Monitor Event 5
-   `define MHPME5 12'h325
+   localparam MHPME5        = 12'h325;
 
-   assign wr_mhpme5_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPME5);
-   rvdffs #(10)  mhpme5_ff (.*, .clk(active_clk), .en(wr_mhpme5_wb), .din(event_saturate_wb[9:0]), .dout(mhpme5[9:0]));
+   assign wr_mhpme5_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPME5);
+
+   rvdffe #(10)  mhpme5_ff (.*, .en(wr_mhpme5_wb), .din(event_wb[9:0]), .dout(mhpme5[9:0]));
    // ----------------------------------------------------------------------
    // MHPME6(RW)
    // [9:0] : Hardware Performance Monitor Event 6
-   `define MHPME6 12'h326
+   localparam MHPME6        = 12'h326;
 
-   assign wr_mhpme6_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MHPME6);
-   rvdffs #(10)  mhpme6_ff (.*, .clk(active_clk), .en(wr_mhpme6_wb), .din(event_saturate_wb[9:0]), .dout(mhpme6[9:0]));
+   assign wr_mhpme6_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPME6);
+
+   rvdffe #(10)  mhpme6_ff (.*, .en(wr_mhpme6_wb), .din(event_wb[9:0]), .dout(mhpme6[9:0]));
 
    // MCOUNTINHIBIT(RW)
    // [31:7] : Reserved, read 0x0
@@ -2126,12 +2226,31 @@ end
    // [1]    : reserved, read 0x0
    // [0]    : MCYCLE disable
 
-   `define MCOUNTINHIBIT 12'h320
+   localparam MCOUNTINHIBIT             = 12'h320;
 
-   assign wr_mcountinhibit_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MCOUNTINHIBIT);
+   assign wr_mcountinhibit_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCOUNTINHIBIT);
 
-   rvdffs #(6)  mcountinhibit_ff (.*, .clk(active_clk), .en(wr_mcountinhibit_wb), .din({dec_i0_csr_wrdata_wb[6:2], dec_i0_csr_wrdata_wb[0]}), .dout({mcountinhibit[6:2], mcountinhibit[0]}));
+   rvdffs #(6)  mcountinhibit_ff (.*, .clk(csr_wr_clk), .en(wr_mcountinhibit_wb), .din({dec_i0_csr_wrdata_wb[6:2], dec_i0_csr_wrdata_wb[0]}), .dout({mcountinhibit[6:2], mcountinhibit[0]}));
    assign mcountinhibit[1] = 1'b0;
+
+   // ----------------------------------------------------------------------
+   // MFDHS(RW)
+   // [1] : LSU operation pending when debug halt threshold reached
+   // [0] : IFU operation pending when debug halt threshold reached
+
+   localparam MFDHS         = 12'h7cf;
+
+   assign wr_mfdhs_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MFDHS);
+
+   assign mfdhs_ns[1:0] = wr_mfdhs_wb ? dec_i0_csr_wrdata_wb[1:0] : ((dbg_tlu_halted & ~dbg_tlu_halted_f) ? {~lsu_idle_any_f, ~ifu_miss_state_idle_f} : mfdhs[1:0]);
+
+
+   assign force_halt_ctr[31:0] = debug_halt_req_f ? (force_halt_ctr_f[31:0] + 32'b1) : (dbg_tlu_halted_f ? 32'b0 : force_halt_ctr_f[31:0]);
+
+
+   rvdfflie #(.WIDTH(32),.LEFT(20))  forcehaltctr_ff (.*, .en(mfdht[0]), .din(force_halt_ctr[31:0]), .dout(force_halt_ctr_f[31:0]));
+
+   assign force_halt = mfdht[0] & |(force_halt_ctr_f[31:0] & (32'hffffffff << mfdht[5:1]));
 
    //----------------------------------------------------------------------
    // Performance Monitor Counters section ends
@@ -2139,43 +2258,32 @@ end
    // ----------------------------------------------------------------------
 
 
-   // ----------------------------------------------------------------------
-   // MFDHS(RW)
-   // [1] : LSU operation pending when debug halt threshold reached
-   // [0] : IFU operation pending when debug halt threshold reached
-
-   `define MFDHS 12'h7cf
-
-   assign wr_mfdhs_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MFDHS);
-
-   assign mfdhs_ns[1:0] = wr_mfdhs_wb ? dec_i0_csr_wrdata_wb[1:0] : ((dbg_tlu_halted & ~dbg_tlu_halted_f) ? {~lsu_idle_any_f, ~ifu_miss_state_idle_f} : mfdhs[1:0]);
-
-   rvdffs #(2)  mfdhs_ff (.*, .clk(active_clk), .en(wr_mfdhs_wb | dbg_tlu_halted), .din(mfdhs_ns[1:0]), .dout(mfdhs[1:0]));
-
-   assign force_halt_ctr[31:0] = debug_halt_req_f ? (force_halt_ctr_f[31:0] + 32'b1) : (dbg_tlu_halted_f ? 32'b0 : force_halt_ctr_f[31:0]);
-
-   rvdffs #(32)  forcehaltctr_ff (.*, .clk(active_clk), .en(mfdht[0]), .din(force_halt_ctr[31:0]), .dout(force_halt_ctr_f[31:0]));
-
-   assign force_halt = mfdht[0] & |(force_halt_ctr_f[31:0] & (32'hffffffff << mfdht[5:1]));
-
-
-
    //--------------------------------------------------------------------------------
-   // trace
+   // trace (1 per thread eventually?!)
    //--------------------------------------------------------------------------------
+   logic tracef_en;
+   assign tracef_en = (i0_valid_wb | i1_valid_wb | exc_or_int_valid_wb | interrupt_valid_wb | tlu_i0_valid_wb1 | tlu_i1_valid_wb1 |
+                       tlu_i0_exc_valid_wb1 | tlu_i1_exc_valid_wb1 | tlu_int_valid_wb1_raw | tlu_int_valid_wb2) & ~dec_tlu_trace_disable;
 
-   rvoclkhdr trace_cgc ( .en(i0_valid_wb | i1_valid_wb | exc_or_int_valid_wb | interrupt_valid_wb | tlu_i0_valid_wb1 | tlu_i1_valid_wb1 |
-                                tlu_i0_exc_valid_wb1 | tlu_i1_exc_valid_wb1 | tlu_int_valid_wb1 | clk_override), .l1clk(trace_tclk), .* );
-   rvdff #(10)  traceff (.*,   .clk(trace_tclk),
+   rvdffe #(16)  traceff (.*, .clk(free_l2clk), .en(tracef_en),
                         .din ({i0_valid_wb, i1_valid_wb,
                                i0_exception_valid_wb | lsu_i0_exc_wb | (i0_trigger_hit_wb & ~trigger_hit_dmode_wb),
                                ~(i0_exception_valid_wb | lsu_i0_exc_wb | i0_trigger_hit_wb) & exc_or_int_valid_wb & ~interrupt_valid_wb,
                                exc_cause_wb[4:0],
-                               interrupt_valid_wb}),
+                               interrupt_valid_wb,
+                               tlu_exc_cause_wb1_raw[4:0],
+                               tlu_int_valid_wb1_raw}),
                         .dout({tlu_i0_valid_wb1, tlu_i1_valid_wb1,
                                tlu_i0_exc_valid_wb1, tlu_i1_exc_valid_wb1,
-                               tlu_exc_cause_wb1[4:0],
-                               tlu_int_valid_wb1}));
+                               tlu_exc_cause_wb1_raw[4:0],
+                               tlu_int_valid_wb1_raw,
+                               tlu_exc_cause_wb2[4:0],
+                               tlu_int_valid_wb2
+                               }));
+
+   // skid buffer for ints, reduces trace port count by 1
+   assign tlu_exc_cause_wb1[4:0] =  tlu_int_valid_wb2 ? tlu_exc_cause_wb2[4:0] : tlu_exc_cause_wb1_raw[4:0];
+   assign tlu_int_valid_wb1 = tlu_int_valid_wb2;
 
    assign tlu_mtval_wb1  = mtval[31:0];
 
@@ -2186,8 +2294,11 @@ end
    // ----------------------------------------------------------------------
    // CSR read mux
    // ----------------------------------------------------------------------
+
+
    assign csr_rd = tlu_i0_csr_pkt_d;
 
+//   for( genvar i=0; i<2 ; i++) begin: CSR_rd_mux
    assign csr_rddata_d[31:0] = (  ({32{csr_rd.csr_mhartid}}   & {core_id[31:4], 3'b0, mytid}) |
                                   ({32{csr_rd.csr_mstatus}}   & {19'b0, 2'b11, 3'b0, mstatus[1], 3'b0, mstatus[0], 3'b0}) |
                                   ({32{csr_rd.csr_mtvec}}     & {mtvec[30:1], 1'b0, mtvec[0]}) |
@@ -2245,7 +2356,8 @@ import eh2_pkg::*;
 )
   (
    input logic clk,
-   input logic free_clk,
+   input logic free_l2clk,
+   input logic csr_wr_clk,
    input logic rst_l,
    input logic        dec_i0_csr_wen_wb_mod,      // csr write enable at wb
 
@@ -2265,15 +2377,16 @@ import eh2_pkg::*;
 
    input  logic        scan_mode
    );
-   `define MITCTL_ENABLE 0
-   `define MITCTL_ENABLE_HALTED 1
-   `define MITCTL_ENABLE_PAUSED 2
+   localparam MITCTL_ENABLE             = 0;
+   localparam MITCTL_ENABLE_HALTED      = 1;
+   localparam MITCTL_ENABLE_PAUSED      = 2;
 
    logic [31:0] mitcnt0_ns, mitcnt0, mitcnt1_ns, mitcnt1, mitb0, mitb1, mitb0_b, mitb1_b, mitcnt0_inc, mitcnt1_inc;
    logic [2:0] mitctl0_ns, mitctl0;
    logic [3:0] mitctl1_ns, mitctl1;
    logic wr_mitcnt0_wb, wr_mitcnt1_wb, wr_mitb0_wb, wr_mitb1_wb, wr_mitctl0_wb, wr_mitctl1_wb;
-   logic mitcnt0_inc_ok, mitcnt1_inc_ok, mitcnt0_cout_nc, mitcnt1_cout_nc;
+   logic mitcnt0_inc_ok, mitcnt1_inc_ok;
+   logic mitcnt0_inc_cout, mitcnt1_inc_cout;
 
  logic mit0_match_ns;
  logic mit1_match_ns;
@@ -2294,40 +2407,50 @@ import eh2_pkg::*;
    // MITCNT0 (RW)
    // [31:0] : Internal Timer Counter 0
 
-   `define MITCNT0 12'h7d2
+   localparam MITCNT0       = 12'h7d2;
 
-   assign wr_mitcnt0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MITCNT0);
+   assign wr_mitcnt0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITCNT0);
 
-   assign mitcnt0_inc_ok = mitctl0[`MITCTL_ENABLE] & (~dec_pause_state | mitctl0[`MITCTL_ENABLE_PAUSED]) & (~dec_tlu_pmu_fw_halted | mitctl0[`MITCTL_ENABLE_HALTED]) & ~internal_dbg_halt_timers;
+   assign mitcnt0_inc_ok = mitctl0[MITCTL_ENABLE] & (~dec_pause_state | mitctl0[MITCTL_ENABLE_PAUSED]) & (~dec_tlu_pmu_fw_halted | mitctl0[MITCTL_ENABLE_HALTED]) & ~internal_dbg_halt_timers;
 
-   assign {mitcnt0_cout_nc, mitcnt0_inc[31:0]} = mitcnt0[31:0] + {31'b0, 1'b1};
-   assign mitcnt0_ns[31:0] = mit0_match_ns ? 'b0 : wr_mitcnt0_wb ? dec_i0_csr_wrdata_wb[31:0] : mitcnt0_inc[31:0];
+   assign {mitcnt0_inc_cout, mitcnt0_inc[7:0]} = mitcnt0[7:0] + {7'b0, 1'b1};
+   assign mitcnt0_inc[31:8] = mitcnt0[31:8] + {23'b0, mitcnt0_inc_cout};
 
-   rvdffe #(32) mitcnt0_ff      (.*, .en(wr_mitcnt0_wb | mitcnt0_inc_ok | mit0_match_ns), .din(mitcnt0_ns[31:0]), .dout(mitcnt0[31:0]));
+   assign mitcnt0_ns[31:0] = wr_mitcnt0_wb ? dec_i0_csr_wrdata_wb[31:0] : mit0_match_ns ? 'b0 : mitcnt0_inc[31:0];
+
+   rvdffe #(24) mitcnt0_ffb      (.*, .clk(free_l2clk), .en(wr_mitcnt0_wb | (mitcnt0_inc_ok & mitcnt0_inc_cout) | mit0_match_ns), .din(mitcnt0_ns[31:8]), .dout(mitcnt0[31:8]));
+   rvdffe #(8)  mitcnt0_ffa      (.*, .clk(free_l2clk), .en(wr_mitcnt0_wb | mitcnt0_inc_ok | mit0_match_ns),                       .din(mitcnt0_ns[7:0]), .dout(mitcnt0[7:0]));
 
    // ----------------------------------------------------------------------
    // MITCNT1 (RW)
    // [31:0] : Internal Timer Counter 0
 
-   `define MITCNT1 12'h7d5
+   localparam MITCNT1       = 12'h7d5;
 
-   assign wr_mitcnt1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MITCNT1);
+   assign wr_mitcnt1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITCNT1);
 
-   assign mitcnt1_inc_ok = mitctl1[`MITCTL_ENABLE] & (~dec_pause_state | mitctl1[`MITCTL_ENABLE_PAUSED]) & (~dec_tlu_pmu_fw_halted | mitctl1[`MITCTL_ENABLE_HALTED]) & ~internal_dbg_halt_timers;
+   assign mitcnt1_inc_ok = mitctl1[MITCTL_ENABLE] &
+                           (~dec_pause_state | mitctl1[MITCTL_ENABLE_PAUSED]) &
+                           (~dec_tlu_pmu_fw_halted | mitctl1[MITCTL_ENABLE_HALTED]) &
+                           ~internal_dbg_halt_timers &
+                           (~mitctl1[3] | mit0_match_ns);
 
    // only inc MITCNT1 if not cascaded with 0, or if 0 overflows
-   assign {mitcnt1_cout_nc, mitcnt1_inc[31:0]} = mitcnt1[31:0] + {31'b0, (~mitctl1[3] | mit0_match_d1)};
-   assign mitcnt1_ns[31:0] = mit1_match_ns ? 'b0 :  wr_mitcnt1_wb ? dec_i0_csr_wrdata_wb[31:0] : mitcnt1_inc[31:0];
+   assign {mitcnt1_inc_cout, mitcnt1_inc[7:0]} = mitcnt1[7:0] + {7'b0, 1'b1};
+   assign mitcnt1_inc[31:8] = mitcnt1[31:8] + {23'b0, mitcnt1_inc_cout};
 
-   rvdffe #(32) mitcnt1_ff      (.*, .en(wr_mitcnt1_wb | mitcnt1_inc_ok | mit1_match_ns), .din(mitcnt1_ns[31:0]), .dout(mitcnt1[31:0]));
+   assign mitcnt1_ns[31:0]  = wr_mitcnt1_wb ? dec_i0_csr_wrdata_wb[31:0] : mit1_match_ns ? 'b0 : mitcnt1_inc[31:0];
+
+   rvdffe #(24) mitcnt1_ffb      (.*, .clk(free_l2clk), .en(wr_mitcnt1_wb | (mitcnt1_inc_ok & mitcnt1_inc_cout) | mit1_match_ns), .din(mitcnt1_ns[31:8]), .dout(mitcnt1[31:8]));
+   rvdffe #(8)  mitcnt1_ffa      (.*, .clk(free_l2clk), .en(wr_mitcnt1_wb | mitcnt1_inc_ok | mit1_match_ns),                       .din(mitcnt1_ns[7:0]), .dout(mitcnt1[7:0]));
 
    // ----------------------------------------------------------------------
    // MITB0 (RW)
    // [31:0] : Internal Timer Bound 0
 
-   `define MITB0 12'h7d3
+   localparam MITB0         = 12'h7d3;
 
-   assign wr_mitb0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MITB0);
+   assign wr_mitb0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITB0);
 
    rvdffe #(32) mitb0_ff      (.*, .en(wr_mitb0_wb), .din(~dec_i0_csr_wrdata_wb[31:0]), .dout(mitb0_b[31:0]));
    assign mitb0[31:0] = ~mitb0_b[31:0];
@@ -2336,9 +2459,9 @@ import eh2_pkg::*;
    // MITB1 (RW)
    // [31:0] : Internal Timer Bound 1
 
-   `define MITB1 12'h7d6
+   localparam MITB1         = 12'h7d6;
 
-   assign wr_mitb1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MITB1);
+   assign wr_mitb1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITB1);
 
    rvdffe #(32) mitb1_ff      (.*, .en(wr_mitb1_wb), .din(~dec_i0_csr_wrdata_wb[31:0]), .dout(mitb1_b[31:0]));
    assign mitb1[31:0] = ~mitb1_b[31:0];
@@ -2350,13 +2473,13 @@ import eh2_pkg::*;
    // [1]    : Enable while HALTed
    // [0]    : Enable (resets to 0x1)
 
-   `define MITCTL0 12'h7d4
+   localparam MITCTL0       = 12'h7d4;
 
-   assign wr_mitctl0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MITCTL0);
+   assign wr_mitctl0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITCTL0);
    assign mitctl0_ns[2:0] = wr_mitctl0_wb ? {dec_i0_csr_wrdata_wb[2:0]} : {mitctl0[2:0]};
 
    assign mitctl0_0_b_ns = ~mitctl0_ns[0];
-   rvdff #(3) mitctl0_ff      (.*, .clk(free_clk), .din({mitctl0_ns[2:1], mitctl0_0_b_ns}), .dout({mitctl0[2:1], mitctl0_0_b}));
+   rvdffs #(3) mitctl0_ff      (.*, .clk(csr_wr_clk), .en(wr_mitctl0_wb), .din({mitctl0_ns[2:1], mitctl0_0_b_ns}), .dout({mitctl0[2:1], mitctl0_0_b}));
    assign mitctl0[0] = ~mitctl0_0_b;
 
    // ----------------------------------------------------------------------
@@ -2367,13 +2490,13 @@ import eh2_pkg::*;
    // [1]    : Enable while HALTed
    // [0]    : Enable (resets to 0x1)
 
-   `define MITCTL1 12'h7d7
+   localparam MITCTL1       = 12'h7d7;
 
-   assign wr_mitctl1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == `MITCTL1);
+   assign wr_mitctl1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITCTL1);
    assign mitctl1_ns[3:0] = wr_mitctl1_wb ? {dec_i0_csr_wrdata_wb[3:0]} : {mitctl1[3:0]};
 
    assign mitctl1_0_b_ns = ~mitctl1_ns[0];
-   rvdff #(5) mitctl1_ff      (.*, .clk(free_clk), .din({mitctl1_ns[3:1], mitctl1_0_b_ns, mit0_match_ns}), .dout({mitctl1[3:1], mitctl1_0_b, mit0_match_d1}));
+   rvdffs #(5) mitctl1_ff      (.*, .clk(csr_wr_clk), .en(wr_mitctl1_wb), .din({mitctl1_ns[3:1], mitctl1_0_b_ns, mit0_match_ns}), .dout({mitctl1[3:1], mitctl1_0_b, mit0_match_d1}));
    assign mitctl1[0] = ~mitctl1_0_b;
 
    assign dec_timer_read_d = csr_rd.csr_mitcnt1 |

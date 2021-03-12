@@ -6,6 +6,13 @@ $RV_ROOT/design/include/eh2_def.sv
 +incdir+$RV_ROOT/design/include
 +incdir+$RV_ROOT/design/dmi
 
+//|+incdir+$SYNOPSYS_SYN_ROOT/dw/sim_ver
+//|-y $SYNOPSYS_SYN_ROOT/dw/sim_ver
+//|
+//|$SYNOPSYS_SYN_ROOT/dw/sim_ver/DW01_addsub.v
+//|$SYNOPSYS_SYN_ROOT/dw/sim_ver/DW_lzd.v
+//|$SYNOPSYS_SYN_ROOT/dw/sim_ver/DW_minmax.v
+//|$SYNOPSYS_SYN_ROOT/dw/sim_ver/DW02_mult.v
 
 +incdir+/wdc/apps/mentor/questa/formal/2019.2/share/MODIFIED/dw
 +incdir+/wdc/apps/mentor/questa/formal/2019.2/share/MODIFIED/dw/dw_datapath

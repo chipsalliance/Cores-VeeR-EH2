@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import eh2_pkg::*;
 (
 
    input logic                          clk,
+   input logic                          clk_override,        // Disable clock gating
    input logic                          scan_mode,             // scan mode
    input logic                          rst_l,
    input eh2_lsu_pkt_t                 lsu_pkt_dc3,        // packet in dc3
@@ -183,13 +184,13 @@ import eh2_pkg::*;
          .*
       );
 
-      assign single_ecc_error_hi_dc3  = single_ecc_error_hi_raw_dc3 & ~(misaligned_fault_dc3 | access_fault_dc3);
+      assign single_ecc_error_hi_dc3  = single_ecc_error_hi_raw_dc3 & ldst_dual_dc3 & ~(misaligned_fault_dc3 | access_fault_dc3);
       assign single_ecc_error_lo_dc3  = single_ecc_error_lo_raw_dc3 & ~(misaligned_fault_dc3 | access_fault_dc3);
       assign lsu_single_ecc_error_dc3 = single_ecc_error_hi_dc3 | single_ecc_error_lo_dc3;
-      assign lsu_double_ecc_error_dc3 = double_ecc_error_hi_dc3 | double_ecc_error_lo_dc3;
+      assign lsu_double_ecc_error_dc3 = (double_ecc_error_hi_dc3 & ldst_dual_dc3) | double_ecc_error_lo_dc3;
 
-      rvdffe #(.WIDTH(pt.DCCM_DATA_WIDTH)) sec_data_hi_dc5plus1ff (.din(sec_data_hi_dc5[pt.DCCM_DATA_WIDTH-1:0]), .dout(sec_data_hi_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]), .en(ld_single_ecc_error_dc5), .clk(clk), .*);
-      rvdffe #(.WIDTH(pt.DCCM_DATA_WIDTH)) sec_data_lo_dc5plus1ff (.din(sec_data_lo_dc5[pt.DCCM_DATA_WIDTH-1:0]), .dout(sec_data_lo_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]), .en(ld_single_ecc_error_dc5), .clk(clk), .*);
+      rvdffe #(.WIDTH(pt.DCCM_DATA_WIDTH)) sec_data_hi_dc5plus1ff (.din(sec_data_hi_dc5[pt.DCCM_DATA_WIDTH-1:0]), .dout(sec_data_hi_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]), .en(ld_single_ecc_error_dc5 | clk_override), .clk(clk), .*);
+      rvdffe #(.WIDTH(pt.DCCM_DATA_WIDTH)) sec_data_lo_dc5plus1ff (.din(sec_data_lo_dc5[pt.DCCM_DATA_WIDTH-1:0]), .dout(sec_data_lo_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]), .en(ld_single_ecc_error_dc5 | clk_override), .clk(clk), .*);
 
    end else begin: Gen_dccm_disable // block: Gen_dccm_enable
       assign sec_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0] = '0;
@@ -205,9 +206,5 @@ import eh2_pkg::*;
 
    end
 
-`ifdef ASSERT_ON
-
-
-`endif
 
 endmodule // lsu_ecc

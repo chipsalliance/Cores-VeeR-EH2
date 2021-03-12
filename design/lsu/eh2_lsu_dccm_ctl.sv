@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,10 +34,9 @@ import eh2_pkg::*;
   (
 
    input logic                             clk,
+   input logic                             clk_override,        // Disable clock gating
    input logic                             lsu_free_c2_clk,
    input logic                             lsu_dccm_c1_dc3_clk,
-   input logic                             lsu_c1_dc4_clk,
-   input logic                             lsu_c1_dc5_clk,
    input logic                             lsu_c2_dc2_clk,
    input logic                             lsu_c2_dc3_clk,
    input logic                             lsu_pic_c1_dc3_clk,
@@ -57,12 +56,14 @@ import eh2_pkg::*;
    input logic                             addr_in_dccm_dc2, addr_in_dccm_dc3, addr_in_dccm_dc4, addr_in_dccm_dc5,
    input logic                             addr_in_pic_dc5,
    input logic                             lsu_raw_fwd_lo_dc5, lsu_raw_fwd_hi_dc5,
+   input logic                             ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4,
 
    input logic                             dma_pic_wen,
    input logic                             dma_dccm_wen,
    input logic                             dma_dccm_spec_wen,
    input logic                             dma_dccm_spec_req,
    input logic                             dma_mem_write,
+   input logic [2:0]                       dma_mem_sz,
    input logic [31:0]                      dma_mem_addr,
    input logic [63:0]                      dma_mem_wdata,
    input logic [2:0]                       dma_mem_tag_dc3,
@@ -151,7 +152,7 @@ import eh2_pkg::*;
    output logic                            picm_wren,          // write to pic
    output logic                            picm_rden,          // read to pick
    output logic                            picm_mken,          // write to pic need a mask
-   output logic                            picm_rd_thr,      // PICM read thread
+   output logic                            picm_rd_thr,        // PICM read thread
    output logic [31:0]                     picm_rdaddr,        // address for pic access - shared between reads and write
    output logic [31:0]                     picm_wraddr,        // address for pic access - shared between reads and write
    output logic [31:0]                     picm_wr_data,       // write data
@@ -186,6 +187,10 @@ import eh2_pkg::*;
    logic [7:0]   ldst_byteen_ext_dc2, ldst_byteen_ext_dc3, ldst_byteen_ext_dc4, ldst_byteen_ext_dc5;
    logic [31:0]  store_data_hi_dc3, store_data_lo_dc3;
 
+   logic         dccm_data_lo_dc3_clken, dccm_data_hi_dc3_clken;
+   logic         dccm_data_lo_dc4_clken, dccm_data_hi_dc4_clken;
+   logic         dccm_data_lo_dc5_clken, dccm_data_hi_dc5_clken;
+
    logic         kill_ecc_corr_lo_dc5;
    logic         kill_ecc_corr_hi_dc5;
 
@@ -196,7 +201,7 @@ import eh2_pkg::*;
    assign dccm_dma_rvalid      = lsu_pkt_dc3.valid & lsu_pkt_dc3.load & lsu_pkt_dc3.dma;
    assign dccm_dma_ecc_error   = lsu_double_ecc_error_dc3;
    assign dccm_dma_rtag[2:0]   = dma_mem_tag_dc3[2:0];
-   assign dccm_dma_rdata[63:0] = addr_in_pic_dc3 ? {2{picm_rd_data_dc3[31:0]}} : lsu_rdata_corr_dc3[63:0];
+   assign dccm_dma_rdata[63:0] = addr_in_pic_dc3 ? {2{picm_rd_data_dc3[31:0]}} : ldst_dual_dc3 ? lsu_rdata_corr_dc3[63:0] : {2{lsu_rdata_corr_dc3[31:0]}};
 
    assign {lsu_dccm_data_dc3_nc[63:32], lsu_dccm_data_dc3[31:0]} = lsu_rdata_dc3[63:0] >> 8*lsu_addr_dc3[1:0];
    assign {lsu_dccm_data_corr_dc3_nc[63:32], lsu_dccm_data_corr_dc3[31:0]} = lsu_rdata_corr_dc3[63:0] >> 8*lsu_addr_dc3[1:0];
@@ -234,7 +239,7 @@ import eh2_pkg::*;
    assign sec_data_hi_dc5[pt.DCCM_DATA_WIDTH-1:0] = store_data_hi_dc5[pt.DCCM_DATA_WIDTH-1:0];
    assign sec_data_lo_dc5[pt.DCCM_DATA_WIDTH-1:0] = store_data_lo_dc5[pt.DCCM_DATA_WIDTH-1:0];
 
-   // This is needed to avoid losing store on false sharing within a word
+   // This is needed to avoid losing store on false sharing within a word.
    assign lsu_stbuf_ecc_block = ld_single_ecc_error_dc3 | ld_single_ecc_error_dc4 | ld_single_ecc_error_dc5;
    assign lsu_stbuf_commit_any = stbuf_reqvld_any & ~lsu_stbuf_ecc_block &
                                  ((~(lsu_dccm_rden_dc1 | lsu_dccm_wren_spec_dc1 | ld_single_ecc_error_dc5_ff)) |
@@ -244,7 +249,7 @@ import eh2_pkg::*;
    // No need to read for aligned word/dword stores since ECC will come by new data completely
    // read enable is speculative for timing reasons
    assign lsu_dccm_rden_dc1 = (lsu_pkt_dc1_pre.valid & (lsu_pkt_dc1_pre.load | lsu_pkt_dc1_pre.atomic | (lsu_pkt_dc1_pre.store & (~(lsu_pkt_dc1_pre.word | lsu_pkt_dc1_pre.dword) | (lsu_addr_dc1[1:0] != 2'b0)))) & addr_in_dccm_region_dc1) |
-                              (dma_dccm_spec_req & ~dma_mem_write);   // Read based on speculation is fine
+                              (dma_dccm_spec_req & (~dma_mem_write | ~(|dma_mem_sz[2:1])));   // Read based on speculation is fine
 
    // DMA will read/write in decode stage
    assign lsu_dccm_wren_dc1 = dma_dccm_wen;
@@ -298,7 +303,7 @@ import eh2_pkg::*;
    assign dccm_wr_bypass_c1_c5_lo   = (stbuf_addr_any[pt.DCCM_BITS-1:2] == lsu_addr_dc5[pt.DCCM_BITS-1:2]) & addr_in_dccm_dc5;
    assign dccm_wr_bypass_c1_c5_hi   = (stbuf_addr_any[pt.DCCM_BITS-1:2] == end_addr_dc5[pt.DCCM_BITS-1:2]) & addr_in_dccm_dc5 & ~lsu_pkt_dc5.sc;   // SC always aligned and upper 32 bits are used for ECC corrected data
 
-   // For SC conditional, hi data is used for ecc corrected data since in case of sc fail we just need to write corrected data
+   // For SC conditional, hi data is used for ecc corrected data since in case of sc fail we just need to write corrected data.
    assign store_data_lo_dc3[31:0]= (lsu_pkt_dc3.atomic & ~lsu_pkt_dc3.lr & ~lsu_pkt_dc3.sc) ? amo_data_dc3[31:0] : store_ecc_data_lo_dc3[31:0];
    assign store_data_hi_dc3[31:0]= (lsu_pkt_dc3.atomic & ~lsu_pkt_dc3.lr & ~lsu_pkt_dc3.sc) ? amo_data_dc3[31:0] : (lsu_pkt_dc3.atomic & lsu_pkt_dc3.sc) ? sec_data_lo_dc3[31:0] : store_ecc_data_hi_dc3[31:0];
 
@@ -324,7 +329,7 @@ import eh2_pkg::*;
       rvdff #(1) stbuf_commit_ff (.din(lsu_stbuf_commit_any), .dout(lsu_stbuf_commit_any_Q), .clk(lsu_c2_dc3_clk), .*);
       rvdff #(1) dccm_wr_bypass_c1_c2_loff (.din(dccm_wr_bypass_c1_c2_lo), .dout(dccm_wr_bypass_c1_c2_lo_Q), .clk(lsu_c2_dc3_clk), .*);
       rvdff #(1) dccm_wr_bypass_c1_c2_hiff (.din(dccm_wr_bypass_c1_c2_hi), .dout(dccm_wr_bypass_c1_c2_hi_Q), .clk(lsu_c2_dc3_clk), .*);
-      rvdffe #(32) stbuf_data_anyff (.din(stbuf_data_any[31:0]), .dout(stbuf_data_any_Q[31:0]), .en(lsu_stbuf_commit_any), .*);
+      rvdffe #(32) stbuf_data_anyff (.din(stbuf_data_any[31:0]), .dout(stbuf_data_any_Q[31:0]), .en(lsu_stbuf_commit_any | clk_override), .*);
 
    end else begin: GenL2U_0
       logic [pt.DCCM_DATA_WIDTH-1:0]  dccm_data_hi_dc2, dccm_data_lo_dc2;
@@ -341,11 +346,13 @@ import eh2_pkg::*;
       assign dccm_data_ecc_lo_dc2[pt.DCCM_ECC_WIDTH-1:0] = dccm_rd_data_lo[pt.DCCM_FDATA_WIDTH-1:pt.DCCM_DATA_WIDTH];
       assign dccm_data_ecc_hi_dc2[pt.DCCM_ECC_WIDTH-1:0] = dccm_rd_data_hi[pt.DCCM_FDATA_WIDTH-1:pt.DCCM_DATA_WIDTH];
 
-      rvdff #(pt.DCCM_DATA_WIDTH) dccm_data_hi_dc3ff (.*, .din(dccm_data_hi_dc2[pt.DCCM_DATA_WIDTH-1:0]),    .dout(dccm_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),    .clk(lsu_dccm_c1_dc3_clk));
-      rvdff #(pt.DCCM_DATA_WIDTH) dccm_data_lo_dc3ff (.*, .din(dccm_data_lo_dc2[pt.DCCM_DATA_WIDTH-1:0]),    .dout(dccm_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]),    .clk(lsu_dccm_c1_dc3_clk));
+      assign dccm_data_lo_dc3_clken = (lsu_pkt_dc2.valid & addr_in_dccm_dc2) | clk_override;
+      assign dccm_data_hi_dc3_clken = (dccm_data_lo_dc3_clken & ldst_dual_dc2) | clk_override;
 
-      rvdff #(pt.DCCM_ECC_WIDTH) dccm_data_ecc_hi_ff (.*, .din(dccm_data_ecc_hi_dc2[pt.DCCM_ECC_WIDTH-1:0]), .dout(dccm_data_ecc_hi_dc3[pt.DCCM_ECC_WIDTH-1:0]), .clk(lsu_dccm_c1_dc3_clk));
-      rvdff #(pt.DCCM_ECC_WIDTH) dccm_data_ecc_lo_ff (.*, .din(dccm_data_ecc_lo_dc2[pt.DCCM_ECC_WIDTH-1:0]), .dout(dccm_data_ecc_lo_dc3[pt.DCCM_ECC_WIDTH-1:0]), .clk(lsu_dccm_c1_dc3_clk));
+      rvdffe #(pt.DCCM_DATA_WIDTH + pt.DCCM_ECC_WIDTH) dccm_data_hi_dc3ff (.din({dccm_data_hi_dc2[pt.DCCM_DATA_WIDTH-1:0],dccm_data_ecc_hi_dc2[pt.DCCM_ECC_WIDTH-1:0]}),
+                                                                           .dout({dccm_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0],dccm_data_ecc_hi_dc3[pt.DCCM_ECC_WIDTH-1:0]}), .en(dccm_data_hi_dc3_clken), .*);
+      rvdffe #(pt.DCCM_DATA_WIDTH + pt.DCCM_ECC_WIDTH) dccm_data_lo_dc3ff (.din({dccm_data_lo_dc2[pt.DCCM_DATA_WIDTH-1:0],dccm_data_ecc_lo_dc2[pt.DCCM_ECC_WIDTH-1:0]}),
+                                                                           .dout({dccm_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0],dccm_data_ecc_lo_dc3[pt.DCCM_ECC_WIDTH-1:0]}), .en(dccm_data_lo_dc3_clken), .*);
 
    end
 
@@ -384,11 +391,17 @@ import eh2_pkg::*;
    rvdff #(32) picm_data_ff    (.*, .din(picm_rd_data_dc2[31:0]), .dout(picm_rd_data_dc3[31:0]), .clk(lsu_pic_c1_dc3_clk));
    rvdff #(32) picm_rd_data_ff (.*, .din(picm_rd_data[31:0]),     .dout(picm_rd_dataQ[31:0]),    .clk(lsu_pic_c1_dc3_clk));
 
-   rvdff #(pt.DCCM_DATA_WIDTH) dccm_data_hi_dc4ff (.*, .din(dccm_data_hi_dc4_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_hi_dc4[pt.DCCM_DATA_WIDTH-1:0]),    .clk(lsu_c1_dc4_clk));
-   rvdff #(pt.DCCM_DATA_WIDTH) dccm_data_lo_dc4ff (.*, .din(dccm_data_lo_dc4_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_lo_dc4[pt.DCCM_DATA_WIDTH-1:0]),    .clk(lsu_c1_dc4_clk));
+   assign dccm_data_lo_dc4_clken = (lsu_pkt_dc3.valid & (lsu_pkt_dc3.store | ld_single_ecc_error_dc3)) | clk_override;
+   assign dccm_data_hi_dc4_clken = (dccm_data_lo_dc4_clken & (ldst_dual_dc3 | lsu_pkt_dc3.atomic)) | clk_override;
 
-   rvdff #(pt.DCCM_DATA_WIDTH) dccm_data_hi_dc5ff (.*, .din(dccm_data_hi_dc5_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_hi_dc5[pt.DCCM_DATA_WIDTH-1:0]),    .clk(lsu_c1_dc5_clk));
-   rvdff #(pt.DCCM_DATA_WIDTH) dccm_data_lo_dc5ff (.*, .din(dccm_data_lo_dc5_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_lo_dc5[pt.DCCM_DATA_WIDTH-1:0]),    .clk(lsu_c1_dc5_clk));
+   assign dccm_data_lo_dc5_clken = (lsu_pkt_dc4.valid & (lsu_pkt_dc4.store | ld_single_ecc_error_dc4)) | clk_override;
+   assign dccm_data_hi_dc5_clken = (dccm_data_lo_dc5_clken & (ldst_dual_dc4 | lsu_pkt_dc4.atomic)) | clk_override;
+
+   rvdffe #(pt.DCCM_DATA_WIDTH) dccm_data_hi_dc4ff (.*, .din(dccm_data_hi_dc4_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_hi_dc4[pt.DCCM_DATA_WIDTH-1:0]), .en(dccm_data_hi_dc4_clken));
+   rvdffe #(pt.DCCM_DATA_WIDTH) dccm_data_lo_dc4ff (.*, .din(dccm_data_lo_dc4_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_lo_dc4[pt.DCCM_DATA_WIDTH-1:0]), .en(dccm_data_lo_dc4_clken));
+
+   rvdffe #(pt.DCCM_DATA_WIDTH) dccm_data_hi_dc5ff (.*, .din(dccm_data_hi_dc5_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_hi_dc5[pt.DCCM_DATA_WIDTH-1:0]), .en(dccm_data_hi_dc5_clken));
+   rvdffe #(pt.DCCM_DATA_WIDTH) dccm_data_lo_dc5ff (.*, .din(dccm_data_lo_dc5_in[pt.DCCM_DATA_WIDTH-1:0]), .dout(store_data_lo_dc5[pt.DCCM_DATA_WIDTH-1:0]), .en(dccm_data_lo_dc5_clken));
 
    if (pt.DCCM_ENABLE == 1) begin: Gen_dccm_enable
       rvdff #(1) dccm_rden_dc2ff (.*, .din(lsu_dccm_rden_dc1), .dout(lsu_dccm_rden_dc2), .clk(lsu_c2_dc2_clk));
@@ -402,8 +415,8 @@ import eh2_pkg::*;
       rvdff #(1) lsu_double_ecc_error_dc5ff     (.*, .din(lsu_double_ecc_error_dc5),   .dout(lsu_double_ecc_error_dc5_ff),   .clk(lsu_free_c2_clk));
       rvdff #(1) ld_single_ecc_error_hi_dc5ff   (.*, .din(ld_single_ecc_error_hi_dc5_ns), .dout(ld_single_ecc_error_hi_dc5_ff), .clk(lsu_free_c2_clk));
       rvdff #(1) ld_single_ecc_error_lo_dc5ff   (.*, .din(ld_single_ecc_error_lo_dc5_ns), .dout(ld_single_ecc_error_lo_dc5_ff), .clk(lsu_free_c2_clk));
-      rvdffe #(pt.DCCM_BITS) ld_sec_addr_hi_rff (.*, .din(end_addr_dc5[pt.DCCM_BITS-1:0]), .dout(ld_sec_addr_hi_dc5_ff[pt.DCCM_BITS-1:0]), .en(ld_single_ecc_error_dc5), .clk(clk));
-      rvdffe #(pt.DCCM_BITS) ld_sec_addr_lo_rff (.*, .din(lsu_addr_dc5[pt.DCCM_BITS-1:0]), .dout(ld_sec_addr_lo_dc5_ff[pt.DCCM_BITS-1:0]), .en(ld_single_ecc_error_dc5), .clk(clk));
+      rvdffe #(pt.DCCM_BITS) ld_sec_addr_hi_rff (.*, .din(end_addr_dc5[pt.DCCM_BITS-1:0]), .dout(ld_sec_addr_hi_dc5_ff[pt.DCCM_BITS-1:0]), .en(ld_single_ecc_error_dc5 | clk_override), .clk(clk));
+      rvdffe #(pt.DCCM_BITS) ld_sec_addr_lo_rff (.*, .din(lsu_addr_dc5[pt.DCCM_BITS-1:0]), .dout(ld_sec_addr_lo_dc5_ff[pt.DCCM_BITS-1:0]), .en(ld_single_ecc_error_dc5 | clk_override), .clk(clk));
 
    end else begin: Gen_dccm_disable
       assign lsu_dccm_rden_dc2 = '0;
@@ -417,5 +430,11 @@ import eh2_pkg::*;
       assign ld_sec_addr_lo_dc5_ff[pt.DCCM_BITS-1:0] = '0;
       assign ld_sec_addr_hi_dc5_ff[pt.DCCM_BITS-1:0] = '0;
    end
+
+`ifdef RV_ASSERT_ON
+
+   assert_dccm_rden_wren_onehot: assert #0 ($onehot0({lsu_dccm_wren_spec_dc1, lsu_dccm_rden_dc1}));
+
+`endif
 
 endmodule

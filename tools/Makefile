@@ -14,6 +14,15 @@
 # limitations under the License.
 #
 
+# need to be removed for opensource
+CONF_PARAMS = -set=build_axi4
+
+TEST_CFLAGS = -g -O3 -funroll-all-loops 
+
+ABI = -mabi=ilp32 -march=rv32imac
+
+
+
 # Check for RV_ROOT
 ifeq (,$(wildcard ${RV_ROOT}/configs/swerv.config))
 $(error env var RV_ROOT does not point to a valid dir! Exiting!)
@@ -29,22 +38,33 @@ IRUN = xrun
 VCS = vcs
 VLOG = qverilog
 VERILATOR = verilator
+RIVEIRA = riviera
 GCC_PREFIX = riscv64-unknown-elf
 BUILD_DIR = snapshots/${snapshot}
 TBDIR = ${RV_ROOT}/testbench
 
-# Define test name
+
+
+# Define default test name
 TEST = hello_world
 
-# Define test name
+# Define default test directories
 TEST_DIR = ${TBDIR}/asm
 HEX_DIR = ${TBDIR}/hex
+
+OFILES = $(TEST).o
+
+ifneq (,$(wildcard $(TBDIR)/tests/$(TEST)))
+  TEST_DIR = $(TBDIR)/tests/$(TEST)
+endif
 
 ifdef debug
  DEBUG_PLUS = +dumpon
  IRUN_DEBUG = -access +rc
  IRUN_DEBUG_RUN = -input ${RV_ROOT}/testbench/input.tcl
+ VCS_DEBUG = -debug_access
  VERILATOR_DEBUG = --trace
+ RIVIERA_DEBUG = +access +r
 endif
 
 # provide specific link file
@@ -55,6 +75,10 @@ else
 endif
 
 VPATH = $(TEST_DIR) $(BUILD_DIR) $(TBDIR)
+
+-include $(TEST_DIR)/$(TEST).mki
+
+
 TBFILES = $(TBDIR)/tb_top.sv $(TBDIR)/ahb_sif.sv
 
 defines  = $(BUILD_DIR)/common_defines.vh
@@ -69,27 +93,32 @@ CFLAGS += "-std=c++11"
 # Optimization for better performance; alternative is nothing for
 # slower runtime (faster compiles) -O2 for faster runtime (slower
 # compiles), or -O for balance.
-VERILATOR_MAKE_FLAGS = OPT_FAST="-O2"
+VERILATOR_MAKE_FLAGS = OPT_FAST="-Os"
 
 # Targets
 all: clean verilator
 
 clean:
 	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots swerv* \
-	verilator* *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work
+	verilator* *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work\
+	work dataset.asdb  library.cfg vsimsa.cfg  riviera-build wave.asdb
+
+
+
+################## Model Builds ###############################
 
 # If define files do not exist, then run swerv.config.
-${BUILD_DIR}/defines.h :
+${BUILD_DIR}/defines.h:
 	BUILD_PATH=${BUILD_DIR} ${RV_ROOT}/configs/swerv.config -target=$(target) $(CONF_PARAMS)
 
 verilator-build: ${TBFILES} ${BUILD_DIR}/defines.h test_tb_top.cpp
-	echo '`undef ASSERT_ON' >> ${BUILD_DIR}/common_defines.vh
-	$(VERILATOR) '-UASSERT_ON' --cc -CFLAGS ${CFLAGS} $(defines) \
+	echo '`undef RV_ASSERT_ON' >> ${BUILD_DIR}/common_defines.vh
+	$(VERILATOR)  --cc -CFLAGS ${CFLAGS} $(defines) \
 	  $(includes) -I${RV_ROOT}/testbench -f ${RV_ROOT}/testbench/flist \
-	  -Wno-WIDTH -Wno-UNOPTFLAT ${TBFILES} --top-module tb_top \
+	  -Wno-WIDTH -Wno-UNOPTFLAT -Wno-IMPLICIT ${TBFILES} --top-module tb_top \
 	  -exe test_tb_top.cpp --autoflush $(VERILATOR_DEBUG)
 	cp ${RV_ROOT}/testbench/test_tb_top.cpp obj_dir/
-	$(MAKE) -C obj_dir/ -f Vtb_top.mk $(VERILATOR_MAKE_FLAGS)
+	$(MAKE) -j -C obj_dir/ -f Vtb_top.mk $(VERILATOR_MAKE_FLAGS)
 	touch verilator-build
 
 vcs-build: ${TBFILES} ${BUILD_DIR}/defines.h
@@ -106,60 +135,78 @@ irun-build: ${TBFILES} ${BUILD_DIR}/defines.h
 	  -incdir ${RV_ROOT}/design/lib -incdir ${RV_ROOT}/design/include \
 	  -vlog_ext +.vh+.h $(defines) -incdir $(BUILD_DIR) \
 	  -f ${RV_ROOT}/testbench/flist -top tb_top  ${TBFILES} \
-	  -I${RV_ROOT}/testbench -elaborate  -snapshot ${snapshot}
+	  -I${RV_ROOT}/testbench -elaborate  -snapshot ${snapshot} $(profile)
 	touch irun-build
 
+riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h
+	vlib work
+	vlog -work work \
+		-err VCP2694 W1 \
+		+incdir+${RV_ROOT}/design/lib \
+		+incdir+${RV_ROOT}/design/include \
+		+incdir+${BUILD_DIR} \
+		-y ${RV_ROOT}/design/lib +libext+.v+.vh \
+		$(defines) \
+		-f ${RV_ROOT}/testbench/flist \
+		${TBFILES}
+	touch riviera-build
+
+#################### TEST Simulation Run ###############################
+
 verilator: program.hex verilator-build
-	./obj_dir/Vtb_top
+	./obj_dir/Vtb_top $(run_arg)
 
 irun: program.hex irun-build
-	$(IRUN) -64bit -abvglobalfailurelimit 1 +lic_queue -licqueue \
+	$(IRUN) -64bit  +lic_queue -licqueue \
 	  -status -xmlibdirpath . -xmlibdirname swerv.build \
-	  -snapshot ${snapshot} -r $(snapshot) $(IRUN_DEBUG_RUN)
+	  -snapshot ${snapshot} -r $(snapshot) $(IRUN_DEBUG_RUN) $(run_arg) $(profile)
 
 vcs: program.hex vcs-build
-	./simv $(DEBUG_PLUS) +vcs+lic+wait  -l vcs.log
+	./simv $(DEBUG_PLUS) +vcs+lic+wait  -l vcs.log $(run_arg)
 
 vlog: program.hex ${TBFILES} ${BUILD_DIR}/defines.h
 	$(VLOG) -l vlog.log -sv -mfcu +incdir+${BUILD_DIR}+${RV_ROOT}/design/include+${RV_ROOT}/design/lib\
-        $(defines) -f ${RV_ROOT}/testbench/flist ${TBFILES} -R ${DEBUG_PLUS}
+        $(defines) -f ${RV_ROOT}/testbench/flist ${TBFILES} -R +nowarn3829 ${DEBUG_PLUS} $(run_arg)
 
+riviera: program.hex riviera-build
+	vsim -c -lib work ${DEBUG_PLUS} ${RIVIERA_DEBUG} tb_top -do "run -all; exit" -l riviera.log
+
+
+
+#################### TEST Build #######################################
 
 ifeq ($(shell which $(GCC_PREFIX)-gcc 2> /dev/null),)
 program.hex: ${BUILD_DIR}/defines.h
 	@echo " !!! No $(GCC_PREFIX)-gcc in path, using canned hex files !!"
-	cp ${HEX_DIR}/$(TEST).program.hex program.hex
-	cp ${HEX_DIR}/$(TEST).data.hex data.hex
+	cp ${HEX_DIR}/$(TEST).hex program.hex
 else
 ifneq (,$(wildcard $(TEST_DIR)/$(TEST).makefile))
 program.hex:
+	@echo Building $(TEST) via $(TEST_DIR)/$(TEST).makefile
 	$(MAKE) -f $(TEST_DIR)/$(TEST).makefile
 else
-program.hex: $(TEST).o $(LINK)
+program.hex: $(OFILES) $(LINK)
 	@echo Building $(TEST)
-	$(GCC_PREFIX)-ld -m elf32lriscv --discard-none -T$(LINK) -o $(TEST).exe $(TEST).o
-	$(GCC_PREFIX)-objcopy -O verilog --only-section ".data*" --change-section-lma .data*-0x10000 $(TEST).exe data.hex
-	$(GCC_PREFIX)-objcopy -O verilog --only-section ".text*"  $(TEST).exe program.hex
+	$(GCC_PREFIX)-gcc $(ABI) -nostartfiles -lgcc -T$(LINK) -o $(TEST).exe $(OFILES)
+	$(GCC_PREFIX)-objcopy -O verilog  $(TEST).exe program.hex
 	$(GCC_PREFIX)-objdump -S  $(TEST).exe > $(TEST).dis
-	$(GCC_PREFIX)-nm -f posix -C $(TEST).exe > $(TEST).tbl
 	@echo Completed building $(TEST)
 
 
 %.o : %.s ${BUILD_DIR}/defines.h
-	$(GCC_PREFIX)-cpp -I${BUILD_DIR}  $<  > $(TEST).cpp.s
-	$(GCC_PREFIX)-as -march=rv32gc $(TEST).cpp.s -o $(TEST).o
+	$(GCC_PREFIX)-cpp -I${BUILD_DIR}  $<  > $*.cpp.s
+	$(GCC_PREFIX)-as ${ABI} $*.cpp.s -o $@
 
-TEST_CFLAGS = -g -O3 -funroll-all-loops
-ABI = -mabi=ilp32 -march=rv32imc
 
 %.o : %.c ${BUILD_DIR}/defines.h
-	$(GCC_PREFIX)-gcc -I${BUILD_DIR} ${TEST_CFLAGS} ${ABI} -nostdlib -c $< -o $@	
+	$(GCC_PREFIX)-gcc ${includes} ${TEST_CFLAGS} -DCOMPILER_FLAGS="\"${TEST_CFLAGS}\"" ${ABI}  -c $< -o $@
+
 endif
 endif
 
 
 help:
 	@echo Make sure the environment variable RV_ROOT is set.
-	@echo Possible targets: verilator vcs irun vlog help clean all verilator-build irun-build vcs-build program.hex
+	@echo Possible targets: verilator vcs irun vlog riviera help clean all verilator-build irun-build vcs-build riviera-build program.hex
 
-.PHONY: help clean verilator vcs irun vlog
+.PHONY: help clean verilator vcs irun vlog riviera

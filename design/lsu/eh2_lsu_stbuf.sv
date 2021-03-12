@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import eh2_pkg::*;
 (
    input logic                          clk,                                // core clock
    input logic                          rst_l,                              // reset
+   input logic                          clk_override,
    input  logic                         scan_mode,
 
    input logic                          lsu_c1_dc3_clk,                     // lsu pipe clock
@@ -40,6 +41,7 @@ import eh2_pkg::*;
    // Store Buffer input
    input logic                          store_stbuf_reqvld_dc5,             // core instruction goes to stbuf
    input logic                          core_ldst_dual_dc1,                 // core ld/st is dual
+   input logic                          ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5,
    input logic                          addr_in_dccm_dc2,                   // address is in dccm
    input logic                          addr_in_dccm_dc3,                   // address is in dccm
    input logic                          addr_in_dccm_dc4,                   // address is in dccm
@@ -120,7 +122,7 @@ import eh2_pkg::*;
    logic [DEPTH_LOG2-1:0]             WrPtr, RdPtr;
    logic [DEPTH_LOG2-1:0]             NxtWrPtr, NxtRdPtr;
    logic [DEPTH_LOG2-1:0]             WrPtrPlus1, WrPtrPlus2, RdPtrPlus1;
-   logic                              ldst_dual_dc1, ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5;
+   logic                              ldst_dual_dc1;
    logic                              isst_nodma_dc1;
    logic                              dccm_st_nodma_dc2, dccm_st_nodma_dc3, dccm_st_nodma_dc4, dccm_st_nodma_dc5;
 
@@ -132,6 +134,7 @@ import eh2_pkg::*;
 
    logic [pt.LSU_SB_BITS-1:$clog2(BYTE_WIDTH)]  cmpaddr_hi_dc2, cmpaddr_lo_dc2;
 
+   logic                              stbuf_fwddata_lo_en, stbuf_fwddata_hi_en;
    // variables to detect matching from the store queue
    logic [DEPTH-1:0]                  stbuf_match_hi, stbuf_match_lo;
    logic [DEPTH-1:0][BYTE_WIDTH-1:0]  stbuf_fwdbyteenvec_hi, stbuf_fwdbyteenvec_lo;
@@ -207,10 +210,6 @@ import eh2_pkg::*;
 
    // ecc error on both hi/lo
    assign ldst_dual_dc1          = core_ldst_dual_dc1;
-   assign ldst_dual_dc2          = (lsu_addr_dc2[2] != end_addr_dc2[2]);
-   assign ldst_dual_dc3          = (lsu_addr_dc3[2] != end_addr_dc3[2]);
-   assign ldst_dual_dc4          = (lsu_addr_dc4[2] != end_addr_dc4[2]);
-   assign ldst_dual_dc5          = (lsu_addr_dc5[2] != end_addr_dc5[2]);
 
    // Merge store data and sec data
    for (genvar i=0; i<pt.DCCM_BYTE_WIDTH; i++) begin
@@ -467,6 +466,9 @@ import eh2_pkg::*;
    assign picm_fwd_en_dc2         = addr_in_pic_dc2 & (|stbuf_fwdbyteen_lo_fn_dc2[3:0]);
    assign picm_fwd_data_dc2[31:0] = stbuf_fwddata_lo_fn_dc2[31:0];
 
+   assign stbuf_fwddata_lo_en = (|(stbuf_fwdbyteen_lo_fn_dc2[BYTE_WIDTH-1:0])) | clk_override;
+   assign stbuf_fwddata_hi_en = (|(stbuf_fwdbyteen_hi_fn_dc2[BYTE_WIDTH-1:0])) | clk_override;
+
    // Flops
    rvdffs #(.WIDTH(DEPTH_LOG2)) WrPtrff                 (.din(NxtWrPtr[DEPTH_LOG2-1:0]),                  .dout(WrPtr[DEPTH_LOG2-1:0]),                 .en(WrPtrEn),  .clk(lsu_stbuf_c1_clk), .*);
    rvdffs #(.WIDTH(DEPTH_LOG2)) RdPtrff                 (.din(NxtRdPtr[DEPTH_LOG2-1:0]),                  .dout(RdPtr[DEPTH_LOG2-1:0]),                 .en(RdPtrEn),  .clk(lsu_stbuf_c1_clk), .*);
@@ -474,9 +476,7 @@ import eh2_pkg::*;
    rvdff #(.WIDTH(BYTE_WIDTH)) stbuf_fwdbyteen_hi_dc3ff (.din(stbuf_fwdbyteen_hi_fn_dc2[BYTE_WIDTH-1:0]), .dout(stbuf_fwdbyteen_hi_dc3[BYTE_WIDTH-1:0]),               .clk(lsu_c1_dc3_clk),   .*);
    rvdff #(.WIDTH(BYTE_WIDTH)) stbuf_fwdbyteen_lo_dc3ff (.din(stbuf_fwdbyteen_lo_fn_dc2[BYTE_WIDTH-1:0]), .dout(stbuf_fwdbyteen_lo_dc3[BYTE_WIDTH-1:0]),               .clk(lsu_c1_dc3_clk),   .*);
 
-   rvdff #(.WIDTH(DATA_WIDTH)) stbuf_fwddata_hi_dc3ff   (.din(stbuf_fwddata_hi_fn_dc2[DATA_WIDTH-1:0]),   .dout(stbuf_fwddata_hi_dc3[DATA_WIDTH-1:0]),                 .clk(lsu_c1_dc3_clk),   .*);
-   rvdff #(.WIDTH(DATA_WIDTH)) stbuf_fwddata_lo_dc3ff   (.din(stbuf_fwddata_lo_fn_dc2[DATA_WIDTH-1:0]),   .dout(stbuf_fwddata_lo_dc3[DATA_WIDTH-1:0]),                 .clk(lsu_c1_dc3_clk),   .*);
-`ifdef ASSERT_ON
+   rvdffe #(.WIDTH(DATA_WIDTH)) stbuf_fwddata_hi_dc3ff   (.din(stbuf_fwddata_hi_fn_dc2[DATA_WIDTH-1:0]),  .dout(stbuf_fwddata_hi_dc3[DATA_WIDTH-1:0]),  .en(stbuf_fwddata_hi_en),   .*);
+   rvdffe #(.WIDTH(DATA_WIDTH)) stbuf_fwddata_lo_dc3ff   (.din(stbuf_fwddata_lo_fn_dc2[DATA_WIDTH-1:0]),  .dout(stbuf_fwddata_lo_dc3[DATA_WIDTH-1:0]),  .en(stbuf_fwddata_lo_en),   .*);
 
-`endif
 endmodule

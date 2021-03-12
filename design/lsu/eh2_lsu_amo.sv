@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,16 +28,12 @@ import eh2_pkg::*;
 `include "eh2_param.vh"
 )(
 
-   input eh2_lsu_pkt_t     lsu_pkt_dc3,                 // packet in dc3
-   input logic  [31:0]  i0_result_e4_eff,
-   input logic  [31:0]  i1_result_e4_eff,
-   input logic          addr_in_pic_dc3,
-   input logic  [31:0]  picm_mask_data_dc3,
-   input logic  [31:0]  store_data_pre_dc3,
-   input logic  [31:0]  lsu_dccm_data_corr_dc3,              // Operand 1 for the ALU
+   input eh2_lsu_pkt_t  lsu_pkt_dc3,                 // packet in dc3
+   input logic           addr_in_pic_dc3,
+   input logic  [31:0]   lsu_dccm_data_corr_dc3,      // Operand 1 for the ALU
+   input logic  [31:0]   store_data_dc3,              // Store_Data Operand
 
-   output logic [31:0]  store_data_dc3,              // Store_Data Operand
-   output logic [31:0]  amo_data_dc3                 // Final AMO result to go down the store path
+   output logic [31:0]   amo_data_dc3                 // Final AMO result to go down the store path
 
 );
 
@@ -64,6 +60,9 @@ import eh2_pkg::*;
 
    logic [31:0]  store_datafn_dc3;
 
+   logic [31:0]  amo_operand1, amo_operand2;
+   logic [31:0]  amo_operand2_inv;
+
    //------------------------------------------------------------------------------------------------------------
    //----------------------------------------Logic starts here---------------------------------------------------
    //------------------------------------------------------------------------------------------------------------
@@ -84,15 +83,14 @@ import eh2_pkg::*;
    assign amo_minmax_sel_dc3 =  amo_max_dc3 | amo_maxu_dc3 | amo_min_dc3 | amo_minu_dc3;
    assign logic_sel          =  amo_and_dc3 | amo_or_dc3   | amo_xor_dc3;
 
-   assign store_data_dc3[31:0] = (picm_mask_data_dc3[31:0] | {32{~addr_in_pic_dc3}}) &
-                                 ((lsu_pkt_dc3.store_data_bypass_e4_c3[1]) ? i1_result_e4_eff[31:0] :
-                                  (lsu_pkt_dc3.store_data_bypass_e4_c3[0]) ? i0_result_e4_eff[31:0] : store_data_pre_dc3[31:0]);
+   assign amo_operand1[31:0] = {32{lsu_pkt_dc3.valid & lsu_pkt_dc3.atomic}} & lsu_dccm_data_corr_dc3[31:0];
+   assign amo_operand2[31:0] = {32{lsu_pkt_dc3.valid & lsu_pkt_dc3.atomic}} & store_data_dc3[31:0];
 
 
    // logical
-   assign logical_out[31:0] =  ( {32{amo_and_dc3}} & (lsu_dccm_data_corr_dc3[31:0] & store_data_dc3[31:0]) ) |
-                               ( {32{amo_or_dc3}}  & (lsu_dccm_data_corr_dc3[31:0] | store_data_dc3[31:0]) ) |
-                               ( {32{amo_xor_dc3}} & (lsu_dccm_data_corr_dc3[31:0] ^ store_data_dc3[31:0]) );
+   assign logical_out[31:0] =  ( {32{amo_and_dc3}} & (amo_operand1[31:0] & amo_operand2[31:0]) ) |
+                               ( {32{amo_or_dc3}}  & (amo_operand1[31:0] | amo_operand2[31:0]) ) |
+                               ( {32{amo_xor_dc3}} & (amo_operand1[31:0] ^ amo_operand2[31:0]) );
    // adder
 
    logic         lsu_result_lt_storedata;
@@ -100,24 +98,23 @@ import eh2_pkg::*;
 
 
    // ADD
-   assign store_datafn_dc3[31:0]  =  amo_add_dc3 ? store_data_dc3[31:0] : ~store_data_dc3[31:0];
-   assign {cout, sum_out[31:0]}   = {1'b0, lsu_dccm_data_corr_dc3[31:0]} + {1'b0, store_datafn_dc3[31:0]} + {32'b0, ~amo_add_dc3};
+   assign amo_operand2_inv[31:0]  =  amo_add_dc3 ? amo_operand2[31:0] : ~amo_operand2[31:0];
+   assign {cout, sum_out[31:0]}   = {1'b0, amo_operand1[31:0]} + {1'b0, amo_operand2_inv[31:0]} + {32'b0, ~amo_add_dc3};
 
 
    // Min/Max/Minu/Maxu
-   assign lsu_result_lt_storedata = (~cout & (lsu_pkt_dc3.unsign | ~(lsu_dccm_data_corr_dc3[31] ^ store_data_dc3[31]))) |    // either doing unsigned math or signed with same polarity
-                                    (lsu_dccm_data_corr_dc3[31] & ~store_data_dc3[31] & ~lsu_pkt_dc3.unsign);
+   assign lsu_result_lt_storedata = (~cout & (lsu_pkt_dc3.unsign | ~(amo_operand1[31] ^amo_operand2[31]))) |    // either doing unsigned math or signed with same polarity
+                                    (amo_operand1[31] & ~amo_operand2[31] & ~lsu_pkt_dc3.unsign);
 
-   assign amo_minmax_dc3[31:0]    = ({32{(amo_max_dc3 | amo_maxu_dc3) &  lsu_result_lt_storedata}}  & store_data_dc3[31:0]        ) |  // MAX if store_data >  result
-                                    ({32{(amo_max_dc3 | amo_maxu_dc3) & ~lsu_result_lt_storedata}}  & lsu_dccm_data_corr_dc3[31:0]) |  // MAX if store_data <= result
-                                    ({32{(amo_min_dc3 | amo_minu_dc3) & ~lsu_result_lt_storedata}}  & store_data_dc3[31:0]        ) |  // MIN if store_data >  result
-                                    ({32{(amo_min_dc3 | amo_minu_dc3) &  lsu_result_lt_storedata}}  & lsu_dccm_data_corr_dc3[31:0]);   // MIN if store_data <= result
-
+   assign amo_minmax_dc3[31:0]    = ({32{(amo_max_dc3 | amo_maxu_dc3) &  lsu_result_lt_storedata}}  & amo_operand2[31:0]) |  // MAX if store_data >  result
+                                    ({32{(amo_max_dc3 | amo_maxu_dc3) & ~lsu_result_lt_storedata}}  & amo_operand1[31:0]) |  // MAX if store_data <= result
+                                    ({32{(amo_min_dc3 | amo_minu_dc3) & ~lsu_result_lt_storedata}}  & amo_operand2[31:0]) |  // MIN if store_data >  result
+                                    ({32{(amo_min_dc3 | amo_minu_dc3) &  lsu_result_lt_storedata}}  & amo_operand1[31:0]);   // MIN if store_data <= result
 
   // final result
    assign amo_data_dc3[31:0]      = ({32{logic_sel}}                 & logical_out[31:0])    |  // for the AND/OR/XOR
                                     ({32{amo_add_dc3}}               & sum_out[31:0])        |  // for ADD
                                     ({32{amo_minmax_sel_dc3}}        & amo_minmax_dc3[31:0]) |  // for Min/Max/Minu/Maxu
-                                    ({32{amo_swap_dc3 | amo_sc_dc3}} & store_data_dc3[31:0]);   // for SWAP need to store the store data value to the location
+                                    ({32{amo_swap_dc3 | amo_sc_dc3}} & amo_operand2[31:0]);     // for SWAP need to store the store data value to the location
 
 endmodule // lsu_amo

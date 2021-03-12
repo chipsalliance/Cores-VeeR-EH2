@@ -1,6 +1,6 @@
 //********************************************************************************
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,26 +25,24 @@ import eh2_pkg::*;
 )
   (
 
-   input logic        active_clk,
-
-   input logic        tid,                                         // hardwired tid for align
-
    input logic        dec_i1_cancel_e1,
 
    input logic        ifu_async_error_start,                       // ecc/parity related errors with current fetch - not sent down the pipe
 
-   input logic        iccm_rd_ecc_double_err,                      // This fetch has a double ICCM ecc  error.
+   input logic [3:0]  iccm_rd_ecc_double_err,                      // This fetch has a double ICCM ecc  error.
 
-   input logic        ic_access_fault_f2,                          // Instruction access fault for the current fetch.
+   input logic [3:0]  ic_access_fault_f2,                          // Instruction access fault for the current fetch.
    input logic [1:0]  ic_access_fault_type_f2,                     // Instruction access fault types
 
    input logic [pt.BHT_GHR_SIZE-1:0]  ifu_bp_fghr_f2,              // fetch GHR
    input logic [31:1] ifu_bp_btb_target_f2,                        //  predicted RET target
-   input logic [11:0] ifu_bp_poffset_f2,                           // predicted target offset
+   input logic [pt.BTB_TOFFSET_SIZE-1:0] ifu_bp_poffset_f2,        //  predicted target offset
 
    input logic [3:0]  ifu_bp_hist0_f2,                             // history counters for all 4 potential branches, bit 1, right justified
    input logic [3:0]  ifu_bp_hist1_f2,                             // history counters for all 4 potential branches, bit 1, right justified
    input logic [3:0]  ifu_bp_pc4_f2,                               // pc4 indication, right justified
+
+   input logic [3:0] [$clog2(pt.BTB_SIZE)-1:0]    ifu_bp_fa_index_f2, // predicted branch index (fully associative option)
 
    input logic [3:0]  ifu_bp_way_f2,                               // way indication, right justified
 
@@ -61,17 +59,18 @@ import eh2_pkg::*;
 
    input logic [3:0]   ifu_fetch_val,                              // valids on a 2B boundary, right justified
    input logic [31:1]  ifu_fetch_pc,                               // starting pc of fetch
-   input logic         ifu_fetch_tid,                              // tid
 
 
    input logic   rst_l,
    input logic   clk,
+   input logic   active_clk,
 
    output logic i0_valid,                                      // Instruction 0 is valid
    output logic i1_valid,                                      // Instruction 1 is valid
    output logic i0_icaf,                                       // Instruction 0 has access fault
+   output logic i0_icaf_second,                                // Instruction has access fault / double ecc error on last 2 bytes of 4B inst - no error on 1st 2 bytes
    output logic [1:0]  i0_icaf_type,                           // Instruction 0 access fault type
-   output logic i0_icaf_f1,                                    // Instruction 0 has access fault on second fetch group
+
    output logic i0_dbecc,                                      // Instruction 0 has double bit ecc error
    output logic [31:0] i0_instr,                               // Instruction 0
    output logic [31:0] i1_instr,                               // Instruction 1
@@ -85,14 +84,20 @@ import eh2_pkg::*;
    output logic fb_consume1,                                   // Consumed one buffer. To fetch control fetch for buffer mass balance
    output logic fb_consume2,                                   // Consumed two buffers.To fetch control fetch for buffer mass balance
 
-   output eh2_br_pkt_t i0_br_p,                                    // Branch packet for I0.
-   output eh2_br_pkt_t i1_br_p,                                    // Branch packet for I1.
+   output eh2_br_pkt_t i0_br_p,                               // Branch packet for I0.
+   output eh2_br_pkt_t i1_br_p,                               // Branch packet for I1.
+
    output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]  i0_bp_index,  // BP index
    output logic [pt.BHT_GHR_SIZE-1:0]            i0_bp_fghr,   // BP FGHR
    output logic [pt.BTB_BTAG_SIZE-1:0]           i0_bp_btag,   // BP tag
+   output logic [pt.BTB_TOFFSET_SIZE-1:0]        i0_bp_toffset,// BP toffset
    output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]  i1_bp_index,  // BP index
    output logic [pt.BHT_GHR_SIZE-1:0]            i1_bp_fghr,   // BP FGHR
    output logic [pt.BTB_BTAG_SIZE-1:0]           i1_bp_btag,   // BP tag
+   output logic [pt.BTB_TOFFSET_SIZE-1:0]        i1_bp_toffset,// BP toffset
+
+   output logic [$clog2(pt.BTB_SIZE)-1:0] i0_bp_fa_index,
+   output logic [$clog2(pt.BTB_SIZE)-1:0] i1_bp_fa_index,
 
    output logic [1:0] pmu_instr_aligned,                       // number of inst aligned this cycle
    output logic       pmu_align_stall,                         // aligner stalled this cycle
@@ -104,6 +109,16 @@ import eh2_pkg::*;
 
 
    );
+
+   logic [31:0]    i1instr, i0instr;
+   logic [31:1]    i1pc,    i0pc;
+   logic [15:0]    i1cinst, i0cinst;
+   logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]  i1_bpindex,    i0_bpindex;
+   logic [pt.BHT_GHR_SIZE-1:0]            i1_bpfghr,     i0_bpfghr;
+   logic [pt.BTB_BTAG_SIZE-1:0]           i1_bpbtag,     i0_bpbtag;
+   logic [pt.BTB_TOFFSET_SIZE-1:0]        i1_bptoffset,  i0_bptoffset;
+
+   eh2_br_pkt_t i1_brp, i0_brp;
 
    logic         ifvalid;
    logic         shift_f1_f0, shift_f2_f0, shift_f2_f1;
@@ -120,12 +135,6 @@ import eh2_pkg::*;
    logic [63:0]  f2data_in, f2data;
    logic [63:0]  f1data_in, f1data, sf1data;
    logic [63:0]  f0data_in, f0data, sf0data;
-
-   logic [31:1]  f3pc_in, f3pc;
-   logic [31:1]  f2pc_in, f2pc;
-   logic [31:1]  f1pc_in, f1pc;
-   logic [31:1]  f0pc_in, f0pc;
-   logic [31:1]  sf1pc, sf0pc;
 
    logic [63:0]  aligndata;
    logic         first4B, first2B;
@@ -146,8 +155,8 @@ import eh2_pkg::*;
    logic [3:0]   alignval;
    logic [31:1]  firstpc, secondpc, thirdpc, fourthpc;
 
-   logic [11:0]  f1poffset;
-   logic [11:0]  f0poffset;
+   logic [pt.BTB_TOFFSET_SIZE-1:0]  f1poffset;
+   logic [pt.BTB_TOFFSET_SIZE-1:0]  f0poffset;
    logic [pt.BHT_GHR_SIZE-1:0]  f1fghr;
    logic [pt.BHT_GHR_SIZE-1:0]  f0fghr;
    logic [3:0]   f1hist1;
@@ -155,9 +164,15 @@ import eh2_pkg::*;
    logic [3:0]   f1hist0;
    logic [3:0]   f0hist0;
 
+   logic [3:0][$clog2(pt.BTB_SIZE)-1:0]           f0index, f1index, alignindex;
+
    logic [1:0]                                    f1ictype;
    logic [1:0]                                    f0ictype;
 
+   logic [3:0]   f1icaf;
+   logic [3:0]   f0icaf;
+   logic [3:0]   f1dbecc;
+   logic [3:0]   f0dbecc;
    logic [3:0]   f1pc4;
    logic [3:0]   f0pc4;
 
@@ -184,10 +199,6 @@ import eh2_pkg::*;
 
    logic [31:1]  f1prett;
    logic [31:1]  f0prett;
-   logic         f1dbecc;
-   logic         f0dbecc;
-   logic         f1icaf;
-   logic         f0icaf;
 
    logic [3:0]   aligndbecc;
    logic [3:0]   alignicaf;
@@ -218,19 +229,21 @@ import eh2_pkg::*;
    logic [3:0]   qren;
 
    logic         consume_fb1, consume_fb0;
-   logic [3:1]   icaf_eff;
+   logic [1:0]   icaf_eff;
 
 
    logic [3:0]   fetch_val;
 
    logic         error_stall_in, error_stall;
-   localparam MHI   = 46+pt.BHT_GHR_SIZE;
-   localparam MSIZE = 47+pt.BHT_GHR_SIZE;
+   localparam MHI   = 32+pt.BTB_TOFFSET_SIZE+pt.BHT_GHR_SIZE;
+   localparam MSIZE = 33+pt.BTB_TOFFSET_SIZE+pt.BHT_GHR_SIZE;
 
    logic [MHI:0] misc_data_in, misc3, misc2, misc1, misc0;
    logic [MHI:0] misc1eff, misc0eff;
-   localparam BRDATA_SIZE=24;
-   localparam BRDATA_WIDTH = 6;
+
+   localparam FA_INDEX_SZ=$clog2(pt.BTB_SIZE);
+   localparam BRDATA_SIZE=32+($clog2(pt.BTB_SIZE)*4*pt.BTB_FULLYA);
+   localparam BRDATA_WIDTH = 8+($clog2(pt.BTB_SIZE)*pt.BTB_FULLYA);
 
    logic [BRDATA_SIZE-1:0] brdata_in, brdata3, brdata2, brdata1, brdata0;
    logic [BRDATA_SIZE-1:0] brdata1eff, brdata0eff;
@@ -255,12 +268,28 @@ import eh2_pkg::*;
 
    assign f1_shift_wr_en = (fetch_to_f1 | shift_f3_f1 | shift_f2_f1 | f1_shift_2B | f1_shift_4B | f1_shift_6B);
 
-   assign fetch_val[3:0] = ifu_fetch_val[3:0]  & {4{tid == ifu_fetch_tid}};
+   assign fetch_val[3:0] = ifu_fetch_val[3:0];
 
-   assign error_stall_in = (error_stall | (ifu_async_error_start & (tid == ifu_fetch_tid))) & ~exu_flush_final;
+   assign error_stall_in = (error_stall | ifu_async_error_start) & ~exu_flush_final;
 
-   rvdff  #(1)            error_stallff   (.*, .clk(active_clk),    .din(error_stall_in),         .dout(error_stall));
+   rvdffie #(13) bundle1ff   (.*,
+                              .din({ error_stall_in,wrptr_in[1:0],rdptr_in[1:0],q3off_in[1:0],q2off_in[1:0],q1off_in[1:0],q0off_in[1:0]}),
+                              .dout({error_stall,   wrptr[1:0],   rdptr[1:0],   q3off[1:0],   q2off[1:0],   q1off[1:0],   q0off[1:0]})
 
+                              );
+
+
+   rvdff #(8) bundle2ff   (.*,
+                              .clk(active_clk),
+                              .din({ f3val_in[3:0],f2val_in[3:0]}),
+                              .dout({f3val[3:0],   f2val[3:0]})
+                              );
+
+   rvdff #(8) bundle3ff   (.*,
+                              .clk(active_clk),
+                              .din({ f1val_in[3:0],f0val_in[3:0]}),
+                              .dout({f1val[3:0],   f0val[3:0]})
+                              );
 
 
    // new queue control logic
@@ -271,7 +300,6 @@ import eh2_pkg::*;
                             ({2{wrptr[1:0]==2'b11 & ifvalid}} & 2'b00) |
                             ({2{~ifvalid}} & wrptr[1:0])) & ~{2{exu_flush_final}};
 
-   rvdff #(2) wrpff (.*, .clk(active_clk), .din(wrptr_in[1:0]), .dout(wrptr[1:0]));
 
    assign rdptr_in[1:0] =  (({2{rdptr[1:0]==2'b00 & fb_consume1}} & 2'b01) |
                             ({2{rdptr[1:0]==2'b01 & fb_consume1}} & 2'b10) |
@@ -283,7 +311,6 @@ import eh2_pkg::*;
                             ({2{rdptr[1:0]==2'b11 & fb_consume2}} & 2'b01) |
                             ({2{~fb_consume1&~fb_consume2}} & rdptr[1:0])) & ~{2{exu_flush_final}};
 
-   rvdff #(2) rdpff (.*, .clk(active_clk), .din(rdptr_in[1:0]), .dout(rdptr[1:0]));
 
    assign qren[3:0] = { rdptr[1:0]==2'b11,
                         rdptr[1:0]==2'b10,
@@ -309,7 +336,6 @@ import eh2_pkg::*;
 
    assign q3off_in[1:0] = (qwen[3]) ? {2'b0} : q3off_eff[1:0];
 
-   rvdff #(2) q3offsetff (.*, .clk(active_clk), .din(q3off_in[1:0]), .dout(q3off[1:0]));
 
    assign q2off_eff[1:0] = (rdptr[1:0]==2'd2) ? (q2off[1:0] + first_offset[1:0])  :
                            (rdptr[1:0]==2'd1) ? (q2off[1:0] + second_offset[1:0]) :
@@ -317,7 +343,6 @@ import eh2_pkg::*;
 
    assign q2off_in[1:0] = (qwen[2]) ? {2'b0} : q2off_eff[1:0];
 
-   rvdff #(2) q2offsetff (.*, .clk(active_clk), .din(q2off_in[1:0]), .dout(q2off[1:0]));
 
    assign q1off_eff[1:0] = (rdptr[1:0]==2'd1) ? (q1off[1:0] + first_offset[1:0])  :
                            (rdptr[1:0]==2'd0) ? (q1off[1:0] + second_offset[1:0]) :
@@ -326,7 +351,6 @@ import eh2_pkg::*;
 
    assign q1off_in[1:0] = (qwen[1]) ? {2'b0} : q1off_eff[1:0];
 
-   rvdff #(2) q1offsetff (.*, .clk(active_clk), .din(q1off_in[1:0]), .dout(q1off[1:0]));
 
 
    assign q0off_eff[1:0] = (rdptr[1:0]==2'd0) ? (q0off[1:0] + first_offset[1:0])  :
@@ -337,7 +361,6 @@ import eh2_pkg::*;
    assign q0off_in[1:0] = (qwen[0]) ? {2'b0} : q0off_eff[1:0];
 
 
-   rvdff #(2) q0offsetff (.*, .clk(active_clk), .din(q0off_in[1:0]), .dout(q0off[1:0]));
 
 
    assign q0ptr[1:0] = (({2{rdptr[1:0]==2'b00}} & q0off[1:0]) |
@@ -370,11 +393,10 @@ import eh2_pkg::*;
    // misc data that is associated with each fetch buffer
 
 
-   assign misc_data_in[MHI:0] = { iccm_rd_ecc_double_err,
-                                  ic_access_fault_f2,
+   assign misc_data_in[MHI:0] = {
                                   ic_access_fault_type_f2[1:0],
                                   ifu_bp_btb_target_f2[31:1],
-                                  ifu_bp_poffset_f2[11:0],
+                                  ifu_bp_poffset_f2[pt.BTB_TOFFSET_SIZE-1:0],
                                   ifu_bp_fghr_f2[pt.BHT_GHR_SIZE-1:0]
                                   };
 
@@ -389,35 +411,75 @@ import eh2_pkg::*;
                                                ({MSIZE*2{qren[2]}} & {misc3[MHI:0],misc2[MHI:0]}) |
                                                ({MSIZE*2{qren[3]}} & {misc0[MHI:0],misc3[MHI:0]}));
 
-   assign { f1dbecc,
-            f1icaf,
+   assign {
             f1ictype[1:0],
             f1prett[31:1],
-            f1poffset[11:0],
+            f1poffset[pt.BTB_TOFFSET_SIZE-1:0],
             f1fghr[pt.BHT_GHR_SIZE-1:0]
             } = misc1eff[MHI:0];
 
-   assign { f0dbecc,
-            f0icaf,
+   assign {
             f0ictype[1:0],
             f0prett[31:1],
-            f0poffset[11:0],
+            f0poffset[pt.BTB_TOFFSET_SIZE-1:0],
             f0fghr[pt.BHT_GHR_SIZE-1:0]
             } = misc0eff[MHI:0];
 
 
+   if(pt.BTB_FULLYA) begin
+
+      assign brdata_in[BRDATA_SIZE-1:0] =
+             {
+              iccm_rd_ecc_double_err[3],ic_access_fault_f2[3],ifu_bp_fa_index_f2[3], ifu_bp_hist1_f2[3],ifu_bp_hist0_f2[3],ifu_bp_pc4_f2[3],ifu_bp_way_f2[3],ifu_bp_valid_f2[3],ifu_bp_ret_f2[3],
+              iccm_rd_ecc_double_err[2],ic_access_fault_f2[2],ifu_bp_fa_index_f2[2], ifu_bp_hist1_f2[2],ifu_bp_hist0_f2[2],ifu_bp_pc4_f2[2],ifu_bp_way_f2[2],ifu_bp_valid_f2[2],ifu_bp_ret_f2[2],
+              iccm_rd_ecc_double_err[1],ic_access_fault_f2[1],ifu_bp_fa_index_f2[1], ifu_bp_hist1_f2[1],ifu_bp_hist0_f2[1],ifu_bp_pc4_f2[1],ifu_bp_way_f2[1],ifu_bp_valid_f2[1],ifu_bp_ret_f2[1],
+              iccm_rd_ecc_double_err[0],ic_access_fault_f2[0],ifu_bp_fa_index_f2[0], ifu_bp_hist1_f2[0],ifu_bp_hist0_f2[0],ifu_bp_pc4_f2[0],ifu_bp_way_f2[0],ifu_bp_valid_f2[0],ifu_bp_ret_f2[0]
+              };
+
+      assign {
+              f0dbecc[3],f0icaf[3],f0index[3],f0hist1[3],f0hist0[3],f0pc4[3],f0way[3],f0brend[3],f0ret[3],
+              f0dbecc[2],f0icaf[2],f0index[2],f0hist1[2],f0hist0[2],f0pc4[2],f0way[2],f0brend[2],f0ret[2],
+              f0dbecc[1],f0icaf[1],f0index[1],f0hist1[1],f0hist0[1],f0pc4[1],f0way[1],f0brend[1],f0ret[1],
+              f0dbecc[0],f0icaf[0],f0index[0],f0hist1[0],f0hist0[0],f0pc4[0],f0way[0],f0brend[0],f0ret[0]
+              } = brdata0final[BRDATA_SIZE-1:0];
+
+      assign {
+              f1dbecc[3],f1icaf[3],f1index[3],f1hist1[3],f1hist0[3],f1pc4[3],f1way[3],f1brend[3],f1ret[3],
+              f1dbecc[2],f1icaf[2],f1index[2],f1hist1[2],f1hist0[2],f1pc4[2],f1way[2],f1brend[2],f1ret[2],
+              f1dbecc[1],f1icaf[1],f1index[1],f1hist1[1],f1hist0[1],f1pc4[1],f1way[1],f1brend[1],f1ret[1],
+              f1dbecc[0],f1icaf[0],f1index[0],f1hist1[0],f1hist0[0],f1pc4[0],f1way[0],f1brend[0],f1ret[0]
+              } = brdata1final[BRDATA_SIZE-1:0];
+
+   end
+   else begin
 
    assign brdata_in[BRDATA_SIZE-1:0] = {
-                              ifu_bp_hist1_f2[3],ifu_bp_hist0_f2[3],ifu_bp_pc4_f2[3],ifu_bp_way_f2[3],ifu_bp_valid_f2[3],ifu_bp_ret_f2[3],
-                              ifu_bp_hist1_f2[2],ifu_bp_hist0_f2[2],ifu_bp_pc4_f2[2],ifu_bp_way_f2[2],ifu_bp_valid_f2[2],ifu_bp_ret_f2[2],
-                              ifu_bp_hist1_f2[1],ifu_bp_hist0_f2[1],ifu_bp_pc4_f2[1],ifu_bp_way_f2[1],ifu_bp_valid_f2[1],ifu_bp_ret_f2[1],
-                              ifu_bp_hist1_f2[0],ifu_bp_hist0_f2[0],ifu_bp_pc4_f2[0],ifu_bp_way_f2[0],ifu_bp_valid_f2[0],ifu_bp_ret_f2[0]
+                              iccm_rd_ecc_double_err[3],ic_access_fault_f2[3],ifu_bp_hist1_f2[3],ifu_bp_hist0_f2[3],ifu_bp_pc4_f2[3],ifu_bp_way_f2[3],ifu_bp_valid_f2[3],ifu_bp_ret_f2[3],
+                              iccm_rd_ecc_double_err[2],ic_access_fault_f2[2],ifu_bp_hist1_f2[2],ifu_bp_hist0_f2[2],ifu_bp_pc4_f2[2],ifu_bp_way_f2[2],ifu_bp_valid_f2[2],ifu_bp_ret_f2[2],
+                              iccm_rd_ecc_double_err[1],ic_access_fault_f2[1],ifu_bp_hist1_f2[1],ifu_bp_hist0_f2[1],ifu_bp_pc4_f2[1],ifu_bp_way_f2[1],ifu_bp_valid_f2[1],ifu_bp_ret_f2[1],
+                              iccm_rd_ecc_double_err[0],ic_access_fault_f2[0],ifu_bp_hist1_f2[0],ifu_bp_hist0_f2[0],ifu_bp_pc4_f2[0],ifu_bp_way_f2[0],ifu_bp_valid_f2[0],ifu_bp_ret_f2[0]
                               };
+
+
+   assign {
+            f0dbecc[3],f0icaf[3],f0hist1[3],f0hist0[3],f0pc4[3],f0way[3],f0brend[3],f0ret[3],
+            f0dbecc[2],f0icaf[2],f0hist1[2],f0hist0[2],f0pc4[2],f0way[2],f0brend[2],f0ret[2],
+            f0dbecc[1],f0icaf[1],f0hist1[1],f0hist0[1],f0pc4[1],f0way[1],f0brend[1],f0ret[1],
+            f0dbecc[0],f0icaf[0],f0hist1[0],f0hist0[0],f0pc4[0],f0way[0],f0brend[0],f0ret[0]
+            } = brdata0final[BRDATA_SIZE-1:0];
+
+   assign {
+            f1dbecc[3],f1icaf[3],f1hist1[3],f1hist0[3],f1pc4[3],f1way[3],f1brend[3],f1ret[3],
+            f1dbecc[2],f1icaf[2],f1hist1[2],f1hist0[2],f1pc4[2],f1way[2],f1brend[2],f1ret[2],
+            f1dbecc[1],f1icaf[1],f1hist1[1],f1hist0[1],f1pc4[1],f1way[1],f1brend[1],f1ret[1],
+            f1dbecc[0],f1icaf[0],f1hist1[0],f1hist0[0],f1pc4[0],f1way[0],f1brend[0],f1ret[0]
+            } = brdata1final[BRDATA_SIZE-1:0];
+   end
+
    rvdffe #(BRDATA_SIZE) brdata3ff (.*, .en(qwen[3]), .din(brdata_in[BRDATA_SIZE-1:0]), .dout(brdata3[BRDATA_SIZE-1:0]));
    rvdffe #(BRDATA_SIZE) brdata2ff (.*, .en(qwen[2]), .din(brdata_in[BRDATA_SIZE-1:0]), .dout(brdata2[BRDATA_SIZE-1:0]));
    rvdffe #(BRDATA_SIZE) brdata1ff (.*, .en(qwen[1]), .din(brdata_in[BRDATA_SIZE-1:0]), .dout(brdata1[BRDATA_SIZE-1:0]));
    rvdffe #(BRDATA_SIZE) brdata0ff (.*, .en(qwen[0]), .din(brdata_in[BRDATA_SIZE-1:0]), .dout(brdata0[BRDATA_SIZE-1:0]));
-
 
    assign {brdata1eff[BRDATA_SIZE-1:0],brdata0eff[BRDATA_SIZE-1:0]} = (({BRDATA_SIZE*2{qren[0]}} & {brdata1[BRDATA_SIZE-1:0],brdata0[BRDATA_SIZE-1:0]}) |
                                                                        ({BRDATA_SIZE*2{qren[1]}} & {brdata2[BRDATA_SIZE-1:0],brdata1[BRDATA_SIZE-1:0]}) |
@@ -436,20 +498,6 @@ import eh2_pkg::*;
                                            ({BRDATA_SIZE{q1sel[2]}} & {{2*BRDATA_WIDTH{1'b0}},brdata1eff[BRDATA_SIZE-1:2*BRDATA_WIDTH]}) |
                                            ({BRDATA_SIZE{q1sel[3]}} & {{3*BRDATA_WIDTH{1'b0}},brdata1eff[BRDATA_SIZE-1:3*BRDATA_WIDTH]}));
 
-
-   assign {
-            f0hist1[3],f0hist0[3],f0pc4[3],f0way[3],f0brend[3],f0ret[3],
-            f0hist1[2],f0hist0[2],f0pc4[2],f0way[2],f0brend[2],f0ret[2],
-            f0hist1[1],f0hist0[1],f0pc4[1],f0way[1],f0brend[1],f0ret[1],
-            f0hist1[0],f0hist0[0],f0pc4[0],f0way[0],f0brend[0],f0ret[0]
-            } = brdata0final[BRDATA_SIZE-1:0];
-
-   assign {
-            f1hist1[3],f1hist0[3],f1pc4[3],f1way[3],f1brend[3],f1ret[3],
-            f1hist1[2],f1hist0[2],f1pc4[2],f1way[2],f1brend[2],f1ret[2],
-            f1hist1[1],f1hist0[1],f1pc4[1],f1way[1],f1brend[1],f1ret[1],
-            f1hist1[0],f1hist0[0],f1pc4[0],f1way[0],f1brend[0],f1ret[0]
-            } = brdata1final[BRDATA_SIZE-1:0];
 
 
    // possible states of { sf0_valid, sf1_valid, f2_valid, f3_valid }
@@ -542,50 +590,30 @@ import eh2_pkg::*;
 
 
 
-   // make this two incrementors with some logic on the lower bits
+   logic [31:1] q3pc, q2pc, q1pc, q0pc;
 
-   assign f0pc_plus1[31:1] = f0pc[31:1] + 31'd1;
-   assign f0pc_plus2[31:1] = f0pc[31:1] + 31'd2;
-   assign f0pc_plus3[31:1] = f0pc[31:1] + 31'd3;
-   assign f0pc_plus4[31:1] = f0pc[31:1] + 31'd4;
+   rvdffe #(31)           q3pcff        (.*, .clk(clk), .en(qwen[3]),        .din(ifu_fetch_pc[31:1]),     .dout(q3pc[31:1]));
+   rvdffe #(31)           q2pcff        (.*, .clk(clk), .en(qwen[2]),        .din(ifu_fetch_pc[31:1]),     .dout(q2pc[31:1]));
+   rvdffe #(31)           q1pcff        (.*, .clk(clk), .en(qwen[1]),        .din(ifu_fetch_pc[31:1]),     .dout(q1pc[31:1]));
+   rvdffe #(31)           q0pcff        (.*, .clk(clk), .en(qwen[0]),        .din(ifu_fetch_pc[31:1]),     .dout(q0pc[31:1]));
 
-   assign f1pc_plus1[31:1] = f1pc[31:1] + 31'd1;
-   assign f1pc_plus2[31:1] = f1pc[31:1] + 31'd2;
-   assign f1pc_plus3[31:1] = f1pc[31:1] + 31'd3;
+   logic [31:1] q0pceff, q0pcfinal;
+   logic [31:1] q1pceff, q1pcfinal;
 
-   assign f3pc_in[31:1] = ifu_fetch_pc[31:1];
+   assign {q1pceff[31:1],q0pceff[31:1]} = (({62{qren[0]}} & {q1pc[31:1],q0pc[31:1]}) |
+                                           ({62{qren[1]}} & {q2pc[31:1],q1pc[31:1]}) |
+                                           ({62{qren[2]}} & {q3pc[31:1],q2pc[31:1]}) |
+                                           ({62{qren[3]}} & {q0pc[31:1],q3pc[31:1]}));
 
-   rvdffe #(31) f3pcff (.*, .en(f3_wr_en), .din(f3pc_in[31:1]), .dout(f3pc[31:1]));
+   assign q0pcfinal[31:1]      = ({31{q0sel[0]}} & ( q0pceff[31:1])) |
+                                 ({31{q0sel[1]}} & ( q0pceff[31:1] + 31'd1)) |
+                                 ({31{q0sel[2]}} & ( q0pceff[31:1] + 31'd2)) |
+                                 ({31{q0sel[3]}} & ( q0pceff[31:1] + 31'd3));
 
-   assign f2pc_in[31:1] = ({31{fetch_to_f2}} & ifu_fetch_pc[31:1]) |
-                          ({31{shift_f3_f2}} & f3pc[31:1]) |
-                          ({31{~fetch_to_f2&~shift_f3_f2}} & f2pc[31:1]);
-
-   rvdffe #(31) f2pcff (.*, .en(f2_wr_en), .din(f2pc_in[31:1]), .dout(f2pc[31:1]));
-
-   assign sf1pc[31:1] = ({31{f1_shift_2B}} & (f1pc_plus1[31:1])) |
-                        ({31{f1_shift_4B}} & (f1pc_plus2[31:1])) |
-                        ({31{f1_shift_6B}} & (f1pc_plus3[31:1])) |
-                        ({31{~f1_shift_2B&~f1_shift_4B&~f1_shift_6B}} & f1pc[31:1]);
-
-   assign f1pc_in[31:1] = ({31{fetch_to_f1}} & ifu_fetch_pc[31:1]) |
-                          ({31{shift_f2_f1}} & f2pc[31:1]) |
-                          ({31{shift_f3_f1}} & f3pc[31:1]) |
-                          ({31{~fetch_to_f1&~shift_f2_f1&~shift_f3_f1}} & sf1pc[31:1]);
-
-   rvdffe #(31) f1pcff (.*, .en(f1_shift_wr_en), .din(f1pc_in[31:1]), .dout(f1pc[31:1]));
-
-   assign sf0pc[31:1] = ({31{shift_2B}} & (f0pc_plus1[31:1])) |
-                        ({31{shift_4B}} & (f0pc_plus2[31:1])) |
-                        ({31{shift_6B}} & (f0pc_plus3[31:1])) |
-                        ({31{shift_8B}} & (f0pc_plus4[31:1]));
-
-   assign f0pc_in[31:1] = ({31{fetch_to_f0}} & ifu_fetch_pc[31:1]) |
-                          ({31{shift_f2_f0}} & f2pc[31:1]) |
-                          ({31{shift_f1_f0}} & sf1pc[31:1]) |
-                          ({31{~fetch_to_f0&~shift_f2_f0&~shift_f1_f0}} & sf0pc[31:1]);
-
-   rvdffe #(31) f0pcff (.*, .en(f0_shift_wr_en), .din(f0pc_in[31:1]), .dout(f0pc[31:1]));
+   assign q1pcfinal[31:1]      = ({31{q1sel[0]}} & ( q1pceff[31:1])) |
+                                 ({31{q1sel[1]}} & ( q1pceff[31:1] + 31'd1)) |
+                                 ({31{q1sel[2]}} & ( q1pceff[31:1] + 31'd2)) |
+                                 ({31{q1sel[3]}} & ( q1pceff[31:1] + 31'd3));
 
    // on flush_final all valids go to 0
 
@@ -594,13 +622,11 @@ import eh2_pkg::*;
    assign f3val_in[3:0] = (({4{fetch_to_f3}} & fetch_val[3:0]) |
                            ({4{~fetch_to_f3&~shift_f3_f1&~shift_f3_f2}} & f3val[3:0])) & ~{4{exu_flush_final}};
 
-   rvdff #(4) f3valff (.*, .clk(active_clk), .din(f3val_in[3:0]), .dout(f3val[3:0]));
 
    assign f2val_in[3:0] = (({4{fetch_to_f2}} & fetch_val[3:0]) |
                            ({4{shift_f3_f2}} & f3val[3:0]) |
                            ({4{~fetch_to_f2&~shift_f3_f2&~shift_f2_f1&~shift_f2_f0}} & f2val[3:0])) & ~{4{exu_flush_final}};
 
-   rvdff #(4) f2valff (.*, .clk(active_clk), .din(f2val_in[3:0]), .dout(f2val[3:0]));
 
    assign sf1val[3:0] = ({4{f1_shift_2B}} & {1'b0,f1val[3:1]}) |
                         ({4{f1_shift_4B}} & {2'b0,f1val[3:2]}) |
@@ -612,7 +638,6 @@ import eh2_pkg::*;
                            ({4{shift_f2_f1}} & f2val[3:0]) |
                            ({4{~fetch_to_f1&~shift_f3_f1&~shift_f2_f1&~shift_f1_f0}} & sf1val[3:0])) & ~{4{exu_flush_final}};
 
-   rvdff #(4) f1valff (.*, .clk(active_clk), .din(f1val_in[3:0]), .dout(f1val[3:0]));
 
 
    assign sf0val[3:0] = ({4{shift_2B}} & {1'b0,f0val[3:1]}) |
@@ -625,10 +650,9 @@ import eh2_pkg::*;
                            ({4{shift_f1_f0}} & sf1val[3:0]) |
                            ({4{~fetch_to_f0&~shift_f2_f0&~shift_f1_f0}} & sf0val[3:0])) & ~{4{exu_flush_final}};
 
-   rvdff #(4) f0valff (.*, .clk(active_clk), .din(f0val_in[3:0]), .dout(f0val[3:0]));
 
 
-   // fifo implementation of the fetch data for timing of predecodes
+// fifo implementation of the fetch data for timing of predecodes
 
    assign f3data_in[63:0] = ifu_fetch_data[63:0];
 
@@ -645,7 +669,7 @@ import eh2_pkg::*;
 
    assign f1data_in[63:0] = (fetch_to_f1) ? ifu_fetch_data[63:0] : (shift_f2_f1) ? f2data[63:0] : (shift_f3_f1) ? f3data[63:0] : sf1data[63:0];
 
-   rvdffe #(64) f1dataff (.*, .en(f1_shift_wr_en), .din(f1data_in[63:0]), .dout(f1data[63:0]));
+   rvdff4e #(64) f1dataff (.*, .en({4{f1_shift_wr_en}} & f1val_in[3:0]), .din(f1data_in[63:0]), .dout(f1data[63:0]));
 
    assign sf0data[63:0] = ({64{shift_2B}} & {16'b0,f0data[63:16]}) |
                           ({64{shift_4B}} & {32'b0,f0data[63:32]}) |
@@ -654,7 +678,7 @@ import eh2_pkg::*;
 
    assign f0data_in[63:0] = (fetch_to_f0) ? ifu_fetch_data[63:0] : (shift_f1_f0) ? sf1data[63:0] : (shift_f2_f0) ? f2data[63:0] : sf0data[63:0];
 
-   rvdffe #(64) f0dataff (.*, .en(fetch_to_f0 | shift_f2_f0 | shift_f1_f0 | shift_2B | shift_4B | shift_6B), .din(f0data_in[63:0]), .dout(f0data[63:0]));
+   rvdff4e #(64) f0dataff (.*, .en({4{fetch_to_f0 | shift_f2_f0 | shift_f1_f0 | shift_2B | shift_4B | shift_6B}} & f0val_in[3:0]), .din(f0data_in[63:0]), .dout(f0data[63:0]));
 
 
    assign aligndata[63:0] = ({64{(f0val[3])}} &                  {f0data[4*16-1:0]}) |
@@ -667,40 +691,45 @@ import eh2_pkg::*;
                             ({4{(f0val[1]&~f0val[2])}} &        {f1val[1:0],2'b11}) |
                             ({4{(f0val[0]&~f0val[1])}} &        {f1val[2:0],1'b1});
 
-   assign alignicaf[3:0] =   ({4{(f0val[3])}} &                  {4{f0icaf}}) |
-                             ({4{(f0val[2]&~f0val[3])}} &        {{1{f1icaf}},{3{f0icaf}}}) |
-                             ({4{(f0val[1]&~f0val[2])}} &        {{2{f1icaf}},{2{f0icaf}}}) |
-                             ({4{(f0val[0]&~f0val[1])}} &        {{3{f1icaf}},{1{f0icaf}}});
+   assign alignicaf[3:0] =   ({4{(f0val[3])}} &                    f0icaf[3:0]) |
+                             ({4{(f0val[2]&~f0val[3])}} &         {f1icaf[0],  f0icaf[2:0]}) |
+                             ({4{(f0val[1]&~f0val[2])}} &         {f1icaf[1:0],f0icaf[1:0]}) |
+                             ({4{(f0val[0]&~f0val[1])}} &         {f1icaf[2:0],f0icaf[0]});
 
-   assign aligndbecc[3:0] =   ({4{(f0val[3])}} &                  {4{f0dbecc}}) |
-                              ({4{(f0val[2]&~f0val[3])}} &        {{1{f1dbecc}},{3{f0dbecc}}}) |
-                              ({4{(f0val[1]&~f0val[2])}} &        {{2{f1dbecc}},{2{f0dbecc}}}) |
-                              ({4{(f0val[0]&~f0val[1])}} &        {{3{f1dbecc}},{1{f0dbecc}}});
+   assign aligndbecc[3:0] =   ({4{(f0val[3])}} &                   f0dbecc[3:0]) |
+                              ({4{(f0val[2]&~f0val[3])}} &        {f1dbecc[0],  f0dbecc[2:0]}) |
+                              ({4{(f0val[1]&~f0val[2])}} &        {f1dbecc[1:0],f0dbecc[1:0]}) |
+                              ({4{(f0val[0]&~f0val[1])}} &        {f1dbecc[2:0],f0dbecc[0]});
 
    // for branch prediction
    assign alignbrend[3:0] =   ({4{(f0val[3])}} &                   f0brend[3:0]) |
-                              ({4{(f0val[2]&~f0val[3])}} &        {f1brend[0],f0brend[2:0]}) |
+                              ({4{(f0val[2]&~f0val[3])}} &        {f1brend[0],  f0brend[2:0]}) |
                               ({4{(f0val[1]&~f0val[2])}} &        {f1brend[1:0],f0brend[1:0]}) |
                               ({4{(f0val[0]&~f0val[1])}} &        {f1brend[2:0],f0brend[0]});
 
    assign alignpc4[3:0] =   ({4{(f0val[3])}} &                   f0pc4[3:0]) |
-                            ({4{(f0val[2]&~f0val[3])}} &        {f1pc4[0],f0pc4[2:0]}) |
+                            ({4{(f0val[2]&~f0val[3])}} &        {f1pc4[0],  f0pc4[2:0]}) |
                             ({4{(f0val[1]&~f0val[2])}} &        {f1pc4[1:0],f0pc4[1:0]}) |
                             ({4{(f0val[0]&~f0val[1])}} &        {f1pc4[2:0],f0pc4[0]});
+   if(pt.BTB_FULLYA)
+     assign alignindex[3:0] =   ({4*$clog2(pt.BTB_SIZE){(f0val[3])}} &                   f0index[3:0]) |
+                                ({4*$clog2(pt.BTB_SIZE){(f0val[2]&~f0val[3])}} &        {f1index[0],f0index[2:0]}) |
+                                ({4*$clog2(pt.BTB_SIZE){(f0val[1]&~f0val[2])}} &        {f1index[1:0],f0index[1:0]}) |
+                                ({4*$clog2(pt.BTB_SIZE){(f0val[0]&~f0val[1])}} &        {f1index[2:0],f0index[0]});
 
 
    assign alignret[3:0] =   ({4{(f0val[3])}} &                   f0ret[3:0]) |
-                            ({4{(f0val[2]&~f0val[3])}} &        {f1ret[0],f0ret[2:0]}) |
+                            ({4{(f0val[2]&~f0val[3])}} &        {f1ret[0],  f0ret[2:0]}) |
                             ({4{(f0val[1]&~f0val[2])}} &        {f1ret[1:0],f0ret[1:0]}) |
                             ({4{(f0val[0]&~f0val[1])}} &        {f1ret[2:0],f0ret[0]});
 
    assign alignway[3:0] =   ({4{(f0val[3])}} &                   f0way[3:0]) |
-                            ({4{(f0val[2]&~f0val[3])}} &        {f1way[0],f0way[2:0]}) |
+                            ({4{(f0val[2]&~f0val[3])}} &        {f1way[0],  f0way[2:0]}) |
                             ({4{(f0val[1]&~f0val[2])}} &        {f1way[1:0],f0way[1:0]}) |
                             ({4{(f0val[0]&~f0val[1])}} &        {f1way[2:0],f0way[0]});
 
    assign alignhist1[3:0] =   ({4{(f0val[3])}} &                   f0hist1[3:0]) |
-                              ({4{(f0val[2]&~f0val[3])}} &        {f1hist1[0],f0hist1[2:0]}) |
+                              ({4{(f0val[2]&~f0val[3])}} &        {f1hist1[0],  f0hist1[2:0]}) |
                               ({4{(f0val[1]&~f0val[2])}} &        {f1hist1[1:0],f0hist1[1:0]}) |
                               ({4{(f0val[0]&~f0val[1])}} &        {f1hist1[2:0],f0hist1[0]});
 
@@ -715,20 +744,23 @@ import eh2_pkg::*;
                                  ({3{(f0val[0]&~f0val[1])}} &        {3'b111});
 
 
+
    assign { secondpc[31:1],
             thirdpc[31:1],
-            fourthpc[31:1] } =   ({3*31{(f0val[3])}}           & {f0pc_plus1[31:1], f0pc_plus2[31:1], f0pc_plus3[31:1]}) |
-                                 ({3*31{(f0val[2]&~f0val[3])}} & {f0pc_plus1[31:1], f0pc_plus2[31:1], f1pc[31:1]}) |
-                                 ({3*31{(f0val[1]&~f0val[2])}} & {f0pc_plus1[31:1], f1pc[31:1],       f1pc_plus1[31:1]})   |
-                                 ({3*31{(f0val[0]&~f0val[1])}} & {f1pc[31:1],       f1pc_plus1[31:1], f1pc_plus2[31:1]});
+            fourthpc[31:1] } =   ({3*31{(f0val[3])}}           & {31'(q0pcfinal[31:1] + 31'd1), 31'(q0pcfinal[31:1] + 31'd2), 31'(q0pcfinal[31:1] + 31'd3)}) |
+                                 ({3*31{(f0val[2]&~f0val[3])}} & {31'(q0pcfinal[31:1] + 31'd1), 31'(q0pcfinal[31:1] + 31'd2),     q1pcfinal[31:1]}) |
+                                 ({3*31{(f0val[1]&~f0val[2])}} & {31'(q0pcfinal[31:1] + 31'd1),     q1pcfinal[31:1],          31'(q1pcfinal[31:1] + 31'd1)})   |
+                                 ({3*31{(f0val[0]&~f0val[1])}} & {    q1pcfinal[31:1],          31'(q1pcfinal[31:1] + 31'd1), 31'(q1pcfinal[31:1] + 31'd2)});
 
 
-   assign i0_pc[31:1] = f0pc[31:1];
+   assign i0pc[31:1] = q0pcfinal[31:1];
 
-   assign firstpc[31:1] = f0pc[31:1];
+   assign firstpc[31:1] = q0pcfinal[31:1];
 
-   assign i1_pc[31:1] = (first2B) ? secondpc[31:1] : thirdpc[31:1];
+   assign i1pc[31:1] = (first2B) ? secondpc[31:1] : thirdpc[31:1];
 
+   assign i0_pc[31:1] = (i0_shift) ? i0pc : '0;
+   assign i1_pc[31:1] = (i1_shift) ? i1pc : '0;
 
    assign i0_pc4 = first4B;
 
@@ -737,10 +769,11 @@ import eh2_pkg::*;
 
 
 
-   //logic for trace
-   assign i0_cinst[15:0] = aligndata[15:0];
-   assign i1_cinst[15:0] = (first4B) ? aligndata[47:32] : aligndata[31:16];
-   // end trace
+   assign i0cinst[15:0] = (i0_pc4) ? '0 : aligndata[15:0];
+   assign i1cinst[15:0] = (i1_pc4) ? '0 : (first4B) ? aligndata[47:32] : aligndata[31:16];
+
+   assign i0_cinst[15:0] = (i0_shift) ? i0cinst : '0;
+   assign i1_cinst[15:0] = (i1_shift) ? i1cinst : '0;
 
 
    // check on 16B boundaries
@@ -771,9 +804,9 @@ import eh2_pkg::*;
    // restrict icaf and dbecc to be i0 only
    assign i0_icaf_type[1:0] = (first4B & ~f0val[1] & f0val[0] & ~alignicaf[0] & ~aligndbecc[0]) ? f1ictype[1:0] : f0ictype[1:0];
 
-   assign icaf_eff[3:1] = alignicaf[3:1] | aligndbecc[3:1];
+   assign icaf_eff[1:0] = alignicaf[1:0] | aligndbecc[1:0];
 
-   assign i0_icaf_f1 = first4B & icaf_eff[1] & alignfromf1[1];
+   assign i0_icaf_second = first4B & ~icaf_eff[0] & icaf_eff[1];
 
 
    assign i1_icaf = ((first4B & third4B &  (|alignicaf[3:2])) |
@@ -802,14 +835,17 @@ import eh2_pkg::*;
 
 
 
-   assign i0_instr[31:0] = ({32{first4B}} & ifirst[31:0]) |
+   assign i0instr[31:0] = ({32{first4B}} & ifirst[31:0]) |
                            ({32{first2B}} & uncompress0[31:0]);
 
 
-   assign i1_instr[31:0] = ({32{first4B & third4B}} & ithird[31:0]) |
+   assign i1instr[31:0] = ({32{first4B & third4B}} & ithird[31:0]) |
                            ({32{first4B & third2B}} & uncompress2[31:0]) |
                            ({32{first2B & second4B}} & isecond[31:0]) |
                            ({32{first2B & second2B}} & uncompress1[31:0]);
+
+   assign i0_instr[31:0] = (i0_shift) ? i0instr : '0;
+   assign i1_instr[31:0] = (i1_shift) ? i1instr : '0;
 
 
 // file "decode" is human readable file that has all of the instruction decodes defined and is part of git repo
@@ -825,8 +861,8 @@ import eh2_pkg::*;
 
 
 
-   assign i0[31:0] = i0_instr[31:0];
-   assign i1[31:0] = i1_instr[31:0];
+   assign i0[31:0] = i0instr[31:0];
+   assign i1[31:0] = i1instr[31:0];
 
    eh2_ifu_predecode_ctl i0_pred (.inst(i0[31:0]),.predecode(i0_predecode));
    eh2_ifu_predecode_ctl i1_pred (.inst(i1[31:0]),.predecode(i1_predecode));
@@ -840,6 +876,13 @@ import eh2_pkg::*;
    eh2_btb_addr_hash #(.pt(pt)) thirdhash(.pc(thirdpc[pt.BTB_INDEX3_HI:pt.BTB_INDEX1_LO]), .hash(thirdpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]));
    eh2_btb_addr_hash #(.pt(pt)) fourthhash(.pc(fourthpc[pt.BTB_INDEX3_HI:pt.BTB_INDEX1_LO]), .hash(fourthpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]));
 
+if(pt.BTB_FULLYA) begin
+   assign firstbrtag_hash = firstpc;
+   assign secondbrtag_hash = secondpc;
+   assign thirdbrtag_hash = thirdpc;
+   assign fourthbrtag_hash = fourthpc;
+end
+else begin
 
 if(pt.BTB_BTAG_FOLD) begin : btbfold
    eh2_btb_tag_hash_fold #(.pt(pt)) first_brhash (.pc(firstpc [pt.BTB_ADDR_HI+pt.BTB_BTAG_SIZE+pt.BTB_BTAG_SIZE:pt.BTB_ADDR_HI+1]), .hash(firstbrtag_hash[pt.BTB_BTAG_SIZE-1:0]));
@@ -854,155 +897,188 @@ end
    eh2_btb_tag_hash #(.pt(pt)) fourth_brhash(.pc(fourthpc[pt.BTB_ADDR_HI+pt.BTB_BTAG_SIZE+pt.BTB_BTAG_SIZE+pt.BTB_BTAG_SIZE:pt.BTB_ADDR_HI+1]), .hash(fourthbrtag_hash[pt.BTB_BTAG_SIZE-1:0]));
 end
 
+end
+
    // start_indexing - you want pc to be based on where the end of branch is prediction
    // normal indexing pc based that's incorrect now for pc4 cases it's pc4 + 2
 
    always_comb begin
 
-      i0_br_p = '0;
+      i0_brp = '0;
 
       i0_br_start_error = (first4B & alignval[1] & alignbrend[0]);
 
-      i0_br_p.valid = (first2B & alignbrend[0]) |
-                      (first4B & alignbrend[1]) |
-                      i0_br_start_error;
+      i0_brp.valid = (first2B & alignbrend[0]) |
+                     (first4B & alignbrend[1]) |
+                     i0_br_start_error;
 
       i0_brp_pc4 = (first2B & alignpc4[0]) |
                    (first4B & alignpc4[1]);
 
-      i0_br_p.ret = (first2B & alignret[0]) |
-                    (first4B & alignret[1]);
+      i0_brp.ret = (first2B & alignret[0]) |
+                   (first4B & alignret[1]);
 
 
-      i0_br_p.way = (first2B | alignbrend[0]) ? alignway[0] : alignway[1];
+      i0_brp.way = (first2B | alignbrend[0]) ? alignway[0] : alignway[1];
 
-      i0_br_p.hist[1] = (first2B & alignhist1[0]) |
-                        (first4B & alignhist1[1]);
+      i0_brp.hist[1] = (first2B & alignhist1[0]) |
+                       (first4B & alignhist1[1]);
 
-      i0_br_p.hist[0] = (first2B & alignhist0[0]) |
-                        (first4B & alignhist0[1]);
+      i0_brp.hist[0] = (first2B & alignhist0[0]) |
+                       (first4B & alignhist0[1]);
 
       i0_ends_f1 = (first4B & alignfromf1[1]);
 
-      i0_br_p.toffset[11:0] = (i0_ends_f1) ? f1poffset[11:0] : f0poffset[11:0];
 
-      i0_br_p.prett[31:1] = (i0_ends_f1) ? f1prett[31:1] : f0prett[31:1];
+      i0_brp.prett[31:1] = (~i0_brp.ret) ? '0 : (i0_ends_f1) ? f1prett[31:1] : f0prett[31:1];
 
-      i0_br_p.br_start_error = i0_br_start_error;
-
-
-      i0_br_p.bank = (first2B | alignbrend[0]) ? firstpc[2] :
-                                               secondpc[2];
+      i0_brp.br_start_error = i0_br_start_error;
 
 
-      i0_br_p.br_error = (i0_br_p.valid &  i0_brp_pc4 &  first2B) |
-                         (i0_br_p.valid & ~i0_brp_pc4 &  first4B);
+      i0_brp.bank = (first2B | alignbrend[0]) ? firstpc[2] :
+                    secondpc[2];
 
-      i1_br_p = '0;
+
+      i0_brp.br_error = (i0_brp.valid &  i0_brp_pc4 &  first2B) |
+                        (i0_brp.valid & ~i0_brp_pc4 &  first4B);
+
+      i1_brp = '0;
 
       i1_br_start_error = (first2B & second4B & alignval[2] & alignbrend[1]) |
                           (first4B & third4B  & alignval[3] & alignbrend[2]);
 
-      i1_br_p.valid = (first4B & third2B & alignbrend[2]) |
-                      (first4B & third4B & alignbrend[3]) |
-                      (first2B & second2B & alignbrend[1]) |
-                      (first2B & second4B & alignbrend[2]) |
-                      i1_br_start_error;
+      i1_brp.valid = (first4B & third2B & alignbrend[2]) |
+                     (first4B & third4B & alignbrend[3]) |
+                     (first2B & second2B & alignbrend[1]) |
+                     (first2B & second4B & alignbrend[2]) |
+                     i1_br_start_error;
 
       i1_brp_pc4 = (first4B & third2B & alignpc4[2]) |
                    (first4B & third4B & alignpc4[3]) |
                    (first2B & second2B & alignpc4[1]) |
                    (first2B & second4B & alignpc4[2]);
 
-      i1_br_p.ret = (first4B & third2B & alignret[2]) |
-                    (first4B & third4B & alignret[3]) |
-                    (first2B & second2B & alignret[1]) |
-                    (first2B & second4B & alignret[2]);
+      i1_brp.ret = (first4B & third2B & alignret[2]) |
+                   (first4B & third4B & alignret[3]) |
+                   (first2B & second2B & alignret[1]) |
+                   (first2B & second4B & alignret[2]);
 
-      i1_br_p.way = (first4B & third2B                   & alignway[2] ) |
-                    (first4B & third4B &  alignbrend[2]  & alignway[2] ) |
-                    (first4B & third4B & ~alignbrend[2]  & alignway[3] ) |
-                    (first2B & second2B                  & alignway[1] ) |
-                    (first2B & second4B &  alignbrend[1] & alignway[1] ) |
-                    (first2B & second4B & ~alignbrend[1] & alignway[2] );
+      i1_brp.way = (first4B & third2B                   & alignway[2] ) |
+                   (first4B & third4B &  alignbrend[2]  & alignway[2] ) |
+                   (first4B & third4B & ~alignbrend[2]  & alignway[3] ) |
+                   (first2B & second2B                  & alignway[1] ) |
+                   (first2B & second4B &  alignbrend[1] & alignway[1] ) |
+                   (first2B & second4B & ~alignbrend[1] & alignway[2] );
 
-      i1_br_p.hist[1] = (first4B & third2B & alignhist1[2]) |
-                        (first4B & third4B & alignhist1[3]) |
-                        (first2B & second2B & alignhist1[1]) |
-                        (first2B & second4B & alignhist1[2]);
+      i1_brp.hist[1] = (first4B & third2B & alignhist1[2]) |
+                       (first4B & third4B & alignhist1[3]) |
+                       (first2B & second2B & alignhist1[1]) |
+                       (first2B & second4B & alignhist1[2]);
 
-      i1_br_p.hist[0] = (first4B & third2B & alignhist0[2]) |
-                        (first4B & third4B & alignhist0[3]) |
-                        (first2B & second2B & alignhist0[1]) |
-                        (first2B & second4B & alignhist0[2]);
+      i1_brp.hist[0] = (first4B & third2B & alignhist0[2]) |
+                       (first4B & third4B & alignhist0[3]) |
+                       (first2B & second2B & alignhist0[1]) |
+                       (first2B & second4B & alignhist0[2]);
 
       i1_ends_f1 = (first4B & third2B & alignfromf1[2]) |
                    (first4B & third4B & alignfromf1[3]) |
                    (first2B & second2B & alignfromf1[1]) |
                    (first2B & second4B & alignfromf1[2]);
 
-      i1_br_p.toffset[11:0] = (i1_ends_f1) ? f1poffset[11:0] : f0poffset[11:0];
 
-      i1_br_p.prett[31:1] = (i1_ends_f1) ? f1prett[31:1] : f0prett[31:1];
+      i1_brp.prett[31:1] = (~i1_brp.ret) ? '0 : (i1_ends_f1) ? f1prett[31:1] : f0prett[31:1];
 
-      i1_br_p.br_start_error = i1_br_start_error;
+      i1_brp.br_start_error = i1_br_start_error;
 
 
-      i1_br_p.bank = ({{first4B & third2B }}                  & thirdpc[2] ) |
-                     ({{first4B & third4B &  alignbrend[2] }} & thirdpc[2] ) |
-                     ({{first4B & third4B & ~alignbrend[2] }} & fourthpc[2] ) |
-                     ({{first2B & second2B}}                  & secondpc[2] ) |
-                     ({{first2B & second4B &  alignbrend[1]}} & secondpc[2] ) |
-                     ({{first2B & second4B & ~alignbrend[1]}} & thirdpc[2] );
+      i1_brp.bank = ({{first4B & third2B }}                  & thirdpc[2] ) |
+                    ({{first4B & third4B &  alignbrend[2] }} & thirdpc[2] ) |
+                    ({{first4B & third4B & ~alignbrend[2] }} & fourthpc[2] ) |
+                    ({{first2B & second2B}}                  & secondpc[2] ) |
+                    ({{first2B & second4B &  alignbrend[1]}} & secondpc[2] ) |
+                    ({{first2B & second4B & ~alignbrend[1]}} & thirdpc[2] );
 
-      i1_br_p.br_error = (i1_br_p.valid &  i1_brp_pc4 & first4B & third2B ) |
-                         (i1_br_p.valid & ~i1_brp_pc4 & first4B & third4B ) |
-                         (i1_br_p.valid &  i1_brp_pc4 & first2B & second2B) |
-                         (i1_br_p.valid & ~i1_brp_pc4 & first2B & second4B);
-   end
+      i1_brp.br_error = (i1_brp.valid &  i1_brp_pc4 & first4B & third2B ) |
+                        (i1_brp.valid & ~i1_brp_pc4 & first4B & third4B ) |
+                        (i1_brp.valid &  i1_brp_pc4 & first2B & second2B) |
+                        (i1_brp.valid & ~i1_brp_pc4 & first2B & second4B);
 
-   assign i0_bp_fghr[pt.BHT_GHR_SIZE-1:0] = (i0_ends_f1) ? f1fghr[pt.BHT_GHR_SIZE-1:0] : f0fghr[pt.BHT_GHR_SIZE-1:0];
+      if(pt.BTB_FULLYA)  begin
+         i0_bp_fa_index = ({FA_INDEX_SZ{first2B}} & alignindex[0]) |
+                          ({FA_INDEX_SZ{first4B}} & alignindex[1]);
 
-   assign i0_bp_index[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] = (first2B | alignbrend[0]) ? firstpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]:
+         i1_bp_fa_index = ({FA_INDEX_SZ{first4B & third2B }} & alignindex[2]) |
+                          ({FA_INDEX_SZ{first4B & third4B }} & alignindex[3]) |
+                          ({FA_INDEX_SZ{first2B & second2B}} & alignindex[1]) |
+                          ({FA_INDEX_SZ{first2B & second4B}} & alignindex[2]);
+      end
+      else begin
+         i0_bp_fa_index = '0;
+         i1_bp_fa_index = '0;
+      end
+
+
+   end // always_comb begin
+
+   assign i0_br_p = (i0_shift) ? i0_brp : '0;
+   assign i1_br_p = (i1_shift) ? i1_brp : '0;
+
+
+   assign i0_bpfghr[pt.BHT_GHR_SIZE-1:0] = (i0_ends_f1) ? f1fghr[pt.BHT_GHR_SIZE-1:0] : f0fghr[pt.BHT_GHR_SIZE-1:0];
+   assign i1_bpfghr[pt.BHT_GHR_SIZE-1:0] = (i1_ends_f1) ? f1fghr[pt.BHT_GHR_SIZE-1:0] : f0fghr[pt.BHT_GHR_SIZE-1:0];
+
+   assign i0_bptoffset[pt.BTB_TOFFSET_SIZE-1:0] = (i0_ends_f1) ? f1poffset[pt.BTB_TOFFSET_SIZE-1:0] : f0poffset[pt.BTB_TOFFSET_SIZE-1:0];
+   assign i1_bptoffset[pt.BTB_TOFFSET_SIZE-1:0] = (i1_ends_f1) ? f1poffset[pt.BTB_TOFFSET_SIZE-1:0] : f0poffset[pt.BTB_TOFFSET_SIZE-1:0];
+
+   assign i0_bpindex[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] = (first2B | alignbrend[0]) ? firstpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]:
                                                                                   secondpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO];
 
-   assign i0_bp_btag[pt.BTB_BTAG_SIZE-1:0] = (first2B | alignbrend[0]) ? firstbrtag_hash[pt.BTB_BTAG_SIZE-1:0]:
+   assign i0_bpbtag[pt.BTB_BTAG_SIZE-1:0] = (first2B | alignbrend[0]) ? firstbrtag_hash[pt.BTB_BTAG_SIZE-1:0]:
                                                                        secondbrtag_hash[pt.BTB_BTAG_SIZE-1:0];
 
-   assign i1_bp_fghr[pt.BHT_GHR_SIZE-1:0] = (i1_ends_f1) ? f1fghr[pt.BHT_GHR_SIZE-1:0] : f0fghr[pt.BHT_GHR_SIZE-1:0];
 
-   assign i1_bp_index[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] = ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first4B & third2B }}                  & thirdpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ) |
+   assign i1_bpindex[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] = ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first4B & third2B }}                  & thirdpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ) |
                                                     ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first4B & third4B &  alignbrend[2] }} & thirdpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ) |
                                                     ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first4B & third4B & ~alignbrend[2] }} & fourthpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ) |
                                                     ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first2B & second2B}}                  & secondpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ) |
                                                     ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first2B & second4B &  alignbrend[1]}} & secondpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ) |
                                                     ({pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1{first2B & second4B & ~alignbrend[1]}} & thirdpc_hash[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] );
 
-   assign i1_bp_btag[pt.BTB_BTAG_SIZE-1:0] = ({pt.BTB_BTAG_SIZE{first4B & third2B }}                  &  thirdbrtag_hash[pt.BTB_BTAG_SIZE-1:0] ) |
+   assign i1_bpbtag[pt.BTB_BTAG_SIZE-1:0] = ({pt.BTB_BTAG_SIZE{first4B & third2B }}                  &  thirdbrtag_hash[pt.BTB_BTAG_SIZE-1:0] ) |
                                            ({pt.BTB_BTAG_SIZE{first4B & third4B &  alignbrend[2] }} &  thirdbrtag_hash[pt.BTB_BTAG_SIZE-1:0] ) |
                                            ({pt.BTB_BTAG_SIZE{first4B & third4B & ~alignbrend[2] }} & fourthbrtag_hash[pt.BTB_BTAG_SIZE-1:0] ) |
                                            ({pt.BTB_BTAG_SIZE{first2B & second2B}}                  & secondbrtag_hash[pt.BTB_BTAG_SIZE-1:0] ) |
                                            ({pt.BTB_BTAG_SIZE{first2B & second4B &  alignbrend[1]}} & secondbrtag_hash[pt.BTB_BTAG_SIZE-1:0] ) |
                                            ({pt.BTB_BTAG_SIZE{first2B & second4B & ~alignbrend[1]}} &  thirdbrtag_hash[pt.BTB_BTAG_SIZE-1:0] );
 
+   assign i0_bp_fghr[pt.BHT_GHR_SIZE-1:0]            = (i0_shift) ? i0_bpfghr : '0;
+   assign i0_bp_toffset[pt.BTB_TOFFSET_SIZE-1:0]     = (i0_shift) ? i0_bptoffset : '0;
+   assign i0_bp_index[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] = (i0_shift) ? i0_bpindex : '0;
+   assign i0_bp_btag[pt.BTB_BTAG_SIZE-1:0]           = (i0_shift) ? i0_bpbtag : '0;
+
+   assign i1_bp_fghr[pt.BHT_GHR_SIZE-1:0]            = (i1_shift) ? i1_bpfghr : '0;
+   assign i1_bp_toffset[pt.BTB_TOFFSET_SIZE-1:0]     = (i1_shift) ? i1_bptoffset : '0;
+   assign i1_bp_index[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] = (i1_shift) ? i1_bpindex : '0;
+   assign i1_bp_btag[pt.BTB_BTAG_SIZE-1:0]           = (i1_shift) ? i1_bpbtag : '0;
+
 
    // decompress
 
-   eh2_ifu_compress_ctl compress0 (.din(aligndata[16*1-1:0*16]), .dout(uncompress0[31:0]) );
+   eh2_ifu_compress_ctl compress0 (.din((first2B) ? aligndata[15:0]  : '0), .dout(uncompress0[31:0]) );
 
-   eh2_ifu_compress_ctl compress1 (.din(aligndata[16*2-1:1*16]), .dout(uncompress1[31:0]) );
+   eh2_ifu_compress_ctl compress1 (.din((second2B)? aligndata[31:16] : '0), .dout(uncompress1[31:0]) );
 
-   eh2_ifu_compress_ctl compress2 (.din(aligndata[16*3-1:2*16]), .dout(uncompress2[31:0]) );
+   eh2_ifu_compress_ctl compress2 (.din((third2B) ? aligndata[47:32] : '0), .dout(uncompress2[31:0]) );
 
 
-`ifdef ASSERT_ON
+`ifdef RV_ASSERT_ON
    assert_valid_consistency: assert #0 (~( i1_valid & ~i0_valid ) );
    assert_shift_consistency: assert #0 (~( i1_shift & ~i0_shift ) );
 `endif
 
-   assign i0_shift = i0_valid & ibuffer_room1_more & ~error_stall;  // & (ifu_aln_tid == tid);
+   assign i0_shift = i0_valid & ibuffer_room1_more & ~error_stall;
 
-   assign i1_shift = i1_valid & ibuffer_room2_more & ~error_stall;  // & (ifu_aln_tid == tid);
+   assign i1_shift = i1_valid & ibuffer_room2_more & ~error_stall;
 
    assign ibuffer_room1_more = ~dec_ib3_valid_d & ~dec_i1_cancel_e1;
    assign ibuffer_room2_more = ~dec_ib2_valid_d & ~dec_i1_cancel_e1;
@@ -1052,8 +1128,6 @@ end
    // 10000000
    // 00000000
 
-   // assign f1_shift_0B = shift_0B;
-
    assign f1_shift_2B = (f0val[2] & ~f0val[3] & shift_8B) |
                         (f0val[1] & ~f0val[2] & shift_6B) |
                         (f0val[0] & ~f0val[1] & shift_4B);
@@ -1090,48 +1164,35 @@ assign predecode.lsu = (!i[31]&!i[30]&!i[29]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&
     !i[14]&!i[13]&!i[6]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[14]&!i[12]
     &!i[6]&!i[4]&!i[3]&!i[2]&i[1]&i[0]);
 
-assign predecode.mul = (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&i[25]&!i[14]&!i[6]&i[5]
+assign predecode.mul = (!i[31]&!i[29]&!i[28]&i[27]&!i[26]&!i[25]&i[14]&i[13]&!i[12]&!i[6]
+    &i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[28]&i[27]&!i[26]
+    &!i[25]&i[14]&!i[13]&i[12]&!i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&i[29]&!i[28]&i[27]&!i[26]&!i[25]&!i[23]&!i[20]&i[14]&!i[13]
+    &i[12]&!i[6]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&i[29]&!i[28]&i[27]
+    &!i[26]&!i[25]&!i[21]&i[20]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[3]&!i[2]
+    &i[1]&i[0]) | (!i[31]&i[29]&!i[28]&i[27]&!i[26]&!i[25]&!i[24]&!i[22]
+    &i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&i[30]
+    &i[29]&!i[28]&i[27]&!i[26]&!i[25]&i[22]&i[14]&!i[13]&i[12]&!i[6]&i[4]
+    &!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&i[27]&!i[26]
+    &!i[14]&!i[13]&i[12]&!i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]
+    &i[29]&!i[28]&i[27]&!i[26]&!i[25]&i[24]&i[21]&i[14]&!i[13]&i[12]&!i[6]
+    &i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&i[29]&!i[28]&i[27]
+    &!i[26]&!i[25]&i[23]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[3]&!i[2]&i[1]
+    &i[0]) | (!i[31]&!i[30]&i[29]&!i[28]&i[27]&!i[26]&!i[25]&i[14]&!i[12]
+    &!i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]
+    &!i[26]&i[25]&!i[14]&i[13]&!i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&i[30]&i[29]&!i[28]&!i[27]&!i[26]&!i[25]&i[24]&!i[22]&!i[20]
+    &!i[14]&!i[13]&i[12]&!i[6]&!i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&i[30]&i[29]&!i[28]&!i[27]&!i[26]&!i[25]&i[24]&!i[22]&!i[21]
+    &!i[14]&!i[13]&i[12]&!i[6]&!i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&i[25]&!i[14]&!i[6]&i[5]
+    &i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&i[29]&!i[28]&i[27]
+    &!i[26]&!i[25]&i[13]&!i[12]&!i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&i[30]&!i[29]&!i[28]&i[27]&!i[26]&!i[25]&i[14]&i[13]&!i[6]&i[5]
+    &i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&i[27]
+    &!i[26]&!i[25]&!i[24]&!i[13]&i[12]&!i[6]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&i[29]&!i[28]&i[27]&!i[26]&!i[25]&i[14]&!i[13]&i[12]&!i[6]&i[5]
     &i[4]&!i[3]&!i[2]&i[1]&i[0]);
-
-// split the legal equation in 4 more or less equal parts
-assign predecode.legal1 = (!i[31]&!i[30]&i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]
-    &!i[22]&i[21]&!i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]
-    &!i[10]&!i[9]&!i[8]&!i[7]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
-    !i[31]&!i[30]&!i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&i[22]
-    &!i[21]&i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]&!i[10]
-    &!i[9]&!i[8]&!i[7]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]
-    &!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]
-    &!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]&!i[10]&!i[9]&!i[8]
-    &!i[7]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]);
-
-assign predecode.legal2 = (!i[31]&!i[30]&!i[29]&!i[28]
-    &!i[27]&!i[26]&!i[25]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[29]
-    &!i[28]&!i[27]&!i[26]&!i[25]&!i[14]&!i[13]&!i[12]&!i[6]&!i[3]&!i[2]
-    &i[1]&i[0]) | (!i[31]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&i[14]&!i[13]
-    &i[12]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]
-    &!i[27]&!i[26]&!i[6]&i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[14]&!i[13]
-    &!i[12]&i[6]&i[5]&!i[4]&!i[3]&i[1]&i[0]) | (i[14]&i[6]&i[5]&!i[4]
-    &!i[3]&!i[2]&i[1]&i[0]);
-
-assign predecode.legal3 =  (!i[12]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (
-    !i[14]&!i[13]&i[5]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (i[12]&i[6]&i[5]
-    &i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]
-    &!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[19]&!i[18]&!i[17]
-    &!i[16]&!i[15]&!i[14]&!i[13]&!i[11]&!i[10]&!i[9]&!i[8]&!i[7]&!i[6]
-    &!i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]
-    &!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[13]&!i[12]&!i[11]&!i[10]
-    &!i[9]&!i[8]&!i[7]&!i[6]&!i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]);
-
-assign predecode.legal4 =  (!i[31]
-    &!i[30]&!i[29]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[14]&i[13]&!i[12]
-    &i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[28]&!i[27]&!i[14]&i[13]&!i[12]
-    &i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&i[27]&!i[14]
-    &i[13]&!i[12]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (i[13]&i[6]&i[5]&i[4]
-    &!i[3]&!i[2]&i[1]&i[0]) | (!i[13]&!i[6]&!i[5]&!i[4]&!i[3]&!i[2]&i[1]
-    &i[0]) | (i[13]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[14]&!i[12]
-    &!i[6]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (i[6]&i[5]&!i[4]&i[3]&i[2]&i[1]
-    &i[0]) | (!i[6]&i[4]&!i[3]&i[2]&i[1]&i[0]);
-
 
 assign predecode.i0_only = (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]
     &!i[22]&!i[21]&!i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[13]
@@ -1152,6 +1213,63 @@ assign predecode.i0_only = (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[
     &i[13]&!i[12]&!i[6]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (i[12]&i[6]
     &i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (i[13]&i[6]&i[5]&i[4]&!i[3]&!i[2]
     &i[1]&i[0]);
+
+// split the legal equation in 4 more or less equal parts
+
+assign predecode.legal1 = (!i[31]&!i[30]&i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]
+    &!i[22]&i[21]&!i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]
+    &!i[10]&!i[9]&!i[8]&!i[7]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&!i[30]&!i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&i[22]
+    &!i[21]&i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]&!i[10]
+    &!i[9]&!i[8]&!i[7]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]
+    &!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]
+    &!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]&!i[10]&!i[9]&!i[8]
+    &!i[7]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&i[30]&i[29]&!i[28]
+    &!i[26]&!i[25]&i[24]&!i[22]&!i[20]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (
+    !i[31]&i[30]&i[29]&!i[28]&!i[26]&!i[25]&i[24]&!i[22]&!i[21]&!i[6]
+    &!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&i[30]&i[29]&!i[28]&!i[26]
+    &!i[25]&!i[23]&!i[22]&!i[20]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]);
+
+assign predecode.legal2 = (!i[31]&i[30]&i[29]&!i[28]&!i[26]&!i[25]&!i[24]&!i[23]&!i[21]&!i[6]
+    &!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&!i[26]
+    &i[25]&i[13]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[28]&i[27]&!i[26]
+    &!i[25]&!i[24]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[30]
+    &i[29]&!i[28]&!i[26]&!i[25]&i[13]&!i[12]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (
+    !i[31]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[13]&!i[12]&!i[6]&i[4]
+    &!i[3]&i[1]&i[0]) | (!i[31]&i[30]&!i[28]&!i[26]&!i[25]&i[14]&!i[6]
+    &!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&!i[26]
+    &!i[13]&i[12]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]
+    &!i[28]&!i[27]&!i[26]&!i[25]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]
+    &i[30]&i[29]&!i[28]&!i[26]&!i[25]&!i[13]&i[12]&i[5]&i[4]&!i[3]&!i[2]
+    &i[1]&i[0]) | (!i[31]&i[30]&!i[28]&i[27]&!i[26]&!i[25]&!i[13]&i[12]
+    &!i[6]&i[4]&!i[3]&i[1]&i[0]);
+
+assign predecode.legal3 = (!i[31]&!i[29]&!i[28]&!i[26]&!i[25]
+    &i[14]&!i[6]&i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&i[29]&!i[28]&i[27]
+    &!i[26]&!i[25]&!i[13]&i[12]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]
+    &!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[6]&i[5]&i[4]&!i[3]&i[1]&i[0]) | (
+    !i[31]&!i[30]&!i[29]&!i[28]&!i[26]&i[14]&!i[6]&i[5]&i[4]&!i[3]&i[1]
+    &i[0]) | (!i[14]&!i[13]&!i[12]&i[6]&i[5]&!i[4]&!i[3]&i[1]&i[0]) | (
+    i[14]&i[6]&i[5]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[14]&!i[13]&i[5]
+    &!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[12]&!i[6]&!i[5]&i[4]&!i[3]&i[1]
+    &i[0]) | (!i[13]&i[12]&i[6]&i[5]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]
+    &!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]
+    &!i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[13]&!i[11]&!i[10]
+    &!i[9]&!i[8]&!i[7]&!i[6]&!i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]);
+
+assign predecode.legal4 = (!i[31]&!i[30]&!i[29]&!i[28]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[13]
+    &!i[12]&!i[11]&!i[10]&!i[9]&!i[8]&!i[7]&!i[6]&!i[5]&!i[4]&i[3]&i[2]
+    &i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]
+    &!i[14]&i[13]&!i[12]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[28]&!i[27]
+    &!i[14]&i[13]&!i[12]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (i[13]&i[6]
+    &i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&i[27]&!i[14]
+    &i[13]&!i[12]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[28]
+    &!i[26]&!i[25]&i[14]&!i[12]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (i[6]&i[5]
+    &!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[14]&!i[12]&!i[6]&!i[4]&!i[3]&!i[2]
+    &i[1]&i[0]) | (!i[13]&!i[6]&!i[5]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    i[13]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[6]&i[4]&!i[3]&i[2]&i[1]
+    &i[0]);
+
 
 
 endmodule

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,8 +32,31 @@ import eh2_pkg::*;
   (
    input logic clk,
    input logic free_clk,
-   input logic active_clk,
+   input logic free_l2clk,
+   input logic [pt.NUM_THREADS-1:0] active_thread_l2clk,
 
+   output logic         dec_i0_secondary_d,             // I0 Secondary ALU at  D-stage.  Used for clock gating
+   output logic         dec_i0_secondary_e1,            // I0 Secondary ALU at E1-stage.  Used for clock gating
+   output logic         dec_i0_secondary_e2,            // I0 Secondary ALU at E2-stage.  Used for clock gating
+
+   output logic         dec_i1_secondary_d,             // I1 Secondary ALU at  D-stage.  Used for clock gating
+   output logic         dec_i1_secondary_e1,            // I1 Secondary ALU at E1-stage.  Used for clock gating
+   output logic         dec_i1_secondary_e2,            // I1 Secondary ALU at E2-stage.  Used for clock gating
+
+   output logic         dec_i0_branch_d,                // I0 Branch at  D-stage.  Used for clock gating
+   output logic         dec_i0_branch_e1,               // I0 Branch at E1-stage.  Used for clock gating
+   output logic         dec_i0_branch_e2,               // I0 Branch at E2-stage.  Used for clock gating
+   output logic         dec_i0_branch_e3,               // I0 Branch at E3-stage.  Used for clock gating
+
+   output logic         dec_i1_branch_d,                // I1 Branch at  D-stage.  Used for clock gating
+   output logic         dec_i1_branch_e1,               // I1 Branch at E1-stage.  Used for clock gating
+   output logic         dec_i1_branch_e2,               // I1 Branch at E2-stage.  Used for clock gating
+   output logic         dec_i1_branch_e3,               // I1 Branch at E3-stage.  Used for clock gating
+
+   output logic dec_i0_pc4_e4,
+   output logic dec_i1_pc4_e4,
+
+   output logic dec_tlu_core_empty,
    output logic dec_div_cancel,       // cancel divide operation
 
    output logic [pt.NUM_THREADS-1:0]         dec_i1_cancel_e1,
@@ -44,7 +67,7 @@ import eh2_pkg::*;
 
    input logic [31:0] lsu_rs1_dc1,
 
-   output logic dec_pause_state_cg,             // to top for active state clock gating
+   output logic [pt.NUM_THREADS-1:0] dec_pause_state_cg,             // to top for active state clock gating
 
    input logic rst_l,                        // reset, active low
    input logic [31:1] rst_vec,               // reset vector, from core pins
@@ -130,7 +153,7 @@ import eh2_pkg::*;
 
    input logic [pt.NUM_THREADS-1:0] [1:0]  ifu_i0_icaf_type,                           // Instruction 0 access fault type
    input logic [pt.NUM_THREADS-1:0]      ifu_i0_icaf,          // icache access fault
-   input logic [pt.NUM_THREADS-1:0]        ifu_i0_icaf_f1,       // i0 has access fault on second fetch group
+   input logic [pt.NUM_THREADS-1:0]      ifu_i0_icaf_second,   // i0 has access fault on second 2B of 4B inst
    input logic [pt.NUM_THREADS-1:0]      ifu_i0_dbecc,         // icache/iccm double-bit error
 
 
@@ -144,9 +167,14 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ifu_i0_bp_index, // BP index
    input logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           ifu_i0_bp_fghr, // BP FGHR
    input logic [pt.NUM_THREADS-1:0] [pt.BTB_BTAG_SIZE-1:0]          ifu_i0_bp_btag, // BP tag
+   input logic [pt.NUM_THREADS-1:0] [pt.BTB_TOFFSET_SIZE-1:0]          ifu_i0_bp_toffset, // BP tag
    input logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ifu_i1_bp_index, // BP index
    input logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           ifu_i1_bp_fghr, // BP FGHR
    input logic [pt.NUM_THREADS-1:0] [pt.BTB_BTAG_SIZE-1:0]          ifu_i1_bp_btag, // BP tag
+   input logic [pt.NUM_THREADS-1:0] [pt.BTB_TOFFSET_SIZE-1:0]          ifu_i1_bp_toffset, // BP tag
+
+   input logic [pt.NUM_THREADS-1:0] [$clog2(pt.BTB_SIZE)-1:0] ifu_i0_bp_fa_index,
+   input logic [pt.NUM_THREADS-1:0] [$clog2(pt.BTB_SIZE)-1:0] ifu_i1_bp_fa_index,
 
    input    eh2_lsu_error_pkt_t lsu_error_pkt_dc3, // LSU exception/error packet
    input logic         lsu_single_ecc_error_incr,     // Increment the ecc error counter
@@ -279,8 +307,8 @@ import eh2_pkg::*;
    output logic [31:0] dec_i0_immed_d,              // immediate data
    output logic [31:0] dec_i1_immed_d,
 
-   output logic [12:1] dec_i0_br_immed_d,           // br immediate data
-   output logic [12:1] dec_i1_br_immed_d,
+   output logic [pt.BTB_TOFFSET_SIZE:1] dec_i0_br_immed_d,           // br immediate data
+   output logic [pt.BTB_TOFFSET_SIZE:1] dec_i1_br_immed_d,
 
    output        eh2_alu_pkt_t i0_ap,                   // alu packet
    output        eh2_alu_pkt_t i1_ap,
@@ -357,19 +385,25 @@ import eh2_pkg::*;
    output logic [pt.BHT_GHR_SIZE-1:0] dec_tlu_br1_fghr_wb, // fghr to bp
    output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] dec_tlu_br1_index_wb, // bp index
 
+   output logic [$clog2(pt.BTB_SIZE)-1:0] dec_fa_error_index, // Fully associt btb error index
+
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt0, // toggles when pipe0 perf counter 0 has an event inc
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt1, // toggles when pipe0 perf counter 1 has an event inc
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt2, // toggles when pipe0 perf counter 2 has an event inc
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt3, // toggles when pipe0 perf counter 3 has an event inc
+
+
 
    output eh2_predict_pkt_t  i0_predict_p_d,           // prediction packet to alus
    output eh2_predict_pkt_t  i1_predict_p_d,
    output logic [pt.BHT_GHR_SIZE-1:0] i0_predict_fghr_d,                // DEC predict fghr
    output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i0_predict_index_d,     // DEC predict index
    output logic [pt.BTB_BTAG_SIZE-1:0] i0_predict_btag_d,               // DEC predict branch tgt
+   output logic [pt.BTB_TOFFSET_SIZE-1:0] i0_predict_toffset_d,               // DEC predict branch tgt
    output logic [pt.BHT_GHR_SIZE-1:0] i1_predict_fghr_d,                // DEC predict fghr
    output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i1_predict_index_d,     // DEC predict index
    output logic [pt.BTB_BTAG_SIZE-1:0] i1_predict_btag_d,               // DEC predict branch tgt
+   output logic [pt.BTB_TOFFSET_SIZE-1:0] i1_predict_toffset_d,               // DEC predict branch tgt
 
 
    output logic [31:0] i0_result_e4_eff,           // alu result e4
@@ -381,17 +415,17 @@ import eh2_pkg::*;
    output logic [31:0] i0_result_e2,               // i0 result data e2
    output logic [31:0] dec_tlu_mrac_ff,            // CSR for memory region control
 
-   output logic [4:2] dec_i0_data_en,              // clock-gate control logic
+   output logic [4:1] dec_i0_data_en,              // clock-gate control logic
    output logic [4:1] dec_i0_ctl_en,
-   output logic [4:2] dec_i1_data_en,
+   output logic [4:1] dec_i1_data_en,
    output logic [4:1] dec_i1_ctl_en,
 
    output logic [pt.NUM_THREADS-1:0] dec_tlu_lr_reset_wb, // Reset the reservation on certain events
 
-   input logic [pt.NUM_THREADS-1:0] [15:0] ifu_i0_cinst,                  // 16b compressed instruction for trace
+   input logic [pt.NUM_THREADS-1:0] [15:0] ifu_i0_cinst,                  // 16b compressed instruction
    input logic [pt.NUM_THREADS-1:0] [15:0] ifu_i1_cinst,
 
-   output eh2_trace_pkt_t  [pt.NUM_THREADS-1:0] rv_trace_pkt,             // trace packet for trace
+   output eh2_trace_pkt_t  [pt.NUM_THREADS-1:0] trace_rv_trace_pkt,             // trace packet
 
    // feature disable from mfdc
    output logic  dec_tlu_external_ldfwd_disable, // disable external load forwarding
@@ -408,6 +442,7 @@ import eh2_pkg::*;
    output logic  dec_tlu_lsu_clk_override,           // override load/store clock domain gating
    output logic  dec_tlu_bus_clk_override,           // override bus clock domain gating
    output logic  dec_tlu_pic_clk_override,           // override PIC clock domain gating
+   output logic  dec_tlu_picio_clk_override,         // override PIC clock domain gating
    output logic  dec_tlu_dccm_clk_override,          // override DCCM clock domain gating
    output logic  dec_tlu_icm_clk_override,           // override ICCM clock domain gating
 
@@ -416,10 +451,15 @@ import eh2_pkg::*;
 
    output logic [pt.NUM_THREADS-1:0] [31:1] dec_tlu_flush_path_wb,  // flush pc
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_lower_wb, // commit has a flush (exception, int, mispredict at e4)
+   output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_mp_wb,    // commit has a flush (mispredict at e4)
+   output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_lower_wb1,
+
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_noredir_wb , // Tell fetch to idle on this flush
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_leak_one_wb, // single step
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_err_wb, // iside perr/ecc rfpc
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_fence_i_wb,     // flush is a fence_i rfnpc, flush icache
+
+   output logic [pt.NUM_THREADS-1:0]        dec_tlu_btb_write_kill, // Kill writes while working on forward progress after a branch error
    //
    input  logic        scan_mode
 
@@ -462,7 +502,7 @@ import eh2_pkg::*;
 
    logic  dec_tlu_pipelining_disable;
    logic  dec_tlu_dual_issue_disable;
-
+   logic  dec_tlu_trace_disable;
 
    logic [4:0]  dec_i0_waddr_wb;
    logic        dec_i0_wen_wb;
@@ -495,24 +535,22 @@ import eh2_pkg::*;
 
    eh2_trap_pkt_t dec_tlu_packet_e4;
 
+   logic                        dec_i0_debug_valid_d;
    logic                        dec_i1_debug_valid_d;
 
    logic                        dec_i0_pc4_d, dec_i1_pc4_d;
    logic [pt.NUM_THREADS-1:0]   dec_tlu_presync_d;
    logic [pt.NUM_THREADS-1:0]   dec_tlu_postsync_d;
-   logic [pt.NUM_THREADS-1:0]   dec_tlu_debug_stall;
- // stall decode while waiting on core to empty
+   logic [pt.NUM_THREADS-1:0]   dec_tlu_debug_stall;   // stall decode while waiting on core to empty
 
    logic [pt.NUM_THREADS-1:0][31:0] dec_illegal_inst;
 
 
    logic                      dec_i0_icaf_d;
    logic [1:0]                dec_i0_icaf_type_d;
-   logic                      dec_i0_icaf_f1_d;
+   logic                      dec_i0_icaf_second_d;
 
    logic                      dec_i1_icaf_d;
-   logic [1:0]                dec_i1_icaf_type_d;
-   logic                      dec_i1_icaf_f1_d;
 
    logic                      dec_i0_dbecc_d;
    logic                      dec_i1_dbecc_d;
@@ -535,11 +573,17 @@ import eh2_pkg::*;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] dec_i0_bp_index;
    logic [pt.BHT_GHR_SIZE-1:0] dec_i0_bp_fghr;
    logic [pt.BTB_BTAG_SIZE-1:0] dec_i0_bp_btag;
+   logic [pt.BTB_TOFFSET_SIZE-1:0] dec_i0_bp_toffset;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] dec_i1_bp_index;
    logic [pt.BHT_GHR_SIZE-1:0] dec_i1_bp_fghr;
    logic [pt.BTB_BTAG_SIZE-1:0] dec_i1_bp_btag;
+   logic [pt.BTB_TOFFSET_SIZE-1:0] dec_i1_bp_toffset;
+
+   logic [$clog2(pt.BTB_SIZE)-1:0] dec_i0_bp_fa_index;
+
 
    logic [pt.NUM_THREADS-1:0] dec_pause_state;          // core in pause state
+
 
    logic [15:0] dec_i0_cinst_d;
    logic [15:0] dec_i1_cinst_d;
@@ -567,13 +611,13 @@ import eh2_pkg::*;
 
    logic [31:1] dec_tlu_i0_pc_e4;                // pc e4
    logic [31:1] dec_tlu_i1_pc_e4;
-
+   logic        dec_i0_debug_valid_wb;
 
 
    assign clk_override = dec_tlu_dec_clk_override;
 
 
-   assign dec_dbg_rddata[31:0] = dec_i0_wdata_wb[31:0];
+   assign dec_dbg_rddata[31:0] = (dec_i0_debug_valid_wb) ? dec_i0_wdata_wb[31:0] : '0;
 
 // multithreaded signals
 
@@ -595,13 +639,14 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i0_bp_index;            // i0 branch index
    logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           i0_bp_fghr; // BP FGHR
    logic [pt.NUM_THREADS-1:0] [pt.BTB_BTAG_SIZE-1:0]          i0_bp_btag; // BP tag
+   logic [pt.NUM_THREADS-1:0] [pt.BTB_TOFFSET_SIZE-1:0]       i0_bp_toffset; // BP tag
    logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i1_bp_index;            // i0 branch index
    logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           i1_bp_fghr; // BP FGHR
    logic [pt.NUM_THREADS-1:0] [pt.BTB_BTAG_SIZE-1:0]          i1_bp_btag; // BP tag
+   logic [pt.NUM_THREADS-1:0] [pt.BTB_TOFFSET_SIZE-1:0]       i1_bp_toffset; // BP tag
    logic [pt.NUM_THREADS-1:0] i0_icaf_d;                 // i0 instruction access fault at decode
    logic [pt.NUM_THREADS-1:0] i1_icaf_d;
-   logic [pt.NUM_THREADS-1:0] i0_icaf_f1_d;              // i0 instruction access fault at decode for f1 fetch group
-   logic [pt.NUM_THREADS-1:0] i1_icaf_f1_d;              // i0 instruction access fault at decode for f1 fetch group
+   logic [pt.NUM_THREADS-1:0] i0_icaf_second_d;              // i0 instruction access fault at decode for f1 fetch group
    logic [pt.NUM_THREADS-1:0] i0_dbecc_d;                // i0 double-bit error at decode
    logic [pt.NUM_THREADS-1:0] i1_dbecc_d;
    logic [pt.NUM_THREADS-1:0] debug_wdata_rs1_d;         // put debug write data onto rs1 source: machine is halted
@@ -610,7 +655,8 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0] [15:0] i0_cinst_d;         // 16b compress inst at decode
    logic [pt.NUM_THREADS-1:0] [15:0] i1_cinst_d;
    logic [pt.NUM_THREADS-1:0] [1:0] i0_icaf_type_d;
-   logic [pt.NUM_THREADS-1:0] [1:0] i1_icaf_type_d;
+
+   logic [pt.NUM_THREADS-1:0][$clog2(pt.BTB_SIZE)-1:0] i0_bp_fa_index;
 
    eh2_br_pkt_t [pt.NUM_THREADS-1:0] i0_br_p;                 // i0 branch packet at decode
    eh2_br_pkt_t [pt.NUM_THREADS-1:0] i1_br_p;
@@ -629,18 +675,26 @@ import eh2_pkg::*;
    logic       dec_div_active;    // non-block divide is active
    logic       dec_div_tid;       // non-block divide tid
 
+   logic       dec_force_favor_flip_d;
 
-   // dec_i1_cancel_e1 needs to be threaded
+   logic       active_clk;
+
+
+
+
+   rvoclkhdr activeclk (.*, .en(1'b1), .l1clk(active_clk));
+
 
   for (genvar i=0; i<pt.NUM_THREADS; i++) begin : ib
 
 
-     eh2_dec_ib_ctl #(.pt(pt)) instbuff (.tid               (1'(i)            ),
+     eh2_dec_ib_ctl #(.pt(pt)) instbuff (.clk               (active_thread_l2clk[i]),
+                                          .tid               (1'(i)            ),
                                           .ifu_i0_valid      (ifu_i0_valid[i]),
                                           .ifu_i1_valid      (ifu_i1_valid[i]),
                                           .ifu_i0_icaf       (ifu_i0_icaf[i]),
                                           .ifu_i0_icaf_type  (ifu_i0_icaf_type[i]),
-                                          .ifu_i0_icaf_f1    (ifu_i0_icaf_f1[i]),
+                                          .ifu_i0_icaf_second (ifu_i0_icaf_second[i]),
                                           .ifu_i0_dbecc      (ifu_i0_dbecc[i]),
                                           .ifu_i0_instr      (ifu_i0_instr[i]),
                                           .ifu_i1_instr      (ifu_i1_instr[i]),
@@ -655,25 +709,29 @@ import eh2_pkg::*;
                                           .ifu_i0_bp_index   (ifu_i0_bp_index[i]),
                                           .ifu_i0_bp_fghr    (ifu_i0_bp_fghr[i]),
                                           .ifu_i0_bp_btag    (ifu_i0_bp_btag[i]),
+                                          .ifu_i0_bp_fa_index(ifu_i0_bp_fa_index[i]),
+                                          .ifu_i0_bp_toffset    (ifu_i0_bp_toffset[i]),
                                           .ifu_i1_bp_index   (ifu_i1_bp_index[i]),
                                           .ifu_i1_bp_fghr    (ifu_i1_bp_fghr[i]),
                                           .ifu_i1_bp_btag    (ifu_i1_bp_btag[i]),
+                                          .ifu_i1_bp_fa_index(ifu_i1_bp_fa_index[i]),
+                                          .ifu_i1_bp_toffset    (ifu_i1_bp_toffset[i]),
                                           .ifu_i0_cinst      (ifu_i0_cinst[i]),
                                           .ifu_i1_cinst      (ifu_i1_cinst[i]),
 
-                                          .dec_i1_cancel_e1  (dec_i1_cancel_e1[i] ),
-                                          .exu_flush_final   (exu_flush_final[i] ),
+                                          .dec_i1_cancel_e1  (dec_i1_cancel_e1[i]),
+                                          .exu_flush_final   (exu_flush_final[i]),
                                           .ib3_valid_d       (ib3_valid_d[i]   ),
                                           .ib2_valid_d       (ib2_valid_d[i]   ),
                                           .ib1_valid_d       (ib1_valid_d[i]   ),
                                           .ib0_valid_d       (ib0_valid_d[i]   ),
-                                          .ib0_valid_in      (ib0_valid_in[i]   ),
-                                          .ib0_lsu_in        (ib0_lsu_in[i]   ),
-                                          .ib0_mul_in        (ib0_mul_in[i]   ),
-                                          .ib0_i0_only_in    (ib0_i0_only_in[i]   ),
+                                          .ib0_valid_in      (ib0_valid_in[i]  ),
+                                          .ib0_lsu_in        (ib0_lsu_in[i]    ),
+                                          .ib0_mul_in        (ib0_mul_in[i]    ),
+                                          .ib0_i0_only_in    (ib0_i0_only_in[i]),
                                           .i0_instr_d        (i0_instr_d[i]    ),
                                           .i1_instr_d        (i1_instr_d[i]    ),
-                                          .i0_debug_valid_d  (i0_debug_valid_d[i] ),
+                                          .i0_debug_valid_d  (i0_debug_valid_d[i]),
                                           .i0_pc_d           (i0_pc_d[i]       ),
                                           .i1_pc_d           (i1_pc_d[i]       ),
                                           .i0_pc4_d          (i0_pc4_d[i]      ),
@@ -681,13 +739,15 @@ import eh2_pkg::*;
                                           .i0_bp_index       (i0_bp_index[i]   ),
                                           .i0_bp_fghr        (i0_bp_fghr[i]    ),
                                           .i0_bp_btag        (i0_bp_btag[i]    ),
+                                          .i0_bp_fa_index    (i0_bp_fa_index[i]),
+                                          .i0_bp_toffset     (i0_bp_toffset[i] ),
                                           .i1_bp_index       (i1_bp_index[i]   ),
                                           .i1_bp_fghr        (i1_bp_fghr[i]    ),
                                           .i1_bp_btag        (i1_bp_btag[i]    ),
+                                          .i1_bp_toffset     (i1_bp_toffset[i] ),
                                           .i0_icaf_d         (i0_icaf_d[i]     ),
                                           .i1_icaf_d         (i1_icaf_d[i]     ),
-                                          .i0_icaf_f1_d      (i0_icaf_f1_d[i]  ),
-                                          .i1_icaf_f1_d      (i1_icaf_f1_d[i]  ),
+                                          .i0_icaf_second_d  (i0_icaf_second_d[i]  ),
                                           .i0_dbecc_d        (i0_dbecc_d[i]    ),
                                           .i1_dbecc_d        (i1_dbecc_d[i]    ),
                                           .debug_wdata_rs1_d (debug_wdata_rs1_d[i]),
@@ -695,11 +755,10 @@ import eh2_pkg::*;
                                           .i0_cinst_d        (i0_cinst_d[i]    ),
                                           .i1_cinst_d        (i1_cinst_d[i]    ),
                                           .i0_icaf_type_d    (i0_icaf_type_d[i]),
-                                          .i1_icaf_type_d    (i1_icaf_type_d[i]),
                                           .i0_br_p           (i0_br_p[i]       ),
                                           .i1_br_p           (i1_br_p[i]       ),
-                                          .i0_predecode      (i0_predecode_p[i]       ),
-                                          .i1_predecode      (i1_predecode_p[i]       ),
+                                          .i0_predecode      (i0_predecode_p[i]),
+                                          .i1_predecode      (i1_predecode_p[i]),
                                           .*);
 
 
@@ -709,6 +768,7 @@ import eh2_pkg::*;
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin : arf
 
       eh2_dec_gpr_ctl #(.pt(pt)) arf (.*,
+                                       .clk (active_thread_l2clk[i]),
                                        .tid (1'(i)),
 
                                        .rtid0(dec_i0_tid_d),
@@ -774,6 +834,7 @@ import eh2_pkg::*;
 
 
       rvarbiter2_smt dec_arbiter (
+                                  .clk(active_clk),
                                   .flush(exu_flush_final[1:0]),
                                   .shift(dec_i0_decode_d),
                                   .ready_in(ready_in[1:0]),
@@ -781,6 +842,7 @@ import eh2_pkg::*;
                                   .mul_in(mul_in[1:0]),
                                   .i0_only_in(i0_only_in[1:0]),
                                   .thread_stall_in(dec_thread_stall_in[1:0]),
+                                  .force_favor_flip(dec_force_favor_flip_d),
                                   .ready(ready[1:0]),
                                   .i0_sel_i0_t1(i0_sel_i0_t1_d),
                                   .i1_sel_i0(i1_sel_i0_d[1:0]),
@@ -807,14 +869,18 @@ import eh2_pkg::*;
    assign dec_i0_bp_index       = i0_bp_index[dec_i0_tid_d]       ;
    assign dec_i0_bp_fghr        = i0_bp_fghr[dec_i0_tid_d]        ;
    assign dec_i0_bp_btag        = i0_bp_btag[dec_i0_tid_d]        ;
+   assign dec_i0_bp_toffset     = i0_bp_toffset[dec_i0_tid_d]        ;
    assign dec_i0_icaf_d         = i0_icaf_d[dec_i0_tid_d]         ;
-   assign dec_i0_icaf_f1_d      = i0_icaf_f1_d[dec_i0_tid_d]      ;
+   assign dec_i0_icaf_second_d  = i0_icaf_second_d[dec_i0_tid_d]      ;
    assign dec_i0_dbecc_d        = i0_dbecc_d[dec_i0_tid_d]        ;
    assign dec_i0_cinst_d        = i0_cinst_d[dec_i0_tid_d]        ;
    assign dec_i0_icaf_type_d    = i0_icaf_type_d[dec_i0_tid_d]    ;
    assign dec_i0_brp            = i0_br_p[dec_i0_tid_d]           ;
    assign dec_i0_predecode      = i0_predecode_p[dec_i0_tid_d]           ;
 
+   assign dec_i0_debug_valid_d  = i0_debug_valid_d[dec_i0_tid_d] ;
+
+   assign dec_i0_bp_fa_index    = i0_bp_fa_index[dec_i0_tid_d];
 
    assign dec_debug_wdata_rs1_d = debug_wdata_rs1_d[dec_i0_tid_d] ;
    assign dec_debug_fence_d     = debug_fence_d[dec_i0_tid_d]     ;
@@ -863,15 +929,15 @@ import eh2_pkg::*;
                                          ({pt.BTB_BTAG_SIZE{i1_sel_i0_d[1]}} & i0_bp_btag[1]) |
                                          ({pt.BTB_BTAG_SIZE{i1_sel_i1_d[1]}} & i1_bp_btag[1]);
 
+      assign dec_i1_bp_toffset            = ({pt.BTB_TOFFSET_SIZE{i1_sel_i0_d[0]}} & i0_bp_toffset[0]) |
+                                         ({pt.BTB_TOFFSET_SIZE{i1_sel_i1_d[0]}} & i1_bp_toffset[0]) |
+                                         ({pt.BTB_TOFFSET_SIZE{i1_sel_i0_d[1]}} & i0_bp_toffset[1]) |
+                                         ({pt.BTB_TOFFSET_SIZE{i1_sel_i1_d[1]}} & i1_bp_toffset[1]);
+
       assign dec_i1_icaf_d          = (i1_sel_i0_d[0] & i0_icaf_d[0]) |
                                       (i1_sel_i1_d[0] & i1_icaf_d[0]) |
                                       (i1_sel_i0_d[1] & i0_icaf_d[1]) |
                                       (i1_sel_i1_d[1] & i1_icaf_d[1]);
-
-      assign dec_i1_icaf_f1_d          = (i1_sel_i0_d[0] & i0_icaf_f1_d[0]) |
-                                         (i1_sel_i1_d[0] & i1_icaf_f1_d[0]) |
-                                         (i1_sel_i0_d[1] & i0_icaf_f1_d[1]) |
-                                         (i1_sel_i1_d[1] & i1_icaf_f1_d[1]);
 
       assign dec_i1_dbecc_d          = (i1_sel_i0_d[0] & i0_dbecc_d[0]) |
                                        (i1_sel_i1_d[0] & i1_dbecc_d[0]) |
@@ -882,12 +948,6 @@ import eh2_pkg::*;
                                       ({16{i1_sel_i1_d[0]}} & i1_cinst_d[0]) |
                                       ({16{i1_sel_i0_d[1]}} & i0_cinst_d[1]) |
                                       ({16{i1_sel_i1_d[1]}} & i1_cinst_d[1]);
-
-      assign dec_i1_icaf_type_d         = ({2{i1_sel_i0_d[0]}} & i0_icaf_type_d[0]) |
-                                          ({2{i1_sel_i1_d[0]}} & i1_icaf_type_d[0]) |
-                                          ({2{i1_sel_i0_d[1]}} & i0_icaf_type_d[1]) |
-                                          ({2{i1_sel_i1_d[1]}} & i1_icaf_type_d[1]);
-
 
       assign dec_i1_brp                 = ({$bits(eh2_br_pkt_t){i1_sel_i0_d[0]}} & i0_br_p[0]) |
                                           ({$bits(eh2_br_pkt_t){i1_sel_i1_d[0]}} & i1_br_p[0]) |
@@ -903,26 +963,26 @@ import eh2_pkg::*;
    else begin
       assign dec_i1_debug_valid_d  = '0;   // for 1 thread cannot have debug commands in i1
 
-      assign dec_ib1_valid_d       = ib1_valid_d[dec_i1_tid_d] & ready[dec_i1_tid_d]      ;
+      assign dec_ib1_valid_d       = ib1_valid_d[dec_i1_tid_d] & ready[dec_i1_tid_d];
       assign dec_i1_instr_d        = i1_instr_d[dec_i1_tid_d]        ;
       assign dec_i1_pc_d           = i1_pc_d[dec_i1_tid_d]           ;
       assign dec_i1_pc4_d          = i1_pc4_d[dec_i1_tid_d]          ;
       assign dec_i1_bp_index       = i1_bp_index[dec_i1_tid_d]       ;
       assign dec_i1_bp_fghr        = i1_bp_fghr[dec_i1_tid_d]        ;
       assign dec_i1_bp_btag        = i1_bp_btag[dec_i1_tid_d]        ;
+      assign dec_i1_bp_toffset     = i1_bp_toffset[dec_i1_tid_d]     ;
       assign dec_i1_icaf_d         = i1_icaf_d[dec_i1_tid_d]         ;
-      assign dec_i1_icaf_f1_d      = i1_icaf_f1_d[dec_i1_tid_d]      ;
       assign dec_i1_dbecc_d        = i1_dbecc_d[dec_i1_tid_d]        ;
       assign dec_i1_cinst_d        = i1_cinst_d[dec_i1_tid_d]        ;
-      assign dec_i1_icaf_type_d    = i1_icaf_type_d[dec_i1_tid_d]    ;
       assign dec_i1_brp            = i1_br_p[dec_i1_tid_d]           ;
-      assign dec_i1_predecode      = i1_predecode_p[dec_i1_tid_d]           ;
+      assign dec_i1_predecode      = i1_predecode_p[dec_i1_tid_d]    ;
 
 
    end
 
 
-   eh2_dec_decode_ctl #(.pt(pt)) decode (.*);
+   eh2_dec_decode_ctl #(.pt(pt)) decode (
+                                          .*);
 
    eh2_dec_tlu_top #(.pt(pt)) tlu (.*);
 
@@ -935,20 +995,22 @@ import eh2_pkg::*;
 
 
 // trace
-   // also need retires_p==3
+   // also need retires_p==2
      for (genvar i=0; i<pt.NUM_THREADS; i++) begin : tracep
 
-        assign rv_trace_pkt[i].rv_i_insn_ip    = { dec_i1_inst_wb1[31:0],     dec_i0_inst_wb1[31:0] };
-        assign rv_trace_pkt[i].rv_i_address_ip = { dec_i1_pc_wb1[31:1], 1'b0, dec_i0_pc_wb1[31:1], 1'b0 };
+        assign trace_rv_trace_pkt[i].trace_rv_i_insn_ip    = { dec_i1_inst_wb1[31:0],     dec_i0_inst_wb1[31:0] };
+        assign trace_rv_trace_pkt[i].trace_rv_i_address_ip = { dec_i1_pc_wb1[31:1], 1'b0, dec_i0_pc_wb1[31:1], 1'b0 };
 
-        assign rv_trace_pkt[i].rv_i_valid_ip =     {dec_tlu_int_valid_wb1[i],   // always int
-                                                         dec_tlu_i1_valid_wb1[i] | dec_tlu_i1_exc_valid_wb1[i],  // not interrupts
-                                                         dec_tlu_i0_valid_wb1[i] | dec_tlu_i0_exc_valid_wb1[i]
-                                                         };
-        assign rv_trace_pkt[i].rv_i_exception_ip = {dec_tlu_int_valid_wb1[i], dec_tlu_i1_exc_valid_wb1[i], dec_tlu_i0_exc_valid_wb1[i]};
-        assign rv_trace_pkt[i].rv_i_ecause_ip =     dec_tlu_exc_cause_wb1[i][4:0];  // replicate across ports
-        assign rv_trace_pkt[i].rv_i_interrupt_ip = {dec_tlu_int_valid_wb1[i],2'b0};
-        assign rv_trace_pkt[i].rv_i_tval_ip =    dec_tlu_mtval_wb1[i][31:0];        // replicate across ports
+        assign trace_rv_trace_pkt[i].trace_rv_i_valid_ip =     {
+                                                                                           dec_tlu_i1_valid_wb1[i] | dec_tlu_i1_exc_valid_wb1[i],
+                                                                dec_tlu_int_valid_wb1[i] | dec_tlu_i0_valid_wb1[i] | dec_tlu_i0_exc_valid_wb1[i]
+                                                                };
+        assign trace_rv_trace_pkt[i].trace_rv_i_exception_ip = {dec_tlu_i1_exc_valid_wb1[i],
+                                                                dec_tlu_int_valid_wb1[i] | dec_tlu_i0_exc_valid_wb1[i]};
+
+        assign trace_rv_trace_pkt[i].trace_rv_i_ecause_ip =     dec_tlu_exc_cause_wb1[i][4:0];  // replicate across ports
+        assign trace_rv_trace_pkt[i].trace_rv_i_interrupt_ip = {1'b0, dec_tlu_int_valid_wb1[i]};
+        assign trace_rv_trace_pkt[i].trace_rv_i_tval_ip =    dec_tlu_mtval_wb1[i][31:0];        // replicate across ports
      end
 
 

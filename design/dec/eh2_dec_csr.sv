@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2019 Western Digital Corporation or it's affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +58,6 @@ output eh2_csr_tlu_pkt_t tlu_csr_pkt_d
 
 
 // insert "csrequations" here
-
 logic csr_misa;
 logic csr_mvendorid;
 logic csr_marchid;
@@ -110,6 +109,15 @@ logic csr_mitb0;
 logic csr_mitb1;
 logic csr_mitcnt0;
 logic csr_mitcnt1;
+logic csr_perfva;
+logic csr_perfvb;
+logic csr_perfvc;
+logic csr_perfvd;
+logic csr_perfve;
+logic csr_perfvf;
+logic csr_perfvg;
+logic csr_perfvh;
+logic csr_perfvi;
 logic csr_mpmc;
 logic csr_mcpc;
 logic csr_meicpct;
@@ -128,9 +136,14 @@ logic csr_dicago;
 logic csr_mhartnum;
 logic csr_mhartstart;
 logic csr_mnmipdel;
+logic valid_only;
 logic presync;
 logic postsync;
 logic glob;
+//logic ooat;
+
+logic conditionally_illegal, valid_csr;
+logic legal;
 
 assign csr_misa = (!dec_csr_rdaddr_d[11]&!dec_csr_rdaddr_d[6]
     &!dec_csr_rdaddr_d[5]&!dec_csr_rdaddr_d[2]&dec_csr_rdaddr_d[0]);
@@ -360,13 +373,15 @@ assign csr_mnmipdel = (dec_csr_rdaddr_d[6]&dec_csr_rdaddr_d[5]
 assign presync = (dec_csr_rdaddr_d[10]&dec_csr_rdaddr_d[4]&dec_csr_rdaddr_d[3]
     &!dec_csr_rdaddr_d[1]&dec_csr_rdaddr_d[0]) | (!dec_csr_rdaddr_d[7]
     &dec_csr_rdaddr_d[5]&!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]
-    &!dec_csr_rdaddr_d[2]&!dec_csr_rdaddr_d[0]) | (!dec_csr_rdaddr_d[6]
+    &!dec_csr_rdaddr_d[2]&!dec_csr_rdaddr_d[0]) | (dec_csr_rdaddr_d[5]
+    &!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]&!dec_csr_rdaddr_d[2]
+    &!dec_csr_rdaddr_d[1]&dec_csr_rdaddr_d[0]) | (!dec_csr_rdaddr_d[6]
     &!dec_csr_rdaddr_d[5]&!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]
     &!dec_csr_rdaddr_d[2]&dec_csr_rdaddr_d[1]) | (dec_csr_rdaddr_d[11]
-    &!dec_csr_rdaddr_d[6]&!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]
-    &dec_csr_rdaddr_d[2]&!dec_csr_rdaddr_d[1]) | (dec_csr_rdaddr_d[11]
     &!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]&dec_csr_rdaddr_d[1]
-    &!dec_csr_rdaddr_d[0]) | (dec_csr_rdaddr_d[7]&!dec_csr_rdaddr_d[5]
+    &!dec_csr_rdaddr_d[0]) | (dec_csr_rdaddr_d[11]&!dec_csr_rdaddr_d[6]
+    &!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]&dec_csr_rdaddr_d[2]
+    &!dec_csr_rdaddr_d[1]) | (dec_csr_rdaddr_d[7]&!dec_csr_rdaddr_d[5]
     &!dec_csr_rdaddr_d[4]&!dec_csr_rdaddr_d[3]&!dec_csr_rdaddr_d[2]
     &dec_csr_rdaddr_d[1]);
 
@@ -395,9 +410,6 @@ assign glob = (!dec_csr_rdaddr_d[11]&!dec_csr_rdaddr_d[6]&!dec_csr_rdaddr_d[5]
     &!dec_csr_rdaddr_d[0]) | (!dec_csr_rdaddr_d[11]&dec_csr_rdaddr_d[7]
     &dec_csr_rdaddr_d[6]&!dec_csr_rdaddr_d[3]&!dec_csr_rdaddr_d[2]
     &!dec_csr_rdaddr_d[1]);
-
-logic conditionally_illegal, valid_csr;
-logic legal;
 
    // insert "csrlegal_equation" here
 assign legal = (!dec_csr_rdaddr_d[11]&dec_csr_rdaddr_d[10]&dec_csr_rdaddr_d[9]
@@ -505,7 +517,7 @@ assign legal = (!dec_csr_rdaddr_d[11]&dec_csr_rdaddr_d[10]&dec_csr_rdaddr_d[9]
    assign tlu_postsync_d = postsync & dec_csr_any_unq_d;
 
    // allow individual configuration of these features
-   assign conditionally_illegal = ((csr_mitcnt0 | csr_mitcnt1 | csr_mitb0 | csr_mitb1 | csr_mitctl0 | csr_mitctl1) & ~pt.TIMER_LEGAL_EN) |
+   assign conditionally_illegal = ((csr_mitcnt0 | csr_mitcnt1 | csr_mitb0 | csr_mitb1 | csr_mitctl0 | csr_mitctl1) & !pt.TIMER_LEGAL_EN) |
                                   (csr_meicpct & pt.FAST_INTERRUPT_REDIRECT);
 
    assign valid_csr = ( legal &
@@ -592,6 +604,7 @@ assign legal = (!dec_csr_rdaddr_d[11]&dec_csr_rdaddr_d[10]&dec_csr_rdaddr_d[9]
    assign tlu_csr_pkt_d.csr_mhartnum = csr_mhartnum;
    assign tlu_csr_pkt_d.csr_mhartstart = csr_mhartstart;
    assign tlu_csr_pkt_d.csr_mnmipdel = csr_mnmipdel;
+   assign tlu_csr_pkt_d.valid_only = valid_only;
    assign tlu_csr_pkt_d.presync = presync;
    assign tlu_csr_pkt_d.postsync = postsync;
    assign tlu_csr_pkt_d.glob = glob;

@@ -72,8 +72,6 @@ csr_perfvf =        [10111001....]
 csr_perfvg =        [001100100111]
 csr_perfvh =        [001100101...]
 csr_perfvi =        [00110011....]
-
-
 csr_mhartnum =      [111111000100]
 csr_mhartstart =    [011111111100]
 csr_mnmipdel =      [011111111110]
@@ -183,6 +181,7 @@ csr_mnmipdel
      presync
      postsync
      glob
+     ooat
 }
 
 .decode
@@ -194,8 +193,8 @@ csr[ csr_mimpid    ] = {  csr_mimpid  glob  }
 csr[ csr_mhartid   ] = {  csr_mhartid   }
 csr[ csr_mstatus   ] = {  csr_mstatus postsync   }
 csr[ csr_mtvec     ] = {  csr_mtvec postsync}
-csr[ csr_mip       ] = {  csr_mip       }
-csr[ csr_mie       ] = {  csr_mie        }
+csr[ csr_mip       ] = {  csr_mip ooat      }
+csr[ csr_mie       ] = {  csr_mie ooat       }
 csr[ csr_mcyclel   ] = {  csr_mcyclel   }
 csr[ csr_mcycleh   ] = {  csr_mcycleh   }
 csr[ csr_minstretl ] = {  csr_minstretl presync }
@@ -208,12 +207,12 @@ csr[ csr_mtval     ] = {  csr_mtval     }
 csr[ csr_mrac      ] = {  csr_mrac postsync glob    }
 csr[ csr_dmst      ] = {  csr_dmst postsync }
 csr[ csr_mdseac    ] = {  csr_mdseac    }
-csr[ csr_meipt     ] = {  csr_meipt     }
+csr[ csr_meipt     ] = {  csr_meipt ooat     }
 csr[ csr_meihap    ] = {  csr_meihap    }
 csr[ csr_meivt     ] = {  csr_meivt     }
-csr[ csr_meicurpl  ] = {  csr_meicurpl  }
+csr[ csr_meicurpl  ] = {  csr_meicurpl ooat  }
 csr[ csr_mdeau     ] = {  csr_mdeau    }
-csr[ csr_meicpct   ] = {  csr_meicpct   }
+csr[ csr_meicpct   ] = {  csr_meicpct ooat   }
 csr[ csr_mpmc      ] = {  csr_mpmc postsync      }
 csr[ csr_mcpc      ] = {  csr_mcpc presync postsync }
 csr[ csr_meicidpl  ] = {  csr_meicidpl  }
@@ -222,7 +221,7 @@ csr[ csr_mfdc      ] = {  csr_mfdc presync postsync glob }
 csr[ csr_dcsr      ] = {  csr_dcsr      }
 csr[ csr_dpc       ] = {  csr_dpc       }
 csr[ csr_mtsel     ] = {  csr_mtsel     }
-csr[ csr_mtdata1   ] = {  csr_mtdata1  postsync }
+csr[ csr_mtdata1   ] = {  csr_mtdata1  presync postsync }
 csr[ csr_mtdata2   ] = {  csr_mtdata2  postsync }
 csr[ csr_mhpmc3    ] = {  csr_mhpmc3  presync }
 csr[ csr_mhpmc4    ] = {  csr_mhpmc4  presync }
@@ -236,26 +235,27 @@ csr[ csr_mhpme3    ] = {  csr_mhpme3    }
 csr[ csr_mhpme4    ] = {  csr_mhpme4    }
 csr[ csr_mhpme5    ] = {  csr_mhpme5    }
 csr[ csr_mhpme6    ] = {  csr_mhpme6    }
-csr[ csr_micect    ] = {  csr_micect glob   }
-csr[ csr_miccmect  ] = {  csr_miccmect glob}
-csr[ csr_mdccmect  ] = {  csr_mdccmect glob}
+csr[ csr_micect    ] = {  csr_micect glob ooat   }
+csr[ csr_miccmect  ] = {  csr_miccmect glob ooat}
+csr[ csr_mdccmect  ] = {  csr_mdccmect glob ooat}
 csr[ csr_dicawics  ] = {  csr_dicawics }
 csr[ csr_dicad0h   ] = {  csr_dicad0h }
 csr[ csr_dicad0    ] = {  csr_dicad0 }
 csr[ csr_dicad1    ] = {  csr_dicad1 }
 csr[ csr_dicago    ] = {  csr_dicago }
-csr[ csr_mitctl0   ] = {  csr_mitctl0  }
-csr[ csr_mitctl1   ] = {  csr_mitctl1  }
-csr[ csr_mitb0     ] = {  csr_mitb0    }
-csr[ csr_mitb1     ] = {  csr_mitb1    }
-csr[ csr_mitcnt0   ] = {  csr_mitcnt0  }
-csr[ csr_mitcnt1   ] = {  csr_mitcnt1  }
+csr[ csr_mitctl0   ] = {  csr_mitctl0 ooat  }
+csr[ csr_mitctl1   ] = {  csr_mitctl1 ooat  }
+csr[ csr_mitb0     ] = {  csr_mitb0   ooat  }
+csr[ csr_mitb1     ] = {  csr_mitb1   ooat  }
+csr[ csr_mitcnt0   ] = {  csr_mitcnt0 ooat  }
+csr[ csr_mitcnt1   ] = {  csr_mitcnt1 ooat  }
 csr[ csr_mhartnum  ] = {  csr_mhartnum glob }
 csr[ csr_mhartstart] = {  csr_mhartstart glob }
-csr[ csr_mnmipdel  ] = {  csr_mnmipdel glob postsync }
+csr[ csr_mnmipdel  ] = {  csr_mnmipdel glob ooat postsync }
 csr[ csr_mfdht     ] = {  csr_mfdht glob }
 csr[ csr_mfdhs     ] = {  csr_mfdhs }
 csr[ csr_mcountinhibit] = {  csr_mcountinhibit presync postsync }
+
 csr[ csr_perfva    ] = { valid_only }
 csr[ csr_perfvb    ] = { valid_only }
 csr[ csr_perfvc    ] = { valid_only }

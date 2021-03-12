@@ -8,6 +8,8 @@ void main();
 #define mhartstart 0x7fc
 #define STDOUT 0xd0580000
 
+volatile int tohost = 0;
+
 __asm (".section .text");
 __asm (".global _start");
 __asm ("_start:");
@@ -25,7 +27,10 @@ __asm ("la sp, STACK-0x1000");
 __asm ("to_main:");
 __asm ("call main");
 
-
+// for whisper: terminate test.
+__asm ("la a1, tohost");
+__asm ("li a0, 1");
+__asm ("sw a0, (a1)");
 
 // Write 0xff to STDOUT for TB to terminate test.
 __asm (".global _finish");
@@ -1222,7 +1227,7 @@ MAIN_RETURN_TYPE main(int argc, char *argv[]) {
 default_num_contexts = 2;
         if (time_in_secs(total_time) > 0)
 //              ee_printf("Iterations/Sec   : %d\n",default_num_contexts*results[0].iterations/time_in_secs(total_time));
-                ee_printf("Iterat/Sec/MHz   : %d.%d\n",1000*default_num_contexts*results[0].iterations/time_in_secs(total_time),
+                ee_printf("Iterat/Sec/MHz   : %d.%02d\n",1000*default_num_contexts*results[0].iterations/time_in_secs(total_time),
                              100000*default_num_contexts*results[0].iterations/time_in_secs(total_time) % 100);
 #endif
         if (time_in_secs(total_time) < 10) {
@@ -2107,8 +2112,8 @@ ee_u8 check_data_types() {
         volatile ee_s32 seed2_volatile=0x8;
         volatile ee_s32 seed3_volatile=0x8;
 #endif
-//      volatile ee_s32 seed4_volatile=ITERATIONS;
-        volatile ee_s32 seed4_volatile=1;
+        volatile ee_s32 seed4_volatile=ITERATIONS;
+//      volatile ee_s32 seed4_volatile=1;
         volatile ee_s32 seed5_volatile=0;
 /* Porting : Timing functions
         How to capture time and convert to seconds must be ported to whatever is supported by the platform.
@@ -2233,7 +2238,32 @@ whisperPuts(const char* s)
 
 
 static int
-whisperPrintDecimal(int value)
+whisperPrintUnsigned(unsigned value, int width, char pad)
+{
+  char buffer[20];
+  int charCount = 0;
+
+  do
+    {
+      char c = '0' + (value % 10);
+      value = value / 10;
+      buffer[charCount++] = c;
+    }
+  while (value);
+
+  for (int i = charCount; i < width; ++i)
+    whisperPutc(pad);
+
+  char* p = buffer + charCount - 1;
+  for (int i = 0; i < charCount; ++i)
+    whisperPutc(*p--);
+
+  return charCount;
+}
+
+
+static int
+whisperPrintDecimal(int value, int width, char pad)
 {
   char buffer[20];
   int charCount = 0;
@@ -2243,6 +2273,7 @@ whisperPrintDecimal(int value)
     {
       value = -value;
       whisperPutc('-');
+      width--;
     }
 
   do
@@ -2253,8 +2284,11 @@ whisperPrintDecimal(int value)
     }
   while (value);
 
+  for (int i = charCount; i < width; ++i)
+    whisperPutc(pad);
+
   char* p = buffer + charCount - 1;
-  for (unsigned i = 0; i < charCount; ++i)
+  for (int i = 0; i < charCount; ++i)
     whisperPutc(*p--);
 
   if (neg)
@@ -2265,10 +2299,10 @@ whisperPrintDecimal(int value)
 
 
 static int
-whisperPrintInt(int value, int base)
+whisperPrintInt(int value, int width, int pad, int base)
 {
   if (base == 10)
-    return whisperPrintDecimal(value);
+    return whisperPrintDecimal(value, width, pad);
 
   char buffer[20];
   int charCount = 0;
@@ -2290,7 +2324,7 @@ whisperPrintInt(int value, int base)
       do
         {
           int digit = uu & 0xf;
-          char c = digit < 10 ? '0' + digit : 'a' + digit;
+          char c = digit < 10 ? '0' + digit : 'a' + digit - 10;
           buffer[charCount++] = c;
           uu >>= 4;
         }
@@ -2307,6 +2341,22 @@ whisperPrintInt(int value, int base)
 }
 
 
+// Print with g format
+static int
+whisperPrintDoubleG(double value)
+{
+  return 0;
+}
+
+
+// Print with f format
+static int
+whisperPrintDoubleF(double value)
+{
+  return 0;
+}
+
+
 int
 whisperPrintfImpl(const char* format, va_list ap)
 {
@@ -2314,6 +2364,9 @@ whisperPrintfImpl(const char* format, va_list ap)
 
   for (const char* fp = format; *fp; fp++)
     {
+      char pad = ' ';
+      int width = 0;  // Field width
+
       if (*fp != '%')
         {
           whisperPutc(*fp);
@@ -2332,44 +2385,45 @@ whisperPrintfImpl(const char* format, va_list ap)
           continue;
         }
 
+      while (*fp == '0')
+        {
+          pad = '0';
+          fp++;  // Pad zero not yet implented.
+        }
+
       if (*fp == '-')
         {
           fp++;  // Pad right not yet implemented.
         }
 
-      while (*fp == '0')
-        {
-          fp++;  // Pad zero not yet implented.
-        }
-
       if (*fp == '*')
         {
-          int width = va_arg(ap, int);
+          int outWidth = va_arg(ap, int);
           fp++;  // Width not yet implemented.
         }
-      else
-        {
+      else if (*fp >= '0' && *fp <= '9')
+        {    // Width not yet implemented.
           while (*fp >= '0' && *fp <= '9')
-            ++fp;   // Width not yet implemented.
+            width = width * 10 + (*fp++ - '0');
         }
 
       switch (*fp)
         {
         case 'd':
-          count += whisperPrintDecimal(va_arg(ap, int));
+          count += whisperPrintDecimal(va_arg(ap, int), width, pad);
           break;
 
         case 'u':
-          count += whisperPrintDecimal((unsigned) va_arg(ap, unsigned));
+          count += whisperPrintUnsigned((unsigned) va_arg(ap, unsigned), width, pad);
           break;
 
         case 'x':
         case 'X':
-          count += whisperPrintInt(va_arg(ap, int), 16);
+          count += whisperPrintInt(va_arg(ap, int), width, pad, 16);
           break;
 
         case 'o':
-          count += whisperPrintInt(va_arg(ap, int), 8);
+          count += whisperPrintInt(va_arg(ap, int), width, pad, 8);
           break;
 
         case 'c':
@@ -2380,6 +2434,14 @@ whisperPrintfImpl(const char* format, va_list ap)
         case 's':
           count += whisperPuts(va_arg(ap, char*));
           break;
+
+        case 'g':
+          count += whisperPrintDoubleG(va_arg(ap, double));
+          break;
+
+        case 'f':
+          count += whisperPrintDoubleF(va_arg(ap, double));
+
         }
     }
 
@@ -2400,7 +2462,6 @@ whisperPrintf(const char* format, ...)
 }
 
 
-#if 1
 int
 printf(const char* format, ...)
 {
@@ -2412,20 +2473,8 @@ printf(const char* format, ...)
 
   return code;
 }
-#endif
 
 
-#ifdef NOVSIM
-
-volatile unsigned tohost = 0;
-
-_start()
-{
-  main();
-  tohost = 1;
-}
-
-#endif
 void* memset(void* s, int c, size_t n)
 {
   asm("mv t0, a0");

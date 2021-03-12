@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,8 @@ import eh2_pkg::*;
 #(
 `include "eh2_param.vh"
 )(
-   input  logic                  scan_mode,
+   input logic                   scan_mode,
+   input logic                   clk_override,
    input logic                   rst_l,
 
    input logic                   clk,
@@ -40,11 +41,18 @@ import eh2_pkg::*;
    input logic                   lsu_c1_dc4_clk,
    input logic                   lsu_c1_dc5_clk,
 
+   input logic                   lsu_c1_dc1_clken,       // clock
+   input logic                   lsu_c1_dc2_clken,       // clock
+   input logic                   lsu_c1_dc3_clken,
+   input logic                   lsu_c1_dc4_clken,
+   input logic                   lsu_c1_dc5_clken,
+
    input logic                   lsu_c2_dc1_clk,       // clock
    input logic                   lsu_c2_dc2_clk,       // clock
    input logic                   lsu_c2_dc3_clk,
    input logic                   lsu_c2_dc4_clk,
    input logic                   lsu_c2_dc5_clk,
+
    input logic                   lsu_free_c2_clk,
 
    input logic                   lsu_store_c1_dc1_clk,
@@ -60,6 +68,7 @@ import eh2_pkg::*;
    input logic [31:0]            dec_tlu_mrac_ff,           // CSR read
 
    input eh2_lsu_pkt_t          lsu_p,                     // lsu control packet
+   input logic                    ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5,
    input logic                   lsu_single_ecc_error_dc3,
    input logic                   lsu_double_ecc_error_dc3,
    output logic                  access_fault_dc3,
@@ -97,6 +106,7 @@ import eh2_pkg::*;
    // store data down the pipe
    output logic [31:0]           store_data_pre_dc3,
 
+   //output logic                  lsu_exc_dc2,
    output logic                  lsu_single_ecc_error_incr,
    output eh2_lsu_error_pkt_t   lsu_error_pkt_dc3,
 
@@ -146,6 +156,7 @@ import eh2_pkg::*;
 
    localparam THREADS          = pt.NUM_THREADS;
 
+   logic [31:3]        end_addr_pre_dc2, end_addr_pre_dc3, end_addr_pre_dc4, end_addr_pre_dc5;
    logic [31:0]        core_start_addr_dc1;
    logic [31:0]        core_end_addr_dc1;
    logic [31:0]        lsu_rs1_d;
@@ -158,6 +169,7 @@ import eh2_pkg::*;
    logic [31:0]        lsu_ld_datafn_corr_dc3;
    logic [2:0]         addr_offset_dc1;
 
+   logic               ldst_dual_dc1;
    logic               core_addr_in_dccm_dc1, core_addr_in_pic_dc1, core_addr_external_dc1;
    logic               addr_external_dc2;
    logic               access_fault_dc2, misaligned_fault_dc2;
@@ -181,11 +193,7 @@ import eh2_pkg::*;
    logic [1:0]         lsu_fir_error_dc3;
 
    logic [31:0]        lsu_result_corr_dc3;
-
-   logic [THREADS-1:0] [31:2] lr_addr;   // Per Thread LR stations
-   logic [THREADS-1:0]        lr_wr_en, lr_reset;   // set and reset logic
-   logic                      tid_dc5;
-   logic [THREADS-1:0]        lsu_sc_success_vec_dc5;
+   logic [THREADS-1:0] lr_reset;   // set and reset logic
 
 
    //------------------------------------------------------------------------------------------------------------
@@ -236,6 +244,7 @@ import eh2_pkg::*;
    assign addr_in_pic_dc1  = lsu_pkt_dc1_pre.valid ? core_addr_in_pic_dc1 : ~dma_mem_addr_in_dccm;
    assign addr_external_dc1 = lsu_pkt_dc1_pre.valid & core_addr_external_dc1;
    assign core_ldst_dual_dc1 = core_start_addr_dc1[2] != core_end_addr_dc1[2];
+   assign ldst_dual_dc1   = lsu_addr_dc1[2] != end_addr_dc1[2];
 
    // Goes to TLU to increment the ECC error counter
    assign lsu_single_ecc_error_incr = (lsu_single_ecc_error_dc5 & ~lsu_double_ecc_error_dc5) & (lsu_commit_dc5 | lsu_pkt_dc5.dma) & lsu_pkt_dc5.valid;
@@ -247,7 +256,7 @@ import eh2_pkg::*;
    assign lsu_error_pkt_dc3.amo_valid = lsu_pkt_dc3.atomic & ~(lsu_pkt_dc3.lr | lsu_pkt_dc3.sc);
    assign lsu_error_pkt_dc3.exc_type  = ~misaligned_fault_dc3;
    assign lsu_error_pkt_dc3.mscause[3:0] = (lsu_double_ecc_error_dc3 & ~misaligned_fault_dc3 & ~access_fault_dc3) ? 4'h1 : exc_mscause_dc3[3:0];
-   assign lsu_error_pkt_dc3.addr[31:0] = lsu_addr_dc3[31:0];
+   assign lsu_error_pkt_dc3.addr[31:0] = lsu_addr_dc3[31:0] & {32{lsu_error_pkt_dc3.exc_valid | lsu_error_pkt_dc3.single_ecc_error}};
 
    //Create DMA packet
    always_comb begin
@@ -285,12 +294,12 @@ import eh2_pkg::*;
                                          ({32{addr_in_pic_dc3}}   & picm_rd_data_dc3)  |
                                          ({32{addr_in_dccm_dc3}}  & lsu_dccm_data_corr_dc3);
 
-   // this result must look at prior stores and merge them in
-   assign lsu_result_dc3[31:0] = ({32{ lsu_pkt_dc3.unsign & lsu_pkt_dc3.by  }} & {24'b0,lsu_ld_datafn_dc3[7:0]}) |
-                                 ({32{ lsu_pkt_dc3.unsign & lsu_pkt_dc3.half}} & {16'b0,lsu_ld_datafn_dc3[15:0]}) |
-                                 ({32{~lsu_pkt_dc3.unsign & lsu_pkt_dc3.by  }} & {{24{  lsu_ld_datafn_dc3[7]}}, lsu_ld_datafn_dc3[7:0]}) |
-                                 ({32{~lsu_pkt_dc3.unsign & lsu_pkt_dc3.half}} & {{16{  lsu_ld_datafn_dc3[15]}},lsu_ld_datafn_dc3[15:0]}) |
-                                 ({32{lsu_pkt_dc3.word}} &                       lsu_ld_datafn_dc3[31:0]);
+   // this result must look at prior stores and merge them in. Qualified with valid for power
+   assign lsu_result_dc3[31:0] = ({32{lsu_pkt_dc3.valid & lsu_pkt_dc3.load &  lsu_pkt_dc3.unsign & lsu_pkt_dc3.by  }} & {24'b0,lsu_ld_datafn_dc3[7:0]}) |
+                                 ({32{lsu_pkt_dc3.valid & lsu_pkt_dc3.load &  lsu_pkt_dc3.unsign & lsu_pkt_dc3.half}} & {16'b0,lsu_ld_datafn_dc3[15:0]}) |
+                                 ({32{lsu_pkt_dc3.valid & lsu_pkt_dc3.load & ~lsu_pkt_dc3.unsign & lsu_pkt_dc3.by  }} & {{24{  lsu_ld_datafn_dc3[7]}}, lsu_ld_datafn_dc3[7:0]}) |
+                                 ({32{lsu_pkt_dc3.valid & lsu_pkt_dc3.load & ~lsu_pkt_dc3.unsign & lsu_pkt_dc3.half}} & {{16{  lsu_ld_datafn_dc3[15]}},lsu_ld_datafn_dc3[15:0]}) |
+                                 ({32{lsu_pkt_dc3.valid & lsu_pkt_dc3.load & lsu_pkt_dc3.word}} &                       lsu_ld_datafn_dc3[31:0]);
 
    assign lsu_result_corr_dc3[31:0] = ({32{ lsu_pkt_dc3.unsign & lsu_pkt_dc3.by  }} & {24'b0,lsu_ld_datafn_corr_dc3[7:0]}) |
                                       ({32{ lsu_pkt_dc3.unsign & lsu_pkt_dc3.half}} & {16'b0,lsu_ld_datafn_corr_dc3[15:0]}) |
@@ -298,7 +307,7 @@ import eh2_pkg::*;
                                       ({32{~lsu_pkt_dc3.unsign & lsu_pkt_dc3.half}} & {{16{  lsu_ld_datafn_corr_dc3[15]}},lsu_ld_datafn_corr_dc3[15:0]}) |
                                       ({32{lsu_pkt_dc3.word}} &                       lsu_ld_datafn_corr_dc3[31:0]);
 
-   assign lsu_fir_addr[31:1]     = lsu_result_corr_dc4[31:1];
+   assign lsu_fir_addr[31:1]     = lsu_result_corr_dc4[31:1] & {31{lsu_pkt_dc4.valid & lsu_pkt_dc4.fast_int}};
    assign lsu_fir_error_dc3[1:0] = fir_nondccm_access_error_dc3 ? 2'b11 : (fir_dccm_access_error_dc3 ? 2'b10 : ((lsu_pkt_dc3.fast_int & lsu_double_ecc_error_dc3) ? 2'b01 : 2'b00));
 
    // Interrupt as a flush source allows the WB to occur
@@ -320,7 +329,7 @@ import eh2_pkg::*;
 
 
    // Flops
-   rvdff #(32) lsu_result_corr_dc4ff (.*, .din(lsu_result_corr_dc3[31:0]), .dout(lsu_result_corr_dc4[31:0]), .clk(lsu_c1_dc4_clk));
+   rvdffe #(32) lsu_result_corr_dc4ff (.*, .din(lsu_result_corr_dc3[31:0]), .dout(lsu_result_corr_dc4[31:0]), .en((lsu_pkt_dc3.valid & lsu_pkt_dc3.load) | clk_override));
 
    // C2 clock for valid and C1 for other bits of packet
    rvdff #(1) lsu_pkt_vlddc1ff (.*, .din(lsu_pkt_dc1_in.valid), .dout(lsu_pkt_dc1_pre.valid), .clk(lsu_c2_dc1_clk));
@@ -329,11 +338,11 @@ import eh2_pkg::*;
    rvdff #(1) lsu_pkt_vlddc4ff (.*, .din(lsu_pkt_dc4_in.valid), .dout(lsu_pkt_dc4.valid), .clk(lsu_c2_dc4_clk));
    rvdff #(1) lsu_pkt_vlddc5ff (.*, .din(lsu_pkt_dc5_in.valid), .dout(lsu_pkt_dc5.valid), .clk(lsu_c2_dc5_clk));
 
-   rvdff #($bits(eh2_lsu_pkt_t)-1) lsu_pkt_dc1ff (.*, .din(lsu_pkt_dc1_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc1_pre[$bits(eh2_lsu_pkt_t)-1:1]), .clk(lsu_c1_dc1_clk));
-   rvdff #($bits(eh2_lsu_pkt_t)-1) lsu_pkt_dc2ff (.*, .din(lsu_pkt_dc2_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc2[$bits(eh2_lsu_pkt_t)-1:1]), .clk(lsu_c1_dc2_clk));
-   rvdff #($bits(eh2_lsu_pkt_t)-1) lsu_pkt_dc3ff (.*, .din(lsu_pkt_dc3_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc3[$bits(eh2_lsu_pkt_t)-1:1]), .clk(lsu_c1_dc3_clk));
-   rvdff #($bits(eh2_lsu_pkt_t)-1) lsu_pkt_dc4ff (.*, .din(lsu_pkt_dc4_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc4[$bits(eh2_lsu_pkt_t)-1:1]), .clk(lsu_c1_dc4_clk));
-   rvdff #($bits(eh2_lsu_pkt_t)-1) lsu_pkt_dc5ff (.*, .din(lsu_pkt_dc5_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc5[$bits(eh2_lsu_pkt_t)-1:1]), .clk(lsu_c1_dc5_clk));
+   rvdfflie #(.WIDTH($bits(eh2_lsu_pkt_t)-1),.LEFT(12)) lsu_pkt_dc1ff (.*, .din(lsu_pkt_dc1_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc1_pre[$bits(eh2_lsu_pkt_t)-1:1]), .en(lsu_c1_dc1_clken));
+   rvdfflie #(.WIDTH($bits(eh2_lsu_pkt_t)-1),.LEFT(12)) lsu_pkt_dc2ff (.*, .din(lsu_pkt_dc2_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc2[$bits(eh2_lsu_pkt_t)-1:1]),     .en(lsu_c1_dc2_clken));
+   rvdfflie #(.WIDTH($bits(eh2_lsu_pkt_t)-1),.LEFT(12)) lsu_pkt_dc3ff (.*, .din(lsu_pkt_dc3_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc3[$bits(eh2_lsu_pkt_t)-1:1]),     .en(lsu_c1_dc3_clken));
+   rvdfflie #(.WIDTH($bits(eh2_lsu_pkt_t)-1),.LEFT(12)) lsu_pkt_dc4ff (.*, .din(lsu_pkt_dc4_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc4[$bits(eh2_lsu_pkt_t)-1:1]),     .en(lsu_c1_dc4_clken));
+   rvdfflie #(.WIDTH($bits(eh2_lsu_pkt_t)-1),.LEFT(12)) lsu_pkt_dc5ff (.*, .din(lsu_pkt_dc5_in[$bits(eh2_lsu_pkt_t)-1:1]), .dout(lsu_pkt_dc5[$bits(eh2_lsu_pkt_t)-1:1]),     .en(lsu_c1_dc5_clken));
 
    rvdff #(32) sddc1ff (.*, .din(store_data_d[31:0]),      .dout(store_data_dc1[31:0]),     .clk(lsu_store_c1_dc1_clk));
    rvdff #(32) sddc2ff (.*, .din(store_data_dc2_in[31:0]), .dout(store_data_pre_dc2[31:0]), .clk(lsu_store_c1_dc2_clk));
@@ -344,10 +353,20 @@ import eh2_pkg::*;
    rvdff #(32) sadc4ff  (.*, .din(lsu_addr_dc3[31:0]),      .dout(lsu_addr_dc4[31:0]),       .clk(lsu_c1_dc4_clk));
    rvdff #(32) sadc5ff  (.*, .din(lsu_addr_dc4[31:0]),      .dout(lsu_addr_dc5[31:0]),       .clk(lsu_c1_dc5_clk));
 
-   rvdff #(32) end_addr_dc2ff (.*, .din(end_addr_dc1[31:0]),    .dout(end_addr_dc2[31:0]), .clk(lsu_c1_dc2_clk));
-   rvdff #(32) end_addr_dc3ff (.*, .din(end_addr_dc2[31:0]),    .dout(end_addr_dc3[31:0]), .clk(lsu_c1_dc3_clk));
-   rvdff #(32) end_addr_dc4ff (.*, .din(end_addr_dc3[31:0]),    .dout(end_addr_dc4[31:0]), .clk(lsu_c1_dc4_clk));
-   rvdff #(32) end_addr_dc5ff (.*, .din(end_addr_dc4[31:0]),    .dout(end_addr_dc5[31:0]), .clk(lsu_c1_dc5_clk));
+   assign end_addr_dc2[31:3] = ldst_dual_dc2 ? end_addr_pre_dc2[31:3] : lsu_addr_dc2[31:3];       // This is for power saving
+   assign end_addr_dc3[31:3] = ldst_dual_dc3 ? end_addr_pre_dc3[31:3] : lsu_addr_dc3[31:3];       // This is for power saving
+   assign end_addr_dc4[31:3] = ldst_dual_dc4 ? end_addr_pre_dc4[31:3] : lsu_addr_dc4[31:3];       // This is for power saving
+   assign end_addr_dc5[31:3] = ldst_dual_dc5 ? end_addr_pre_dc5[31:3] : lsu_addr_dc5[31:3];       // This is for power saving
+
+   rvdffe #(29) end_addr_hi_dc2ff (.*, .din(end_addr_dc1[31:3]),    .dout(end_addr_pre_dc2[31:3]), .en(lsu_pkt_dc1.valid & ldst_dual_dc1));
+   rvdffe #(29) end_addr_hi_dc3ff (.*, .din(end_addr_dc2[31:3]),    .dout(end_addr_pre_dc3[31:3]), .en(lsu_pkt_dc2.valid & ldst_dual_dc2));
+   rvdffe #(29) end_addr_hi_dc4ff (.*, .din(end_addr_dc3[31:3]),    .dout(end_addr_pre_dc4[31:3]), .en(lsu_pkt_dc3.valid & ldst_dual_dc3));
+   rvdffe #(29) end_addr_hi_dc5ff (.*, .din(end_addr_dc4[31:3]),    .dout(end_addr_pre_dc5[31:3]), .en(lsu_pkt_dc4.valid & ldst_dual_dc4));
+
+   rvdff #(3) end_addr_lo_dc2ff (.*, .din(end_addr_dc1[2:0]),    .dout(end_addr_dc2[2:0]), .clk(lsu_c1_dc2_clk));
+   rvdff #(3) end_addr_lo_dc3ff (.*, .din(end_addr_dc2[2:0]),    .dout(end_addr_dc3[2:0]), .clk(lsu_c1_dc3_clk));
+   rvdff #(3) end_addr_lo_dc4ff (.*, .din(end_addr_dc3[2:0]),    .dout(end_addr_dc4[2:0]), .clk(lsu_c1_dc4_clk));
+   rvdff #(3) end_addr_lo_dc5ff (.*, .din(end_addr_dc4[2:0]),    .dout(end_addr_dc5[2:0]), .clk(lsu_c1_dc5_clk));
 
    rvdff #(1) addr_in_dccm_dc2ff(.din(addr_in_dccm_dc1), .dout(addr_in_dccm_dc2), .clk(lsu_c2_dc2_clk), .*);
    rvdff #(1) addr_in_dccm_dc3ff(.din(addr_in_dccm_dc2), .dout(addr_in_dccm_dc3), .clk(lsu_c2_dc3_clk), .*);
@@ -383,26 +402,35 @@ import eh2_pkg::*;
    //               4) Mret, Interrup or Exception
    //
    // Other Thread :1) Store or AMO to this location ( 31:2 match )
-   assign tid_dc5 = lsu_pkt_dc5.tid;
-   always_comb  begin : store_cond
-     lsu_sc_success_vec_dc5[THREADS-1:0] = '0;
-     for (int i=0; i < THREADS; i++ ) begin
+   if (pt.ATOMIC_ENABLE == 1) begin: GenAtomic
+      logic [THREADS-1:0] [31:2] lr_addr;   // Per Thread LR stations
+      logic [THREADS-1:0]        lr_wr_en;   // set and reset logic
+      logic                      tid_dc5;
+      logic [THREADS-1:0]        lsu_sc_success_vec_dc5;
+
+      assign tid_dc5 = lsu_pkt_dc5.tid;
+      always_comb  begin : store_cond
+        lsu_sc_success_vec_dc5[THREADS-1:0] = '0;
+        for (int i=0; i < THREADS; i++ ) begin
         lsu_sc_success_vec_dc5[i] = (i == tid_dc5) & (lsu_addr_dc5[31:2] == lr_addr[i][31:2]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.sc & lr_vld[i];
-     end
-   end : store_cond
+        end
+      end : store_cond
 
-   assign lsu_sc_success_dc5 = |lsu_sc_success_vec_dc5[THREADS-1:0];
+      assign lsu_sc_success_dc5 = |lsu_sc_success_vec_dc5[THREADS-1:0];
 
-   for (genvar i=0; i<THREADS; i++) begin
-      assign lr_wr_en[i] =  ( i == tid_dc5 )  & lsu_commit_dc5 & lsu_pkt_dc5.lr;
-      assign lr_reset[i] =  (( i == tid_dc5 ) & (lsu_commit_dc5 & lsu_pkt_dc5.sc))                                                                                            |        // same thread cases. One signal from tlu covers the non-lsu cases
-                            (i != tid_dc5     & (lsu_commit_dc5 & lsu_pkt_dc5.store & (~lsu_pkt_dc5.sc | lsu_sc_success_dc5) &
-                             ((lsu_addr_dc5[31:2] == lr_addr[i][31:2]) | (end_addr_dc5[31:2] == lr_addr[i][31:2]))))                                                          |        // other thread case - any update to this location
-                            dec_tlu_lr_reset_wb[i]                                                                                                                            |        // Reset from dec
-                            (lsu_pkt_dc5.dma  & lsu_pkt_dc5.store & (lsu_addr_dc5[31:3] == lr_addr[i][31:3]) & (lsu_pkt_dc5.dword | (lsu_addr_dc5[2] == lr_addr[i][2])));              // DMA store case
-      rvdffsc #(.WIDTH(1))  lr_vldff   (.din(1'b1),               .dout(lr_vld[i]),  .en(lr_wr_en[i]), .clear(lr_reset[i]), .clk(lsu_free_c2_clk), .*);
-      rvdffs  #(.WIDTH(30)) lr_address (.din(lsu_addr_dc5[31:2]), .dout(lr_addr[i]), .en(lr_wr_en[i]),                      .clk(lsu_free_c2_clk), .*);
+      for (genvar i=0; i<THREADS; i++) begin
+         assign lr_wr_en[i] =  ( i == tid_dc5 )  & lsu_commit_dc5 & lsu_pkt_dc5.lr;
+         assign lr_reset[i] =  (( i == tid_dc5 ) & (lsu_commit_dc5 & lsu_pkt_dc5.sc))                                               |        // same thread cases. One signal from tlu covers the non-lsu cases
+                               (i != tid_dc5     & (lsu_commit_dc5 & lsu_pkt_dc5.store & (~lsu_pkt_dc5.sc | lsu_sc_success_dc5) & ((lsu_addr_dc5[31:2] == lr_addr[i][31:2]) | (end_addr_dc5[31:2] == lr_addr[i][31:2])))) |        // other thread case - any update to this location
+                               dec_tlu_lr_reset_wb[i]                                                                               |        // Reset from dec
+                               (lsu_pkt_dc5.dma  & lsu_pkt_dc5.store & (lsu_addr_dc5[31:3] == lr_addr[i][31:3]) & (lsu_pkt_dc5.dword | (lsu_addr_dc5[2] == lr_addr[i][2])));  // DMA store case
+         rvdffsc #(.WIDTH(1))  lr_vldff   (.din(1'b1),               .dout(lr_vld[i]),  .en(lr_wr_en[i]), .clear(lr_reset[i]), .clk(lsu_free_c2_clk), .*);
+         rvdffe  #(.WIDTH(30)) lr_address (.din(lsu_addr_dc5[31:2]), .dout(lr_addr[i]), .en(lr_wr_en[i]),                                             .*);
+      end
+   end // block: GenAtomic
+   else begin: GenNoAtomic
+      assign lsu_sc_success_dc5 = 1'b0;
+      assign lr_vld[pt.NUM_THREADS-1:0] = '0;
    end
-
 
 endmodule

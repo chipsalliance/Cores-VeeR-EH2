@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,10 +19,9 @@ import eh2_pkg::*;
 `include "eh2_param.vh"
 )
   (
-   input logic   free_clk,                    // free clk
-   input logic   active_clk,                  // active clk if not halt / pause
+   input logic   active_clk,                    // free clk
 
-   input logic   tid,                         // which thread am i?
+   input logic   tid,                           // thread id
 
 
    input logic   dec_i0_tid_d,                  // tid selected for decode this cycle
@@ -46,9 +45,14 @@ import eh2_pkg::*;
    input logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ifu_i0_bp_index, // BP index
    input logic [pt.BHT_GHR_SIZE-1:0] ifu_i0_bp_fghr, // BP FGHR
    input logic [pt.BTB_BTAG_SIZE-1:0] ifu_i0_bp_btag, // BP tag
+   input logic [pt.BTB_TOFFSET_SIZE-1:0] ifu_i0_bp_toffset, // BP tag
    input logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] ifu_i1_bp_index, // BP index
    input logic [pt.BHT_GHR_SIZE-1:0] ifu_i1_bp_fghr, // BP FGHR
    input logic [pt.BTB_BTAG_SIZE-1:0] ifu_i1_bp_btag, // BP tag
+   input logic [pt.BTB_TOFFSET_SIZE-1:0] ifu_i1_bp_toffset, // BP tag
+
+   input logic [$clog2(pt.BTB_SIZE)-1:0] ifu_i0_bp_fa_index,
+   input logic [$clog2(pt.BTB_SIZE)-1:0] ifu_i1_bp_fa_index,
 
    input logic   ifu_i0_pc4,                   // i0 is 4B inst else 2B
    input logic   ifu_i1_pc4,
@@ -59,10 +63,10 @@ import eh2_pkg::*;
    input logic   ifu_i0_valid,                 // i0 valid from ifu
    input logic   ifu_i1_valid,
 
-   input logic [1:0]  ifu_i0_icaf_type,                           // Instruction 0 access fault type
+   input logic [1:0]  ifu_i0_icaf_type,        // Instruction 0 access fault type
 
    input logic   ifu_i0_icaf,                  // i0 instruction access fault
-   input logic   ifu_i0_icaf_f1,               // i0 has access fault on second fetch group
+   input logic   ifu_i0_icaf_second,           // i0 has access fault on second 2B of 4B inst
    input logic   ifu_i0_dbecc,                 // i0 double-bit error
 
    input logic [31:0]  ifu_i0_instr,           // i0 instruction from the aligner
@@ -99,18 +103,21 @@ import eh2_pkg::*;
 
    output eh2_br_pkt_t i0_br_p,                 // i0 branch packet at decode
    output eh2_br_pkt_t i1_br_p,
-   output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i0_bp_index,            // i0 branch index
-   output logic [pt.BHT_GHR_SIZE-1:0]           i0_bp_fghr, // BP FGHR
-   output logic [pt.BTB_BTAG_SIZE-1:0]          i0_bp_btag, // BP tag
-   output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i1_bp_index,            // i0 branch index
-   output logic [pt.BHT_GHR_SIZE-1:0]           i1_bp_fghr, // BP FGHR
-   output logic [pt.BTB_BTAG_SIZE-1:0]          i1_bp_btag, // BP tag
+   output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i0_bp_index,   // i0 branch index
+   output logic [pt.BHT_GHR_SIZE-1:0]           i0_bp_fghr,    // BP FGHR
+   output logic [pt.BTB_BTAG_SIZE-1:0]          i0_bp_btag,    // BP tag
+   output logic [pt.BTB_TOFFSET_SIZE-1:0]       i0_bp_toffset, // BP tag
+   output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i1_bp_index,   // i0 branch index
+   output logic [pt.BHT_GHR_SIZE-1:0]           i1_bp_fghr,    // BP FGHR
+   output logic [pt.BTB_BTAG_SIZE-1:0]          i1_bp_btag,    // BP tag
+   output logic [pt.BTB_TOFFSET_SIZE-1:0]       i1_bp_toffset, // BP tag
+
+   output logic [$clog2(pt.BTB_SIZE)-1:0] i0_bp_fa_index,
 
    output logic i0_icaf_d,                 // i0 instruction access fault at decode
    output logic i1_icaf_d,
 
-   output logic i0_icaf_f1_d,              // i0 instruction access fault at decode for f1 fetch group
-   output logic i1_icaf_f1_d,
+   output logic i0_icaf_second_d,          // i0 instruction access fault at decode for second 2B of 4B inst
 
    output logic i0_dbecc_d,                // i0 double-bit error at decode
    output logic i1_dbecc_d,
@@ -120,7 +127,7 @@ import eh2_pkg::*;
 
    output logic i0_debug_valid_d,          // i0 is valid debug inst
 
-   input logic [15:0] ifu_i0_cinst,            // 16b compressed inst from aligner
+   input logic [15:0] ifu_i0_cinst,        // 16b compressed inst from aligner
    input logic [15:0] ifu_i1_cinst,
 
    output logic [15:0] i0_cinst_d,         // 16b compress inst at decode
@@ -130,7 +137,6 @@ import eh2_pkg::*;
    output eh2_predecode_pkt_t i1_predecode,
 
    output logic [1:0] i0_icaf_type_d,
-   output logic [1:0] i1_icaf_type_d,
 
    input  logic scan_mode
 
@@ -176,7 +182,7 @@ import eh2_pkg::*;
    logic                       debug_fence_in;
    logic [1:0]   align_val;
 
-   localparam BRWIDTH = pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1+pt.BHT_GHR_SIZE+pt.BTB_BTAG_SIZE;
+   localparam BRWIDTH = pt.BTB_ADDR_HI-pt.BTB_ADDR_LO+1+pt.BHT_GHR_SIZE+pt.BTB_BTAG_SIZE+pt.BTB_TOFFSET_SIZE+($clog2(pt.BTB_SIZE) * pt.BTB_FULLYA);
 
    logic [BRWIDTH-1:0]  bp3_in, bp3_final, bp3,
                         bp2_in, bp2_final, bp2,
@@ -199,7 +205,7 @@ import eh2_pkg::*;
 
    eh2_ib_pkt_t ifu_i0_ibp, ifu_i1_ibp;
 
-   rvdff #(1) flush_upperff (.*, .clk(free_clk), .din(exu_flush_final), .dout(flush_final));
+   rvdff #(1) flush_upperff (.*, .clk(active_clk), .din(exu_flush_final), .dout(flush_final));
 
 
    assign i1_cancel_e1 = dec_i1_cancel_e1;
@@ -237,7 +243,7 @@ import eh2_pkg::*;
    assign ifu_i0_ibp.cinst         = ifu_i0_cinst;
    assign ifu_i0_ibp.predecode     = ifu_i0_predecode;
    assign ifu_i0_ibp.icaf_type     = ifu_i0_icaf_type;
-   assign ifu_i0_ibp.icaf_f1       = ifu_i0_icaf_f1;
+   assign ifu_i0_ibp.icaf_second       = ifu_i0_icaf_second;
    assign ifu_i0_ibp.dbecc         = ifu_i0_dbecc;
    assign ifu_i0_ibp.icaf          = ifu_i0_icaf;
    assign ifu_i0_ibp.pc            = ifu_i0_pc;
@@ -248,7 +254,7 @@ import eh2_pkg::*;
    assign ifu_i1_ibp.cinst         = ifu_i1_cinst;
    assign ifu_i1_ibp.predecode     = ifu_i1_predecode;
    assign ifu_i1_ibp.icaf_type     = '0;
-   assign ifu_i1_ibp.icaf_f1       = '0;
+   assign ifu_i1_ibp.icaf_second       = '0;
    assign ifu_i1_ibp.dbecc         = '0;
    assign ifu_i1_ibp.icaf          = '0;
    assign ifu_i1_ibp.pc            = ifu_i1_pc;
@@ -262,7 +268,7 @@ import eh2_pkg::*;
 // put reg to read on rs1
 // read ->   or %x0,  %reg,%x0      {000000000000,reg[4:0],110000000110011}
 
-// put write date on rs1
+// put write data on rs1
 // write ->  or %reg, %x0, %x0      {00000000000000000110,reg[4:0],0110011}
 
 
@@ -297,7 +303,7 @@ import eh2_pkg::*;
 
 
    // for MT, need to hold this until thread decodes, other thread can be running
-   rvdffs #(1) debug_wdata_rs1ff (.*, .clk(free_clk), .en(ibwrite[0]), .din(debug_write_gpr | debug_write_csr), .dout(debug_wdata_rs1_d));
+   rvdffs #(1) debug_wdata_rs1ff (.*, .clk(active_clk), .en(ibwrite[0]), .din(debug_write_gpr | debug_write_csr), .dout(debug_wdata_rs1_d));
 
 
    // special fence csr for use only in debug mode
@@ -305,9 +311,9 @@ import eh2_pkg::*;
 
    assign debug_fence_in = debug_write_csr & (dcsr[11:0] == 12'h7c4);
 
-   rvdffs #(1) debug_fence_ff (.*,  .clk(free_clk), .en(ibwrite[0]), .din(debug_fence_in),  .dout(debug_fence_d));
+   rvdffs #(1) debug_fence_ff (.*,  .clk(active_clk), .en(ibwrite[0]), .din(debug_fence_in),  .dout(debug_fence_d));
 
-   rvdffs #(1) debug_valid_ff (.*,  .clk(free_clk), .en(ibwrite[0]), .din(debug_valid),     .dout(debug_valid_d));
+   rvdffs #(1) debug_valid_ff (.*,  .clk(active_clk), .en(ibwrite[0]), .din(debug_valid),     .dout(debug_valid_d));
 
    assign i0_debug_valid_d = debug_valid_d & ibval[0];
 
@@ -316,7 +322,7 @@ import eh2_pkg::*;
 
    assign ib3_final = (i1_cancel_e1) ? ib2 : ib3_in;
 
-   rvdffe #($bits(eh2_ib_pkt_t)) ib3ff (.*, .en(ibwrite[3]), .din(ib3_final), .dout(ib3));
+   rvdffibie #(.WIDTH($bits(eh2_ib_pkt_t)),.LEFT(24),.PADLEFT(13),.MIDDLE(31),.PADRIGHT(47),.RIGHT(16)) ib3ff (.*, .en(ibwrite[3]), .din(ib3_final), .dout(ib3));
 
    assign ib2_in = ({$bits(eh2_ib_pkt_t){write_i0_ib2}} & ifu_i0_ibp) |
                    ({$bits(eh2_ib_pkt_t){write_i1_ib2}} & ifu_i1_ibp) |
@@ -324,7 +330,7 @@ import eh2_pkg::*;
 
    assign ib2_final = (i1_cancel_e1) ? ib1 : ib2_in;
 
-   rvdffe #($bits(eh2_ib_pkt_t)) ib2ff (.*, .en(ibwrite[2]), .din(ib2_final), .dout(ib2));
+   rvdffibie #(.WIDTH($bits(eh2_ib_pkt_t)),.LEFT(24),.PADLEFT(13),.MIDDLE(31),.PADRIGHT(47),.RIGHT(16)) ib2ff (.*, .en(ibwrite[2]), .din(ib2_final), .dout(ib2));
 
    assign ib1_in = ({$bits(eh2_ib_pkt_t){write_i0_ib1}} & ifu_i0_ibp) |
                    ({$bits(eh2_ib_pkt_t){write_i1_ib1}} & ifu_i1_ibp) |
@@ -335,7 +341,7 @@ import eh2_pkg::*;
 
    assign ib1_final_in = (ibwrite[1]) ? ib1_final : ib1;
 
-   rvdffe #($bits(eh2_ib_pkt_t)) ib1ff (.*, .en(ibwrite[1]), .din(ib1_final), .dout(ib1));
+   rvdffibie #(.WIDTH($bits(eh2_ib_pkt_t)),.LEFT(24),.PADLEFT(13),.MIDDLE(31),.PADRIGHT(47),.RIGHT(16)) ib1ff (.*, .en(ibwrite[1]), .din(ib1_final), .dout(ib1));
 
    assign ib0_raw = ({$bits(eh2_ib_pkt_t){write_i0_ib0}} & ifu_i0_ibp) |
                     ({$bits(eh2_ib_pkt_t){shift_ib1_ib0}} & ib1) |
@@ -348,7 +354,7 @@ import eh2_pkg::*;
          ib0_in.predecode = '0;
          ib0_in.dbecc = '0;
          ib0_in.icaf = '0;
-         ib0_in.icaf_f1 = '0;
+         ib0_in.icaf_second = '0;
          ib0_in.brp.valid = '0;
          ib0_in.brp.br_error = '0;
          ib0_in.brp.br_start_error = '0;
@@ -382,7 +388,7 @@ import eh2_pkg::*;
 
    assign ib0_final_in = (ibwrite[0]) ? ib0_final : ib0;
 
-   rvdffe #($bits(eh2_ib_pkt_t)) ib0ff (.*, .en(ibwrite[0]), .din(ib0_final), .dout(ib0));
+   rvdffibie #(.WIDTH($bits(eh2_ib_pkt_t)),.LEFT(24),.PADLEFT(13),.MIDDLE(31),.PADRIGHT(47),.RIGHT(16)) ib0ff (.*, .en(ibwrite[0]), .din(ib0_final), .dout(ib0));
 
    assign i0_cinst_d[15:0] = ib0.cinst;
 
@@ -395,11 +401,9 @@ import eh2_pkg::*;
    assign  ib0_mul_in = mul_in;
    assign  ib0_i0_only_in = i0_only_in;
 
-   assign i1_icaf_type_d[1:0] = ib1.icaf_type;
    assign i0_icaf_type_d[1:0] = ib0.icaf_type;
 
-   assign i1_icaf_f1_d = ib1.icaf_f1;
-   assign i0_icaf_f1_d = ib0.icaf_f1;
+   assign i0_icaf_second_d = ib0.icaf_second;
 
    assign i1_dbecc_d = ib1.dbecc;
    assign i0_dbecc_d = ib0.dbecc;
@@ -429,10 +433,14 @@ import eh2_pkg::*;
 
    // branch prediction
 
-   assign ifu_i0_brdata = {ifu_i0_bp_index, ifu_i0_bp_fghr, ifu_i0_bp_btag};
-   assign ifu_i1_brdata = {ifu_i1_bp_index, ifu_i1_bp_fghr, ifu_i1_bp_btag};
-
-
+   if(pt.BTB_FULLYA) begin
+      assign ifu_i0_brdata = {ifu_i0_bp_fa_index, ifu_i0_bp_index, ifu_i0_bp_fghr, ifu_i0_bp_btag, ifu_i0_bp_toffset};
+      assign ifu_i1_brdata = {ifu_i1_bp_fa_index, ifu_i1_bp_index, ifu_i1_bp_fghr, ifu_i1_bp_btag, ifu_i1_bp_toffset};
+   end
+   else begin
+      assign ifu_i0_brdata = {ifu_i0_bp_index, ifu_i0_bp_fghr, ifu_i0_bp_btag, ifu_i0_bp_toffset};
+      assign ifu_i1_brdata = {ifu_i1_bp_index, ifu_i1_bp_fghr, ifu_i1_bp_btag, ifu_i1_bp_toffset};
+   end
 
    assign bp3_in = ({BRWIDTH{write_i0_ib3}} & ifu_i0_brdata) |
                    ({BRWIDTH{write_i1_ib3}} & ifu_i1_brdata);
@@ -468,9 +476,17 @@ import eh2_pkg::*;
 
    rvdffe #(BRWIDTH) bp0indexff (.*, .en(ibwrite[0]), .din(bp0_final), .dout(bp0));
 
+   if(pt.BTB_FULLYA) begin
+      logic [$clog2(pt.BTB_SIZE)-1:0] i1_bp_fa_index_unused;
+      assign {i1_bp_fa_index_unused, i1_bp_index, i1_bp_fghr, i1_bp_btag, i1_bp_toffset} = bp1;
+      assign {i0_bp_fa_index, i0_bp_index, i0_bp_fghr, i0_bp_btag, i0_bp_toffset} = bp0;
+   end
+   else begin
+      assign {i1_bp_index, i1_bp_fghr, i1_bp_btag, i1_bp_toffset} = bp1;
+      assign {i0_bp_index, i0_bp_fghr, i0_bp_btag, i0_bp_toffset} = bp0;
+      assign i0_bp_fa_index = '0;
+   end
 
-   assign {i1_bp_index, i1_bp_fghr, i1_bp_btag} = bp1;
-   assign {i0_bp_index, i0_bp_fghr, i0_bp_btag} = bp0;
 
    // decode, align get the raw valid signals
    // aligner gets ib3,ib2 to make decisions on
@@ -492,7 +508,7 @@ import eh2_pkg::*;
 
 // save off prior i1 on shift2
 
-   rvdffe #($bits(eh2_ib_pkt_t)) ibsaveff (.*, .en(shift2), .din(ib1),    .dout(ibsave));
+   rvdffibie #(.WIDTH($bits(eh2_ib_pkt_t)),.LEFT(24),.PADLEFT(13),.MIDDLE(31),.PADRIGHT(47),.RIGHT(16)) ibsaveff (.*, .en(shift2), .din(ib1),    .dout(ibsave));
 
    rvdffe #(BRWIDTH)         bpsaveindexff (.*, .en(shift2), .din(bp1),  .dout(bpsave));
 

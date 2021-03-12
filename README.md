@@ -1,6 +1,9 @@
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.2 from Western Digital
+# EH2 SweRV RISC-V Core<sup>TM</sup> 1.3 from Western Digital
 
 This repository contains the SweRV EH2 Core<sup>TM</sup>  design RTL
+
+## Overview
+SweRV EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and subset of bit manipulation instructions (Zb*) extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability. Please see the [PRM](docs/RISC-V_SweRV_EH2_PRM.pdf) for more details.
 
 ## License
 
@@ -10,7 +13,6 @@ Files under the [tools](tools/) directory may be available under a different lic
 ## Directory Structure
 
     ├── configs                 # Configurations Dir
-    │   └── snapshots           # Where generated configuration files are created
     ├── design                  # Design root dir
     │   ├── dbg                 #   Debugger
     │   ├── dec                 #   Decode, Registers and Exceptions
@@ -28,7 +30,7 @@ Files under the [tools](tools/) directory may be available under a different lic
  
 ## Dependencies
 
-- Verilator **(4.020 or later)** must be installed on the system if running with verilator
+- Verilator **(4.102 or later)** must be installed on the system if running with verilator
 - If adding/removing instructions, espresso must be installed (used by *tools/coredecode*)
 - RISCV tool chain (based on gcc version 7.3 or higher) must be
 installed so that it can be used to prepare RISCV binaries to run.
@@ -52,16 +54,25 @@ For example to build with a DCCM of size 64 Kb:
 
 `% $RV_ROOT/configs/swerv.config -dccm_size=64`  
 
-This will update the **default** snapshot in $RV_ROOT/configs/snapshots/default/ with parameters for a 64K DCCM.  
+This will update the **default** snapshot in $PWD/snapshots/default/ with parameters for a 64K DCCM.  
 
 Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot *dccm64* and refer to it during the build.  
 
 There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be selected via 
-the `-target=name` option to swerv.config.
+the `-target=name` option to swerv.config. See [configs/README.md](configs/README.md) for a description of these targets.
+
+**Building an FPGA speed optimized model:**
+Use ``-fpga_optimize=1`` option to ``swerv.config`` to build a model that removes clock gating logic from flop model so that the FPGA builds can run at higher speeds. **This is now the default option for
+targets other than ``typical_pd``.**
+
+**Building a Power optimized model (ASIC flows):**
+Use ``-fpga_optimize=0`` option to ``swerv.config`` to build a model that **enables** clock gating logic into the flop model so that the ASIC flows get a better power footprint. **This is now the default option for
+target``typical_pd``.**
+
 
 This script derives the following consistent set of include files :  
 
-    $RV_ROOT/configs/snapshots/default
+    $PWD/snapshots/<snapshot_name>
     ├── common_defines.vh                       # `defines for testbench or design
     ├── defines.h                               # #defines for C/assembly headers
     ├── eh2_param.vh                            # Design parameters
@@ -70,6 +81,7 @@ This script derives the following consistent set of include files :
     ├── perl_configs.pl                         # Perl %configs hash for scripting
     ├── pic_map_auto.h                          # PIC memory map based on configure size
     └── whisper.json                            # JSON file for swerv-iss
+    └── link.ld                                 # default linker control file
 
 
 
@@ -173,10 +185,10 @@ User can provide test specific linker file in form `<test_name>.ld` to build the
  in the same directory with the test source.
 
 User also can create a test specific makefile in form `<test_name>.makefile`, contaning building instructions
-how to create `program.hex`, `data.hex` files used by simulation. The private makefile should be in the same directory
+how to create `program.hex`  files used by simulation. The private makefile should be in the same directory
 as the test source.  
-*(`program.hex` file is loaded to instruction bus memory slave and `data.hex` file is loaded to LSU bus memory slave and
-optionally to DCCM at the beginning of simulation)*.
+*(`program.hex` file is loaded to instruction and data bus memory slaves  and
+optionally to DCCM/ICCM at the beginning of simulation)*.
 
 Note: You may need to delete `program.hex` file from work directory, before running a new test.
 
@@ -191,14 +203,13 @@ cmark_iccm        - the same as above, but preloading and running from ICCM
 cmark_mt          - coremark benchmark running with code and data in external memories for MT configs
 cmark_dccm_mt     - the same as above, running data and stack from DCCM (faster) for MT configs
 cmark_iccm_mt     - the same as above, but preloading and running from ICCM for MT configs
+dhry              - dhrystone benchmark as example of multisouce program from testbench/tests/dhry directory
+dhry_mt           - similar to above, but running two harts ( need to be run on MT configs )
 ```
 
 The `$RV_ROOT/testbench/hex` directory contains precompiled hex files of the tests, ready for simulation in case RISCV SW tools are not installed.
 
 **Note**: The testbench has a simple synthesizable bridge that allows you to load the ICCM via load/store instructions. This is only supported for AXI4 builds.
-
-**Building an FPGA speed optimized model:**  
-Use ``-set=fpga_optimize=1`` option to ``swerv.config`` to build a model that is removes clock gating logic from flop model so that the FPGA builds can run a higher speeds.
 
 ----
 Western Digital, the Western Digital logo, G-Technology, SanDisk, Tegile, Upthere, WD, SweRV Core, SweRV ISS, 

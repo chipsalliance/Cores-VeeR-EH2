@@ -1,3 +1,15 @@
+# EH2 SweRV RISC-V Core<sup>TM</sup> 1.4 from Western Digital
+
+* Clock gating bug fixes
+* Corner case bug fix for running hart PIC store colliding with debugger PIC access
+* Bug fix for debugger seeing error from DMA access
+* Fixed bug with BFP not matching updated 0.94 bitmanip spec
+* Branch predictor - fixed used bits for multihit case
+* Fixed bug with corner case incorrect clearing of reservation when faulting DCCM 
+  stores align with DCCM DMA accesses
+
+
+
 # EH2 SweRV RISC-V Core<sup>TM</sup> 1.3 from Western Digital
 
 * Multiple debug module compliance deviations and bugs reported by Codasip
@@ -6,8 +18,8 @@
 * Power optimization improvements and clock gating improvements
     * Significantly lower power in sleep as well as normal operation.
 * Enhanced debug memory abstract command to access internal as well as external memories
-* Added bit-manipulation support for Zba, Zbb, Zbc, Zbe, Zbf, Zbp, Zbr, Zbs (0.94 draft spec).
-    * Zba, Zbb, Zbc and Zbs are enabled by default. Use -set=bitmanip+zb*=1 to enable other sub-extensions.
+* Added bit-manipulation support for Zba, Zbb, Zbc, Zbe, Zbf, Zbp, Zbr, Zbs `0.94` draft spec.
+    * Zba, Zbb, Zbc and Zbs are enabled by default. Use `-set=bitmanip_zb*=1` to enable other sub-extensions.
 * Enhancements and additional configurations options for a faster divider
 * JTAG controller intial state issue fixed
 * Branch predictor fully-associative mode for 8,16,32 entries.

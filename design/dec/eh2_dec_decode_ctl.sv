@@ -834,7 +834,7 @@ end // always_comb begin
       assign i0_btb_error_found[k] = (dd.i0tid == k) & (i0_br_error_all | i0_btb_error_found_f[k]) & ~dec_tlu_flush_lower_wb[k];
       assign i0_fa_error_index_ns[k] = ((dd.i0tid == k) & i0_br_error_all & ~i0_btb_error_found_f[k]) ? dec_i0_bp_fa_index : dec_i0_fa_error_index[k];
 
-      rvdff #($clog2(pt.BTB_SIZE)+1) btberrorfa_f   (.*,
+      rvdff #($clog2(pt.BTB_SIZE)+1) btberrorfa_f   (.*, .clk(active_clk),
                                                          .din({i0_btb_error_found[k],    i0_fa_error_index_ns[k]}),
                                                          .dout({i0_btb_error_found_f[k], dec_i0_fa_error_index[k]}));
 

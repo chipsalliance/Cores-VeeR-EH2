@@ -1247,9 +1247,9 @@ end
 
 end
    else begin
-   rvdff #(.WIDTH(1)) rdtagf (.*,
-                                                                .din({ifc_select_tid_f1}),
-                                                                .dout({ifc_select_tid_f2}));
+   rvdff #(.WIDTH(1)) rdtagf (.*, .clk(active_clk),
+                              .din({ifc_select_tid_f1}),
+                              .dout({ifc_select_tid_f2}));
 
    end // else: !if(!pt.BTB_FULLYA)
 
@@ -1455,14 +1455,14 @@ end // if (!pt.BTB_USE_SRAM)
    // FULLYA - relocate after all the merging
       if(pt.BTB_FULLYA) begin : fa
 
-         logic found1, found2, hit0, hit1, hit2, hit3, hit0_other, hit1_other, hit2_other, hit3_other;
+         logic found1, found2, hit0, hit1, hit2, hit3, hit0_other, hit1_other, hit2_other, hit3_other, multihit;
          logic btb_used_reset, write_used;
          logic [$clog2(pt.BTB_SIZE)-1:0] btb_fa_wr_addr0, btb_fa_wr_addr1, hit0_index, hit1_index, hit2_index, hit3_index;
          logic [$clog2(pt.BTB_SIZE)-1:0] hit0_other_index, hit1_other_index, hit2_other_index, hit3_other_index;
 
          logic [pt.BTB_SIZE-1:0]         btb_tag_hit, btb_offset_0, btb_offset_1, btb_offset_2, btb_offset_3, btb_used_ns, btb_used,
                                          btb_offset_0_f2, btb_offset_1_f2, btb_offset_2_f2, btb_offset_3_f2, wr0_en, wr1_en, wr_cleanup,
-                                         fa_fetch_mp_collision_f1, btb_upper_hit;
+                                         fa_fetch_mp_collision_f1, btb_upper_hit, btb_used_clr;
          logic [pt.BTB_SIZE-1:0][BTB_DWIDTH-1:0] btbdata;
 
          // Fully Associative tag hash uses bits 31:3. Bits 2:1 are the offset bits used for the 4 tag comp banks
@@ -1641,41 +1641,43 @@ end // if (!pt.BTB_USE_SRAM)
    assign ifu_bp_fa_index_f2[1] = hit1 ? hit1_index : '0;
    assign ifu_bp_fa_index_f2[0] = hit0 ? hit0_index : '0;
 
+   assign multihit = hit0_other | hit1_other | hit2_other | hit3_other;
    if(pt.NUM_THREADS>1) begin
      // need room for 2 for worst case MP on both threads at limit
       assign btb_used_reset = &btb_used[pt.BTB_SIZE-2:0];
-      assign btb_used_ns[pt.BTB_SIZE-1:0] = ({pt.BTB_SIZE{hit0_other}} & ~(32'b1 << hit0_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{hit1_other}} & ~(32'b1 << hit1_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{hit2_other}} & ~(32'b1 << hit2_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{hit3_other}} & ~(32'b1 << hit3_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{vwayhit_f2[3]}} & (32'b1 << hit3_index[BTB_FA_INDEX:0])) |
+      assign btb_used_clr[pt.BTB_SIZE-1:0] = ~(({pt.BTB_SIZE{hit0_other}} & (32'b1 << hit0_other_index[BTB_FA_INDEX:0])) |
+                                               ({pt.BTB_SIZE{hit1_other}} & (32'b1 << hit1_other_index[BTB_FA_INDEX:0])) |
+                                               ({pt.BTB_SIZE{hit2_other}} & (32'b1 << hit2_other_index[BTB_FA_INDEX:0])) |
+                                               ({pt.BTB_SIZE{hit3_other}} & (32'b1 << hit3_other_index[BTB_FA_INDEX:0])) ) & btb_used[pt.BTB_SIZE-1:0];
+
+      assign btb_used_ns[pt.BTB_SIZE-1:0] = ({pt.BTB_SIZE{vwayhit_f2[3]}} & (32'b1 << hit3_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{vwayhit_f2[2]}} & (32'b1 << hit2_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{vwayhit_f2[1]}} & (32'b1 << hit1_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{vwayhit_f2[0]}} & (32'b1 << hit0_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{exu_mp_valid_write[0] & ~exu_mp_pkt[0].way & ~dec_tlu_error_wb}} & (32'b1 << btb_fa_wr_addr0[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{exu_mp_valid_write[1] & ~exu_mp_pkt[1].way & ~dec_tlu_error_wb}} & (32'b1 << btb_fa_wr_addr1[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{btb_used_reset}} & {pt.BTB_SIZE{1'b0}}) |
-                                            ({pt.BTB_SIZE{~btb_used_reset & dec_tlu_error_wb}} & (btb_used[pt.BTB_SIZE-1:0] & ~(32'b1 << dec_fa_error_index[BTB_FA_INDEX:0]))) |
-                                            (~{pt.BTB_SIZE{btb_used_reset | dec_tlu_error_wb}} & btb_used[pt.BTB_SIZE-1:0]);
+                                            ({pt.BTB_SIZE{~btb_used_reset & dec_tlu_error_wb}} & (btb_used_clr[pt.BTB_SIZE-1:0] & ~(32'b1 << dec_fa_error_index[BTB_FA_INDEX:0]))) |
+                                            (~{pt.BTB_SIZE{btb_used_reset | dec_tlu_error_wb}} & btb_used_clr[pt.BTB_SIZE-1:0]);
 
-      assign write_used = btb_used_reset | ifu_bp_kill_next_f2 | exu_mp_valid_write[0] | exu_mp_valid_write[1] | dec_tlu_error_wb;
+      assign write_used = btb_used_reset | ifu_bp_kill_next_f2 | exu_mp_valid_write[0] | exu_mp_valid_write[1] | dec_tlu_error_wb | multihit;
    end
    else begin
       assign btb_used_reset = &btb_used[pt.BTB_SIZE-1:0];
-      assign btb_used_ns[pt.BTB_SIZE-1:0] = ({pt.BTB_SIZE{hit0_other}} & ~(32'b1 << hit0_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{hit1_other}} & ~(32'b1 << hit1_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{hit2_other}} & ~(32'b1 << hit2_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{hit3_other}} & ~(32'b1 << hit3_other_index[BTB_FA_INDEX:0])) |
-                                            ({pt.BTB_SIZE{vwayhit_f2[3]}} & (32'b1 << hit3_index[BTB_FA_INDEX:0])) |
+      assign btb_used_clr[pt.BTB_SIZE-1:0] = ~(({pt.BTB_SIZE{hit0_other}} & (32'b1 << hit0_other_index[BTB_FA_INDEX:0])) |
+                                               ({pt.BTB_SIZE{hit1_other}} & (32'b1 << hit1_other_index[BTB_FA_INDEX:0])) |
+                                               ({pt.BTB_SIZE{hit2_other}} & (32'b1 << hit2_other_index[BTB_FA_INDEX:0])) |
+                                               ({pt.BTB_SIZE{hit3_other}} & (32'b1 << hit3_other_index[BTB_FA_INDEX:0])) ) & btb_used[pt.BTB_SIZE-1:0];
+      assign btb_used_ns[pt.BTB_SIZE-1:0] = ({pt.BTB_SIZE{vwayhit_f2[3]}} & (32'b1 << hit3_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{vwayhit_f2[2]}} & (32'b1 << hit2_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{vwayhit_f2[1]}} & (32'b1 << hit1_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{vwayhit_f2[0]}} & (32'b1 << hit0_index[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{exu_mp_valid_write[0] & ~exu_mp_pkt[0].way & ~dec_tlu_error_wb}} & (32'b1 << btb_fa_wr_addr0[BTB_FA_INDEX:0])) |
                                             ({pt.BTB_SIZE{btb_used_reset}} & {pt.BTB_SIZE{1'b0}}) |
-                                            ({pt.BTB_SIZE{~btb_used_reset & dec_tlu_error_wb}} & (btb_used[pt.BTB_SIZE-1:0] & ~(32'b1 << dec_fa_error_index[BTB_FA_INDEX:0]))) |
-                                            (~{pt.BTB_SIZE{btb_used_reset | dec_tlu_error_wb}} & btb_used[pt.BTB_SIZE-1:0]);
+                                            ({pt.BTB_SIZE{~btb_used_reset & dec_tlu_error_wb}} & (btb_used_clr[pt.BTB_SIZE-1:0] & ~(32'b1 << dec_fa_error_index[BTB_FA_INDEX:0]))) |
+                                            (~{pt.BTB_SIZE{btb_used_reset | dec_tlu_error_wb}} & btb_used_clr[pt.BTB_SIZE-1:0]);
 
-      assign write_used = btb_used_reset | ifu_bp_kill_next_f2 | exu_mp_valid_write[0] | dec_tlu_error_wb;
+      assign write_used = btb_used_reset | ifu_bp_kill_next_f2 | exu_mp_valid_write[0] | dec_tlu_error_wb | multihit;
    end
 
    rvdffe #(pt.BTB_SIZE) btb_usedf (.*, .clk(clk),

@@ -100,7 +100,7 @@ all: clean verilator
 
 clean:
 	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots swerv* \
-	verilator* *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work\
+	verilator* *.map *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work\
 	work dataset.asdb  library.cfg vsimsa.cfg  riviera-build wave.asdb
 
 
@@ -117,33 +117,27 @@ verilator-build: ${TBFILES} ${BUILD_DIR}/defines.h test_tb_top.cpp
 	  $(includes) -I${RV_ROOT}/testbench -f ${RV_ROOT}/testbench/flist \
 	  -Wno-WIDTH -Wno-UNOPTFLAT -Wno-IMPLICIT ${TBFILES} --top-module tb_top \
 	  -exe test_tb_top.cpp --autoflush $(VERILATOR_DEBUG)
-	cp ${RV_ROOT}/testbench/test_tb_top.cpp obj_dir/
-	$(MAKE) -j -C obj_dir/ -f Vtb_top.mk $(VERILATOR_MAKE_FLAGS)
+	$(MAKE) -j -C obj_dir -f Vtb_top.mk $(VERILATOR_MAKE_FLAGS)
 	touch verilator-build
 
 vcs-build: ${TBFILES} ${BUILD_DIR}/defines.h
-	$(VCS) -full64 -assert svaext -sverilog +define+RV_OPENSOURCE \
-	  +error+500 +incdir+${RV_ROOT}/design/lib \
-	  +incdir+${RV_ROOT}/design/include ${BUILD_DIR}/common_defines.vh \
-	  +incdir+$(BUILD_DIR)  +libext+.v $(defines) \
+	$(VCS) -full64 -assert svaext -sverilog \
+	  +error+500  $(defines) +incdir+$(BUILD_DIR)\
 	  -f ${RV_ROOT}/testbench/flist ${TBFILES} -l vcs.log
 	touch vcs-build
 
 irun-build: ${TBFILES} ${BUILD_DIR}/defines.h
 	$(IRUN) -64bit -elaborate $(IRUN_DEBUG) -q -sv -sysv  -nowarn CUVIHR \
-	  -xmlibdirpath . -xmlibdirname swerv.build \
-	  -incdir ${RV_ROOT}/design/lib -incdir ${RV_ROOT}/design/include \
-	  -vlog_ext +.vh+.h $(defines) -incdir $(BUILD_DIR) \
+	  -xmlibdirpath $(BUILD_DIR) -xmlibdirname swerv.build \
+	  -vlog_ext +.vh+.h $(defines) +incdir+$(BUILD_DIR) \
 	  -f ${RV_ROOT}/testbench/flist -top tb_top  ${TBFILES} \
-	  -I${RV_ROOT}/testbench -elaborate  -snapshot ${snapshot} $(profile)
+	  -elaborate  -snapshot ${snapshot} $(profile)
 	touch irun-build
 
 riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h
 	vlib work
 	vlog -work work \
 		-err VCP2694 W1 \
-		+incdir+${RV_ROOT}/design/lib \
-		+incdir+${RV_ROOT}/design/include \
 		+incdir+${BUILD_DIR} \
 		-y ${RV_ROOT}/design/lib +libext+.v+.vh \
 		$(defines) \
@@ -158,14 +152,14 @@ verilator: program.hex verilator-build
 
 irun: program.hex irun-build
 	$(IRUN) -64bit  +lic_queue -licqueue \
-	  -status -xmlibdirpath . -xmlibdirname swerv.build \
+	  -status -xmlibdirpath $(BUILD_DIR) -xmlibdirname swerv.build \
 	  -snapshot ${snapshot} -r $(snapshot) $(IRUN_DEBUG_RUN) $(run_arg) $(profile)
 
 vcs: program.hex vcs-build
 	./simv $(DEBUG_PLUS) +vcs+lic+wait  -l vcs.log $(run_arg)
 
 vlog: program.hex ${TBFILES} ${BUILD_DIR}/defines.h
-	$(VLOG) -l vlog.log -sv -mfcu +incdir+${BUILD_DIR}+${RV_ROOT}/design/include+${RV_ROOT}/design/lib\
+	$(VLOG) -l vlog.log -sv -mfcu +incdir+${BUILD_DIR}\
         $(defines) -f ${RV_ROOT}/testbench/flist ${TBFILES} -R +nowarn3829 ${DEBUG_PLUS} $(run_arg)
 
 riviera: program.hex riviera-build
@@ -187,7 +181,7 @@ program.hex:
 else
 program.hex: $(OFILES) $(LINK)
 	@echo Building $(TEST)
-	$(GCC_PREFIX)-gcc $(ABI) -nostartfiles -lgcc -T$(LINK) -o $(TEST).exe $(OFILES)
+	$(GCC_PREFIX)-gcc $(ABI) -nostartfiles -lgcc -T$(LINK) -Wl,-Map=$(TEST).map -o $(TEST).exe $(OFILES)
 	$(GCC_PREFIX)-objcopy -O verilog  $(TEST).exe program.hex
 	$(GCC_PREFIX)-objdump -S  $(TEST).exe > $(TEST).dis
 	@echo Completed building $(TEST)

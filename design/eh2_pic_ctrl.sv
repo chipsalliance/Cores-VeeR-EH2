@@ -534,17 +534,17 @@ if (pt.NUM_THREADS > 1 ) begin:   more_than_1_thr
 
 //  Per thread hold flops
 
-  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                mexintpend_fl_thr0  (.*, .clk(free_clk), .din (mexintpend_in ), .dout(mexintpend[0]), .en(~curr_int_tid_final_in));
-  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                mexintpend_fl_thr1  (.*, .clk(free_clk), .din (mexintpend_in ), .dout(mexintpend[1]), .en( curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                mexintpend_fl_thr0  (.*, .din (mexintpend_in ), .dout(mexintpend[0]), .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                mexintpend_fl_thr1  (.*, .din (mexintpend_in ), .dout(mexintpend[1]), .en( curr_int_tid_final_in));
 
-  rvdffe  #(.WIDTH(INTPRIORITY_BITS),.OVERRIDE(1)) pl_fl_thr0      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[0][INTPRIORITY_BITS-1:0]), .clk(free_clk), .en(~curr_int_tid_final_in));
-  rvdffe  #(.WIDTH(INTPRIORITY_BITS),.OVERRIDE(1)) pl_fl_thr1      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[1][INTPRIORITY_BITS-1:0]), .clk(free_clk), .en( curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(INTPRIORITY_BITS),.OVERRIDE(1)) pl_fl_thr0      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[0][INTPRIORITY_BITS-1:0]), .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(INTPRIORITY_BITS),.OVERRIDE(1)) pl_fl_thr1      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[1][INTPRIORITY_BITS-1:0]), .en( curr_int_tid_final_in));
 
   rvdffe  #(.WIDTH(ID_BITS),.OVERRIDE(1))          claimid_fl_thr0 (.*, .din (claimid_in[ID_BITS-1:00]),      .dout(claimid[0][ID_BITS-1:00]), .en(~curr_int_tid_final_in));
   rvdffe  #(.WIDTH(ID_BITS),.OVERRIDE(1))          claimid_fl_thr1 (.*, .din (claimid_in[ID_BITS-1:00]),      .dout(claimid[1][ID_BITS-1:00]), .en( curr_int_tid_final_in));
 
-  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                wake_up_ff_thr0      (.*, .din (mhwakeup_in),    .dout(mhwakeup[0]),      .clk(free_clk),  .en(~curr_int_tid_final_in));
-  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                wake_up_ff_thr1      (.*, .din (mhwakeup_in),    .dout(mhwakeup[1]),      .clk(free_clk),  .en( curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                wake_up_ff_thr0      (.*, .din (mhwakeup_in),    .dout(mhwakeup[0]),       .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                wake_up_ff_thr1      (.*, .din (mhwakeup_in),    .dout(mhwakeup[1]),       .en( curr_int_tid_final_in));
 
 ///////
 

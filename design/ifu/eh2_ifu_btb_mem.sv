@@ -242,7 +242,7 @@ import eh2_pkg::*;
    assign btb_rd1_valid[1] = btb_rden_f1 & btb_valid[{btb_rw_addr_f1[1][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO+1],3'b101}];
    assign btb_rd1_valid[0] = btb_rden_f1 & btb_valid[{btb_rw_addr_f1[1][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO+1],3'b100}];
 
-   rvdff #(3) btb_rwdv_ff (.*, .clk(clk),
+   rvdff #(3) btb_rwdv_ff (.*, .clk(active_clk),
                            .din  ({btb_rden, btb_wren, btb_sram_wr_data[0]}),
                            .dout ({btb_rden_f1, btb_wren_f1, btb_sram_wr_datav_f1}));
    // ----------------------------------------------------------------------

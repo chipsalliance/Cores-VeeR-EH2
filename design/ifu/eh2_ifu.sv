@@ -434,7 +434,7 @@ logic  fetch_tid_f1 ;
          // set when we lose due to IC/ICCM issues, clear when we successfully fetch (raw and qual'd match)
          assign f1lost[1:0] = f1lost_set[1:0] | (f1lost_f[1:0] & ~(fetch_req_f1_raw[1:0] & fetch_req_f1[1:0]));
 
-         rvdff #(5) tid_ff (.*, .clk(clk),
+         rvdff #(5) tid_ff (.*, .clk(active_clk),
                             .din({f1lost[1:0], ifc_select_tid_bf, dma_iccm_stall_any, &ifc_ready[1:0]}),
                             .dout({f1lost_f[1:0], ifc_select_tid_f1, dma_iccm_stall_any_f, ifc_both_ready_f1}));
       end

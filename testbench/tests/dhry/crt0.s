@@ -24,6 +24,8 @@ _start:
 // enable caching, except region 0xd
         li t0, 0x59555555
         csrw 0x7c0, t0
+        la  t0, handlers
+        csrw    mtvec, t0
 
         la sp, STACK
 
@@ -41,6 +43,15 @@ _finish:
         .rept 10
         nop
         .endr
+
+// simplified handler to support 'write' system call of GCC
+.balign 16
+handlers:
+    csrr    a0, mepc
+    addi    a0,a0,4
+    csrw    mepc, a0
+    li      a0,0
+    mret
 
 .section .data.io
 .global tohost

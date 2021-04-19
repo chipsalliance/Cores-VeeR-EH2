@@ -149,6 +149,7 @@ import eh2_pkg::*;
    input logic [pt.DCCM_FDATA_WIDTH-1:0]  dccm_rd_data_hi,          // dccm read data back from the dccm
 
    // PIC ports
+   output logic                            picm_wren_notdma,          // write to pic
    output logic                            picm_wren,          // write to pic
    output logic                            picm_rden,          // read to pick
    output logic                            picm_mken,          // write to pic need a mask
@@ -372,6 +373,7 @@ import eh2_pkg::*;
    assign disable_ecc_check_hi_dc2 = lsu_stbuf_commit_any & lsu_pkt_dc2.store & dccm_wr_bypass_c1_c2_hi;
 
    // PIC signals. PIC ignores the lower 2 bits of address since PIC memory registers are 32-bits
+   assign picm_wren_notdma   = (lsu_pkt_dc5.valid & lsu_pkt_dc5.store & addr_in_pic_dc5 & lsu_commit_dc5);
    assign picm_wren          = (lsu_pkt_dc5.valid & lsu_pkt_dc5.store & addr_in_pic_dc5 & lsu_commit_dc5) | dma_pic_wen;
    assign picm_rden          = lsu_pkt_dc1.valid & lsu_pkt_dc1.load  & addr_in_pic_dc1;
    assign picm_mken          = lsu_pkt_dc1.valid & lsu_pkt_dc1.store & addr_in_pic_dc1;  // Get the mask for stores

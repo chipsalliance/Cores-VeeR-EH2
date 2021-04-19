@@ -1,6 +1,6 @@
 # EH2 SweRV RISC-V Core<sup>TM</sup> 1.3 from Western Digital
 
-This repository contains the SweRV EH2 Core<sup>TM</sup>  design RTL
+This repository contains the EH2 RISC-V SweRV Core<sup>TM</sup>  design RTL
 
 ## Overview
 SweRV EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and subset of bit manipulation instructions (Zb*) extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability. Please see the [PRM](docs/RISC-V_SweRV_EH2_PRM.pdf) for more details.

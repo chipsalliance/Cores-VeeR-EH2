@@ -606,12 +606,24 @@ import eh2_pkg::*;
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  BFP          * * * * * * * * * * * * * * * * * *
 
+   // uint_xlen_t bfp(uint_xlen_t rs1, uint_xlen_t rs2)
+   // {
+   //    uint_xlen_t cfg = rs2 >> (XLEN/2);
+   //    if ((cfg >> 30) == 2) cfg = cfg >> 16;
+   //    int len          = (cfg >> 8) & (XLEN/2-1);
+   //    int off          = cfg & (XLEN-1);
+   //    len              = len ? len : XLEN/2;
+   //    uint_xlen_t mask = slo(0, len) << off;
+   //    uint_xlen_t data = rs2 << off;
+   //    return (data & mask) | (rs1 & ~mask);
+
    logic        [4:0]     bfp_len_e2;
    logic        [4:0]     bfp_off_e2;
    logic        [31:0]    bfp_len_mask_e2_;
+   logic        [31:0]    bfp_off_mask_e2_;
    logic        [15:0]    bfp_preshift_data_e2;
-   logic        [63:0]    bfp_shift_data_e2;
-   logic        [63:0]    bfp_shift_mask_e2;
+   logic        [31:0]    bfp_shift_data_e2;
+   logic        [31:0]    bfp_shift_mask_e2;
    logic        [31:0]    bfp_result_e2;
 
 
@@ -620,13 +632,13 @@ import eh2_pkg::*;
    assign bfp_off_e2[4:0]            =  b_ff_e2[20:16];
 
    assign bfp_len_mask_e2_[31:0]     =  32'hffff_ffff  <<  bfp_len_e2[4:0];
+   assign bfp_off_mask_e2_[31:0]     =  32'hffff_ffff  <<  bfp_off_e2[4:0];
    assign bfp_preshift_data_e2[15:0] =  b_ff_e2[15:0] & ~bfp_len_mask_e2_[15:0];
 
-   assign bfp_shift_data_e2[63:0]    = {16'b0,bfp_preshift_data_e2[15:0], 16'b0,bfp_preshift_data_e2[15:0]}  <<  bfp_off_e2[4:0];
-   assign bfp_shift_mask_e2[63:0]    = {bfp_len_mask_e2_[31:0],           bfp_len_mask_e2_[31:0]}            <<  bfp_off_e2[4:0];
+   assign bfp_shift_data_e2[31:0]    = {16'b0,bfp_preshift_data_e2[15:0]}  <<  bfp_off_e2[4:0];
+   assign bfp_shift_mask_e2[31:0]    = (bfp_len_mask_e2_[31:0]             <<  bfp_off_e2[4:0]) | ~bfp_off_mask_e2_[31:0];
 
-   assign bfp_result_e2[31:0]        = bfp_shift_data_e2[63:32] | (a_ff_e2[31:0] & bfp_shift_mask_e2[63:32]);
-
+   assign bfp_result_e2[31:0]        = bfp_shift_data_e2[31:0] | (a_ff_e2[31:0] & bfp_shift_mask_e2[31:0]);
 
 
 

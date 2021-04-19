@@ -1,2 +1,2 @@
-OFILES = crt0.o dhry_1.o dhry_2.o printf.o
+OFILES = crt0.o dhry_1.o dhry_2.o write.o
 TEST_CFLAGS = -g -O3

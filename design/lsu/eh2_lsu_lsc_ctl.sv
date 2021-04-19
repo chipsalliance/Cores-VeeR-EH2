@@ -423,7 +423,7 @@ import eh2_pkg::*;
          assign lr_reset[i] =  (( i == tid_dc5 ) & (lsu_commit_dc5 & lsu_pkt_dc5.sc))                                               |        // same thread cases. One signal from tlu covers the non-lsu cases
                                (i != tid_dc5     & (lsu_commit_dc5 & lsu_pkt_dc5.store & (~lsu_pkt_dc5.sc | lsu_sc_success_dc5) & ((lsu_addr_dc5[31:2] == lr_addr[i][31:2]) | (end_addr_dc5[31:2] == lr_addr[i][31:2])))) |        // other thread case - any update to this location
                                dec_tlu_lr_reset_wb[i]                                                                               |        // Reset from dec
-                               (lsu_pkt_dc5.dma  & lsu_pkt_dc5.store & (lsu_addr_dc5[31:3] == lr_addr[i][31:3]) & (lsu_pkt_dc5.dword | (lsu_addr_dc5[2] == lr_addr[i][2])));  // DMA store case
+                               (lsu_pkt_dc5.valid & lsu_pkt_dc5.dma  & lsu_pkt_dc5.store & (lsu_addr_dc5[31:3] == lr_addr[i][31:3]) & (lsu_pkt_dc5.dword | (lsu_addr_dc5[2] == lr_addr[i][2])));  // DMA store case
          rvdffsc #(.WIDTH(1))  lr_vldff   (.din(1'b1),               .dout(lr_vld[i]),  .en(lr_wr_en[i]), .clear(lr_reset[i]), .clk(lsu_free_c2_clk), .*);
          rvdffe  #(.WIDTH(30)) lr_address (.din(lsu_addr_dc5[31:2]), .dout(lr_addr[i]), .en(lr_wr_en[i]),                                             .*);
       end

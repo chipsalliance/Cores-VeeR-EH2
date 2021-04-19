@@ -310,6 +310,8 @@ import eh2_pkg::*;
    logic        lsu_raw_fwd_lo_dc4, lsu_raw_fwd_hi_dc4;
    logic        lsu_raw_fwd_lo_dc5, lsu_raw_fwd_hi_dc5;
 
+   logic        picm_wren_notdma;
+
    eh2_lsu_lsc_ctl #(.pt(pt)) lsu_lsc_ctl(.*);
 
    // Ready to accept dma trxns
@@ -317,7 +319,7 @@ import eh2_pkg::*;
    assign ldst_nodma_dc2todc5 = (lsu_pkt_dc2.valid & ~lsu_pkt_dc2.dma & (addr_in_dccm_dc2 | addr_in_pic_dc2) & lsu_pkt_dc2.store) |
                                 (lsu_pkt_dc3.valid & ~lsu_pkt_dc3.dma & (addr_in_dccm_dc3 | addr_in_pic_dc3) & lsu_pkt_dc3.store) |
                                 (lsu_pkt_dc4.valid & ~lsu_pkt_dc4.dma & (addr_in_dccm_dc4 | addr_in_pic_dc4) & lsu_pkt_dc4.store);
-   assign dccm_ready = ~(lsu_pkt_dc1_pre.valid | ldst_nodma_dc2todc5 | ld_single_ecc_error_dc5_ff);
+   assign dccm_ready = ~(picm_wren_notdma | lsu_pkt_dc1_pre.valid | ldst_nodma_dc2todc5 | ld_single_ecc_error_dc5_ff);
    assign dma_mem_tag_dc1[2:0] = dma_mem_tag[2:0];
 
    assign dma_pic_wen  = dma_dccm_req & dma_mem_write & ~dma_mem_addr_in_dccm;

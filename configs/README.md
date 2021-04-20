@@ -20,6 +20,7 @@ This set of include files :
     ├── pd_defines.vh                           # `defines for physical design
     ├── perl_configs.pl                         # Perl %configs hash for scripting
     ├── pic_map_auto.h                          # PIC memory map based on configure size
+    ├── link.ld                                 # Default linker control file
     └── whisper.json                            # JSON file for swerv-iss
 
 

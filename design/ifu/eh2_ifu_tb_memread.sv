@@ -1,6 +1,6 @@
 //********************************************************************************
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,14 +44,6 @@ module eh2_ifu_tb_memread;
       // initialize the reads and populate the istruction arrays
       $readmemh ("left64k", compressed );
       $readmemh ("right64k", expected );
-
-      //$display ("Inputs and Expectations: ");
-      //for (i=0; i<100; i=i+1)
-      //begin
-      //  $display("%d: C.In %h",i,compressed[i]);
-      //  $display("%d: E.Out %h",i,expected[i]);
-      //end
-
 
       $dumpfile ("top.vcd");
       $dumpvars;

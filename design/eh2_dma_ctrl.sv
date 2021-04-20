@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,6 +68,7 @@ import eh2_pkg::*;
    input logic [2:0]   iccm_dma_rtag,      // Tag of the DMA req
    input logic [63:0]  iccm_dma_rdata,     // iccm data for DMA read
 
+   output logic        dma_active,         // DMA is busy
    output logic        dma_dccm_stall_any, // stall dccm pipe (bubble) so that DMA can proceed
    output logic        dma_iccm_stall_any, // stall iccm pipe (bubble) so that DMA can proceed
    input logic         dccm_ready, // dccm ready to accept DMA request
@@ -161,6 +162,10 @@ import eh2_pkg::*;
    logic [DEPTH_PTR-1:0]    RdPtr, NxtRdPtr;
    logic                    WrPtrEn, RdPtrEn, RspPtrEn;
 
+   logic [1:0]              dma_dbg_sz;
+   logic [1:0]              dma_dbg_addr;
+   logic [31:0]             dma_dbg_mem_rddata;
+   logic [31:0]             dma_dbg_mem_wrdata;
    logic                    dma_dbg_cmd_error;
    logic                    dma_dbg_cmd_done_q;
 
@@ -199,22 +204,51 @@ import eh2_pkg::*;
 
    logic                    fifo_full_spec_bus;
    logic                    dbg_dma_bubble_bus;
-   logic                    dec_tlu_stall_dma_bus;
+   logic                    dbg_mem_cmd_valid;
    logic                    dma_fifo_ready;
+
+   logic                       wrbuf_en, wrbuf_data_en;
+   logic                       wrbuf_cmd_sent, wrbuf_rst, wrbuf_data_rst;
+   logic                       wrbuf_vld, wrbuf_data_vld;
+   logic [pt.DMA_BUS_TAG-1:0]  wrbuf_tag;
+   logic [2:0]                 wrbuf_sz;
+   logic [31:0]                wrbuf_addr;
+   logic [63:0]                wrbuf_data;
+   logic [7:0]                 wrbuf_byteen;
+
+   logic                       rdbuf_en;
+   logic                       rdbuf_cmd_sent, rdbuf_rst;
+   logic                       rdbuf_vld;
+   logic [pt.DMA_BUS_TAG-1:0]  rdbuf_tag;
+   logic [2:0]                 rdbuf_sz;
+   logic [31:0]                rdbuf_addr;
+
+   logic                       axi_mstr_prty_in, axi_mstr_prty_en;
+   logic                       axi_mstr_priority;
+   logic                       axi_mstr_sel;
+
+   logic                       axi_rsp_valid, axi_rsp_sent;
+   logic                       axi_rsp_write;
+   logic [pt.DMA_BUS_TAG-1:0]  axi_rsp_tag;
+   logic [1:0]                 axi_rsp_error;
+   logic [63:0]                axi_rsp_rdata;
+
+   logic                       axi_rsp_posted_write;
 
    //------------------------LOGIC STARTS HERE---------------------------------
 
    // FIFO inputs
-   assign fifo_addr_in[31:0]    = dbg_cmd_valid ? dbg_cmd_addr[31:0] : bus_cmd_addr[31:0];
-   assign fifo_byteen_in[7:0]   = dbg_cmd_valid ? (8'h0f << 4*dbg_cmd_addr[2]) : bus_cmd_byteen[7:0];
-   assign fifo_sz_in[2:0]       = dbg_cmd_valid ? {1'b0,dbg_cmd_size[1:0]} : bus_cmd_sz[2:0];
-   assign fifo_write_in         = dbg_cmd_valid ? dbg_cmd_write : bus_cmd_write;
-   assign fifo_posted_write_in  = ~dbg_cmd_valid & bus_cmd_posted_write;
-   assign fifo_dbg_in           = dbg_cmd_valid;
+   assign dbg_mem_cmd_valid     = dbg_cmd_valid & dbg_cmd_type[1];
+   assign fifo_addr_in[31:0]    = dbg_mem_cmd_valid ? dbg_cmd_addr[31:0] : bus_cmd_addr[31:0];
+   assign fifo_byteen_in[7:0]   = dbg_mem_cmd_valid ? (8'h0f << 4*dbg_cmd_addr[2]) : bus_cmd_byteen[7:0];
+   assign fifo_sz_in[2:0]       = dbg_mem_cmd_valid ? {1'b0,dbg_cmd_size[1:0]} : bus_cmd_sz[2:0];
+   assign fifo_write_in         = dbg_mem_cmd_valid ? dbg_cmd_write : bus_cmd_write;
+   assign fifo_posted_write_in  = ~dbg_mem_cmd_valid & bus_cmd_posted_write;
+   assign fifo_dbg_in           = dbg_mem_cmd_valid;
 
    for (genvar i=0 ;i<DEPTH; i++) begin: GenFifo
-      assign fifo_cmd_en[i]   = ((bus_cmd_sent & dma_bus_clk_en) | (dbg_cmd_valid & dbg_cmd_type[1])) & (i == WrPtr[DEPTH_PTR-1:0]);
-      assign fifo_data_en[i] = (((bus_cmd_sent & fifo_write_in & dma_bus_clk_en) | (dbg_cmd_valid & dbg_cmd_type[1] & dbg_cmd_write))  & (i == WrPtr[DEPTH_PTR-1:0])) |
+      assign fifo_cmd_en[i]   = ((bus_cmd_sent & dma_bus_clk_en) | dbg_mem_cmd_valid) & (i == WrPtr[DEPTH_PTR-1:0]);
+      assign fifo_data_en[i] = (((bus_cmd_sent & fifo_write_in & dma_bus_clk_en) | (dbg_mem_cmd_valid & dbg_cmd_write))  & (i == WrPtr[DEPTH_PTR-1:0])) |
                                ((dma_address_error | dma_alignment_error) & (i == RdPtr[DEPTH_PTR-1:0])) |
                                (dccm_dma_rvalid & (i == DEPTH_PTR'(dccm_dma_rtag[2:0]))) |
                                (iccm_dma_rvalid & (i == DEPTH_PTR'(iccm_dma_rtag[2:0])));
@@ -232,7 +266,7 @@ import eh2_pkg::*;
                                                                                                                 {(dma_address_error | dma_alignment_error | dma_dbg_cmd_error), dma_alignment_error};
       assign fifo_data_in[i]   = (fifo_error_en[i] & (|fifo_error_in[i])) ? {32'b0,fifo_addr[i]} :
                                                         ((dccm_dma_rvalid & (i == DEPTH_PTR'(dccm_dma_rtag[2:0])))  ? dccm_dma_rdata[63:0] : (iccm_dma_rvalid & (i == DEPTH_PTR'(iccm_dma_rtag[2:0]))) ? iccm_dma_rdata[63:0] :
-                                                                                                                                                       (dbg_cmd_valid ? {2{dbg_cmd_wrdata[31:0]}} : bus_cmd_wdata[63:0]));
+                                                                                                                                                       (dbg_mem_cmd_valid ? {2{dma_dbg_mem_wrdata[31:0]}} : bus_cmd_wdata[63:0]));
 
       rvdffsc #(1) fifo_valid_dff (.din(1'b1), .dout(fifo_valid[i]), .en(fifo_cmd_en[i]), .clear(fifo_reset[i]), .clk(dma_free_clk), .*);
       rvdffsc #(2) fifo_error_dff (.din(fifo_error_in[i]), .dout(fifo_error[i]), .en(fifo_error_en[i]), .clear(fifo_reset[i]), .clk(dma_free_clk), .*);
@@ -276,11 +310,11 @@ import eh2_pkg::*;
    end
    assign fifo_full_spec          = (num_fifo_vld[3:0] >= DEPTH);
 
-   assign dma_fifo_ready = ~(fifo_full | dbg_dma_bubble_bus | dec_tlu_stall_dma_bus);
+   assign dma_fifo_ready   = ~(fifo_full | dbg_dma_bubble_bus);
 
    // Error logic
    assign dma_address_error = fifo_valid[RdPtr] & ~fifo_done[RdPtr] & ~fifo_dbg[RdPtr] & (~(dma_mem_addr_in_dccm | dma_mem_addr_in_iccm));    // request not for ICCM or DCCM
-   assign dma_alignment_error = fifo_valid[RdPtr] & ~fifo_done[RdPtr] & ~dma_address_error &
+   assign dma_alignment_error = fifo_valid[RdPtr] & ~fifo_done[RdPtr] & ~fifo_dbg[RdPtr] & ~dma_address_error &
                                 (((dma_mem_sz_int[2:0] == 3'h1) & dma_mem_addr_int[0])                                                       |    // HW size but unaligned
                                  ((dma_mem_sz_int[2:0] == 3'h2) & (|dma_mem_addr_int[1:0]))                                                  |    // W size but unaligned
                                  ((dma_mem_sz_int[2:0] == 3'h3) & (|dma_mem_addr_int[2:0]))                                                  |    // DW size but unaligned
@@ -290,20 +324,31 @@ import eh2_pkg::*;
                                  (dma_mem_write & (dma_mem_sz_int[2:0] == 3'h3) & ~((dma_mem_byteen[7:0] == 8'h0f) | (dma_mem_byteen[7:0] == 8'hf0) | (dma_mem_byteen[7:0] == 8'hff)))); // Write byte enables not aligned for dword store
 
    //Dbg outputs
-   assign dma_dbg_ready    = fifo_empty & dbg_dma_bubble_bus;
+   assign dma_dbg_ready    = fifo_empty & dbg_dma_bubble;
    assign dma_dbg_cmd_done = (fifo_valid[RspPtr] & fifo_dbg[RspPtr] & fifo_done[RspPtr]);
-   assign dma_dbg_rddata[31:0] = fifo_addr[RspPtr][2] ? fifo_data[RspPtr][63:32] : fifo_data[RspPtr][31:0];
    assign dma_dbg_cmd_fail     = |fifo_error[RspPtr];
 
+   assign dma_dbg_sz[1:0]          = fifo_sz[RspPtr][1:0];
+   assign dma_dbg_addr[1:0]        = fifo_addr[RspPtr][1:0];
+   assign dma_dbg_mem_rddata[31:0] = fifo_addr[RspPtr][2] ? fifo_data[RspPtr][63:32] : fifo_data[RspPtr][31:0];
+   assign dma_dbg_rddata[31:0]     = ({32{(dma_dbg_sz[1:0] == 2'h0)}} & ((dma_dbg_mem_rddata[31:0] >> 8*dma_dbg_addr[1:0]) & 32'hff)) |
+                                     ({32{(dma_dbg_sz[1:0] == 2'h1)}} & ((dma_dbg_mem_rddata[31:0] >> 16*dma_dbg_addr[1]) & 32'hffff)) |
+                                     ({32{(dma_dbg_sz[1:0] == 2'h2)}} & dma_dbg_mem_rddata[31:0]);
+
    assign dma_dbg_cmd_error = fifo_valid[RdPtr] & ~fifo_done[RdPtr] & fifo_dbg[RdPtr] &
-                                 ((~(dma_mem_addr_in_dccm | dma_mem_addr_in_iccm | dma_mem_addr_in_pic)) | (dma_mem_sz_int[1:0] != 2'b10));  // Only word accesses allowed
+                                 ((~(dma_mem_addr_in_dccm | dma_mem_addr_in_iccm | dma_mem_addr_in_pic)) |             // Address outside of ICCM/DCCM/PIC
+                                  ((dma_mem_addr_in_iccm | dma_mem_addr_in_pic) & (dma_mem_sz_int[1:0] != 2'b10)));    // Only word accesses allowed for ICCM/PIC
+
+   assign dma_dbg_mem_wrdata[31:0] = ({32{dbg_cmd_size[1:0] == 2'h0}} & {4{dbg_cmd_wrdata[7:0]}}) |
+                                     ({32{dbg_cmd_size[1:0] == 2'h1}} & {2{dbg_cmd_wrdata[15:0]}}) |
+                                     ({32{dbg_cmd_size[1:0] == 2'h2}} & dbg_cmd_wrdata[31:0]);
 
    // Block the decode if fifo full
    assign dma_dccm_stall_any = dma_mem_req_spec & (dma_mem_addr_in_dccm | dma_mem_addr_in_pic) & (dma_nack_count >= dma_nack_count_csr) & ~dccm_ready;
    assign dma_iccm_stall_any = dma_mem_req_spec & dma_mem_addr_in_iccm & (dma_nack_count >= dma_nack_count_csr);
 
    // Used to indicate ready to debug
-   assign fifo_empty     = ~(|(fifo_valid[DEPTH-1:0]));
+   assign fifo_empty     = ~((|fifo_valid[DEPTH-1:0]) | bus_cmd_sent);
 
    // Nack counter, stall the lsu pipe if 7 nacks
    assign dma_nack_count_csr[2:0] = dec_tlu_dma_qos_prty[2:0];
@@ -321,8 +366,8 @@ import eh2_pkg::*;
    assign dma_mem_tag[2:0]    = 3'(RdPtr);
    assign dma_mem_addr_int[31:0] = fifo_addr[RdPtr];
    assign dma_mem_sz_int[2:0] = fifo_sz[RdPtr];
-   assign dma_mem_addr[31:0]  = (dma_mem_write & (dma_mem_byteen[7:0] == 8'hf0)) ? {dma_mem_addr_int[31:3],1'b1,dma_mem_addr_int[1:0]} : dma_mem_addr_int[31:0];
-   assign dma_mem_sz[2:0]     = (dma_mem_write & ((dma_mem_byteen[7:0] == 8'h0f) | (dma_mem_byteen[7:0] == 8'hf0))) ? 3'h2 : dma_mem_sz_int[2:0];
+   assign dma_mem_addr[31:0]  = (dma_mem_write & ~fifo_dbg[RdPtr] & (dma_mem_byteen[7:0] == 8'hf0)) ? {dma_mem_addr_int[31:3],1'b1,dma_mem_addr_int[1:0]} : dma_mem_addr_int[31:0];
+   assign dma_mem_sz[2:0]     = (dma_mem_write & ~fifo_dbg[RdPtr] & ((dma_mem_byteen[7:0] == 8'h0f) | (dma_mem_byteen[7:0] == 8'hf0))) ? 3'h2 : dma_mem_sz_int[2:0];
    assign dma_mem_byteen[7:0] = fifo_byteen[RdPtr];
    assign dma_mem_write       = fifo_write[RdPtr];
    assign dma_mem_wdata[63:0] = fifo_data[RdPtr];
@@ -334,12 +379,18 @@ import eh2_pkg::*;
    assign dma_pmu_any_write   = (dma_dccm_req | dma_iccm_req) & dma_mem_write;
 
    // Address check  dccm
-   rvrangecheck #(.CCM_SADR(pt.DCCM_SADR),
-                  .CCM_SIZE(pt.DCCM_SIZE)) addr_dccm_rangecheck (
-      .addr(dma_mem_addr[31:0]),
-      .in_range(dma_mem_addr_in_dccm),
-      .in_region(dma_mem_addr_in_dccm_region_nc)
-   );
+   if (pt.DCCM_ENABLE) begin
+      rvrangecheck #(.CCM_SADR(pt.DCCM_SADR),
+                     .CCM_SIZE(pt.DCCM_SIZE)) addr_dccm_rangecheck (
+         .addr(dma_mem_addr[31:0]),
+         .in_range(dma_mem_addr_in_dccm),
+         .in_region(dma_mem_addr_in_dccm_region_nc)
+      );
+   end
+   else begin
+      assign dma_mem_addr_in_dccm = 1'b0;
+      assign dma_mem_addr_in_dccm_region_nc = 1'b0;
+   end // else: !if(pt.DCCM_ENABLE)
 
    // Address check  iccm
    if (pt.ICCM_ENABLE) begin
@@ -365,51 +416,23 @@ import eh2_pkg::*;
     );
 
 
-   logic dec_tlu_stall_dma;
-   assign dec_tlu_stall_dma = 1'b0;
-
    // Inputs
-   rvdff #(1)  fifo_full_bus_ff (.din(fifo_full_spec), .dout(fifo_full_spec_bus), .clk(dma_bus_clk), .*);
-   rvdff #(1)  dbg_dma_bubble_ff (.din(dbg_dma_bubble), .dout(dbg_dma_bubble_bus), .clk(dma_bus_clk), .*);
-   rvdff #(1)  dec_tlu_stall_dma_ff (.din(dec_tlu_stall_dma), .dout(dec_tlu_stall_dma_bus), .clk(dma_bus_clk), .*);
-   rvdff #(1) dma_dbg_cmd_doneff (.din(dma_dbg_cmd_done), .dout(dma_dbg_cmd_done_q), .clk(free_clk), .*);
+   rvdff_fpga #(1) fifo_full_bus_ff     (.din(fifo_full_spec),    .dout(fifo_full_spec_bus),     .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdff_fpga #(1) dbg_dma_bubble_ff    (.din(dbg_dma_bubble),    .dout(dbg_dma_bubble_bus),     .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdff      #(1) dma_dbg_cmd_doneff   (.din(dma_dbg_cmd_done),  .dout(dma_dbg_cmd_done_q),     .clk(free_clk), .*);
 
    // Clock Gating logic
-   assign dma_buffer_c1_clken = (bus_cmd_valid & dma_bus_clk_en) | dbg_cmd_valid | dec_tlu_stall_dma | clk_override;
-   assign dma_free_clken = (bus_cmd_valid | bus_rsp_valid | dbg_cmd_valid | dma_dbg_cmd_done | dma_dbg_cmd_done_q | (|fifo_valid[DEPTH-1:0]) | dec_tlu_stall_dma | clk_override);
+   assign dma_buffer_c1_clken = (bus_cmd_valid & dma_bus_clk_en) | dbg_mem_cmd_valid | clk_override;
+   assign dma_free_clken = (bus_cmd_valid | bus_rsp_valid | dbg_mem_cmd_valid | dma_dbg_cmd_done | dma_dbg_cmd_done_q | (|fifo_valid[DEPTH-1:0]) | clk_override);
 
    rvoclkhdr dma_buffer_c1cgc ( .en(dma_buffer_c1_clken), .l1clk(dma_buffer_c1_clk), .* );
    rvoclkhdr dma_free_cgc (.en(dma_free_clken), .l1clk(dma_free_clk), .*);
-   rvclkhdr dma_bus_cgc (.en(dma_bus_clk_en), .l1clk(dma_bus_clk), .*);
 
-   logic                       wrbuf_en, wrbuf_data_en;
-   logic                       wrbuf_cmd_sent, wrbuf_rst, wrbuf_data_rst;
-   logic                       wrbuf_vld, wrbuf_data_vld;
-   logic [pt.DMA_BUS_TAG-1:0]  wrbuf_tag;
-   logic [2:0]                 wrbuf_sz;
-   logic [31:0]                wrbuf_addr;
-   logic [63:0]                wrbuf_data;
-   logic [7:0]                 wrbuf_byteen;
-
-   logic                       rdbuf_en;
-   logic                       rdbuf_cmd_sent, rdbuf_rst;
-   logic                       rdbuf_vld;
-   logic [pt.DMA_BUS_TAG-1:0]  rdbuf_tag;
-   logic [2:0]                 rdbuf_sz;
-   logic [31:0]                rdbuf_addr;
-
-   logic                       axi_mstr_prty_in, axi_mstr_prty_en;
-   logic                       axi_mstr_priority;
-   logic                       axi_mstr_sel;
-
-   logic                       axi_rsp_valid, axi_rsp_sent;
-   logic                       axi_rsp_write;
-   logic [pt.DMA_BUS_TAG-1:0]  axi_rsp_tag;
-   logic [1:0]                 axi_rsp_error;
-   logic [63:0]                axi_rsp_rdata;
-
-   logic                       axi_rsp_posted_write;
-
+`ifdef RV_FPGA_OPTIMIZE
+   assign dma_bus_clk = 1'b0;
+`else
+   rvclkhdr  dma_bus_cgc (.en(dma_bus_clk_en), .l1clk(dma_bus_clk), .*);
+`endif
 
    // Write channel buffer
    assign wrbuf_en       = dma_axi_awvalid & dma_axi_awready;
@@ -418,23 +441,23 @@ import eh2_pkg::*;
    assign wrbuf_rst      = wrbuf_cmd_sent & ~wrbuf_en;
    assign wrbuf_data_rst = wrbuf_cmd_sent & ~wrbuf_data_en;
 
-   rvdffsc  #(.WIDTH(1))  wrbuf_vldff(.din(1'b1), .dout(wrbuf_vld), .en(wrbuf_en), .clear(wrbuf_rst), .clk(dma_bus_clk), .*);
-   rvdffsc  #(.WIDTH(1))  wrbuf_data_vldff(.din(1'b1), .dout(wrbuf_data_vld), .en(wrbuf_data_en), .clear(wrbuf_data_rst), .clk(dma_bus_clk), .*);
-   rvdffs   #(.WIDTH(pt.DMA_BUS_TAG)) wrbuf_tagff(.din(dma_axi_awid[pt.DMA_BUS_TAG-1:0]), .dout(wrbuf_tag[pt.DMA_BUS_TAG-1:0]), .en(wrbuf_en), .clk(dma_bus_clk), .*);
-   rvdffs   #(.WIDTH(3)) wrbuf_szff(.din(dma_axi_awsize[2:0]), .dout(wrbuf_sz[2:0]), .en(wrbuf_en), .clk(dma_bus_clk), .*);
-   rvdffe   #(.WIDTH(32)) wrbuf_addrff(.din(dma_axi_awaddr[31:0]), .dout(wrbuf_addr[31:0]), .en(wrbuf_en & dma_bus_clk_en), .*);
-   rvdffe   #(.WIDTH(64)) wrbuf_dataff(.din(dma_axi_wdata[63:0]), .dout(wrbuf_data[63:0]), .en(wrbuf_data_en & dma_bus_clk_en), .*);
-   rvdffs   #(.WIDTH(8)) wrbuf_byteenff(.din(dma_axi_wstrb[7:0]), .dout(wrbuf_byteen[7:0]), .en(wrbuf_data_en), .clk(dma_bus_clk), .*);
+   rvdffsc_fpga  #(.WIDTH(1))              wrbuf_vldff       (.din(1'b1), .dout(wrbuf_vld),      .en(wrbuf_en),      .clear(wrbuf_rst),      .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffsc_fpga  #(.WIDTH(1))              wrbuf_data_vldff  (.din(1'b1), .dout(wrbuf_data_vld), .en(wrbuf_data_en), .clear(wrbuf_data_rst), .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffs_fpga   #(.WIDTH(pt.DMA_BUS_TAG)) wrbuf_tagff       (.din(dma_axi_awid[pt.DMA_BUS_TAG-1:0]), .dout(wrbuf_tag[pt.DMA_BUS_TAG-1:0]), .en(wrbuf_en), .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffs_fpga   #(.WIDTH(3))              wrbuf_szff        (.din(dma_axi_awsize[2:0]),  .dout(wrbuf_sz[2:0]),     .en(wrbuf_en),                  .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffe        #(.WIDTH(32))             wrbuf_addrff      (.din(dma_axi_awaddr[31:0]), .dout(wrbuf_addr[31:0]),  .en(wrbuf_en & dma_bus_clk_en), .*);
+   rvdffe        #(.WIDTH(64))             wrbuf_dataff      (.din(dma_axi_wdata[63:0]),  .dout(wrbuf_data[63:0]),  .en(wrbuf_data_en & dma_bus_clk_en), .*);
+   rvdffs_fpga   #(.WIDTH(8))              wrbuf_byteenff    (.din(dma_axi_wstrb[7:0]),   .dout(wrbuf_byteen[7:0]), .en(wrbuf_data_en),             .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
 
    // Read channel buffer
    assign rdbuf_en    = dma_axi_arvalid & dma_axi_arready;
    assign rdbuf_cmd_sent = bus_cmd_sent & ~bus_cmd_write;
    assign rdbuf_rst   = rdbuf_cmd_sent & ~rdbuf_en;
 
-   rvdffsc  #(.WIDTH(1))  rdbuf_vldff(.din(1'b1), .dout(rdbuf_vld), .en(rdbuf_en), .clear(rdbuf_rst), .clk(dma_bus_clk), .*);
-   rvdffs   #(.WIDTH(pt.DMA_BUS_TAG)) rdbuf_tagff(.din(dma_axi_arid[pt.DMA_BUS_TAG-1:0]), .dout(rdbuf_tag[pt.DMA_BUS_TAG-1:0]), .en(rdbuf_en), .clk(dma_bus_clk), .*);
-   rvdffs   #(.WIDTH(3)) rdbuf_szff(.din(dma_axi_arsize[2:0]), .dout(rdbuf_sz[2:0]), .en(rdbuf_en), .clk(dma_bus_clk), .*);
-   rvdffe   #(.WIDTH(32)) rdbuf_addrff(.din(dma_axi_araddr[31:0]), .dout(rdbuf_addr[31:0]), .en(rdbuf_en & dma_bus_clk_en), .*);
+   rvdffsc_fpga  #(.WIDTH(1))              rdbuf_vldff  (.din(1'b1), .dout(rdbuf_vld), .en(rdbuf_en), .clear(rdbuf_rst), .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffs_fpga   #(.WIDTH(pt.DMA_BUS_TAG)) rdbuf_tagff  (.din(dma_axi_arid[pt.DMA_BUS_TAG-1:0]), .dout(rdbuf_tag[pt.DMA_BUS_TAG-1:0]), .en(rdbuf_en), .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffs_fpga   #(.WIDTH(3))              rdbuf_szff   (.din(dma_axi_arsize[2:0]),  .dout(rdbuf_sz[2:0]),    .en(rdbuf_en), .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffe       #(.WIDTH(32))              rdbuf_addrff (.din(dma_axi_araddr[31:0]), .dout(rdbuf_addr[31:0]), .en(rdbuf_en & dma_bus_clk_en), .*);
 
    assign dma_axi_awready = ~(wrbuf_vld & ~wrbuf_cmd_sent);
    assign dma_axi_wready  = ~(wrbuf_data_vld & ~wrbuf_cmd_sent);
@@ -457,7 +480,7 @@ import eh2_pkg::*;
    assign axi_mstr_sel     = (wrbuf_vld & wrbuf_data_vld & rdbuf_vld) ? axi_mstr_priority : (wrbuf_vld & wrbuf_data_vld);
    assign axi_mstr_prty_in = ~axi_mstr_priority;
    assign axi_mstr_prty_en = bus_cmd_sent;
-   rvdffs #(.WIDTH(1)) mstr_prtyff(.din(axi_mstr_prty_in), .dout(axi_mstr_priority), .en(axi_mstr_prty_en), .clk(dma_bus_clk), .*);
+   rvdffs_fpga #(.WIDTH(1)) mstr_prtyff(.din(axi_mstr_prty_in), .dout(axi_mstr_priority), .en(axi_mstr_prty_en), .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
 
    assign axi_rsp_valid                   = fifo_valid[RspPtr] & ~fifo_dbg[RspPtr] & fifo_done_bus[RspPtr];
    assign axi_rsp_rdata[63:0]             = fifo_data[RspPtr];
@@ -480,82 +503,84 @@ import eh2_pkg::*;
    assign bus_posted_write_done = 1'b0;
    assign bus_rsp_valid      = (dma_axi_bvalid | dma_axi_rvalid);
    assign bus_rsp_sent       = (dma_axi_bvalid & dma_axi_bready) | (dma_axi_rvalid & dma_axi_rready);
+   assign dma_active  = wrbuf_vld | rdbuf_vld | (|fifo_valid[DEPTH-1:0]);
 
-`ifdef ASSERT_ON
+
+`ifdef RV_ASSERT_ON
 
    for (genvar i=0; i<DEPTH; i++) begin
       assert_fifo_done_and_novalid: assert #0 (~fifo_done[i] | fifo_valid[i]);
    end
 
-    // Assertion to check awready stays stable during entire bus clock
-   property dma_axi_awready_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_awready != $past(dma_axi_awready)) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_awready_stable: assert property (dma_axi_awready_stable) else
-       $display("DMA AXI awready changed in middle of bus clock");
+     // Assertion to check awready stays stable during entire bus clock
+    property dma_axi_awready_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_awready != $past(dma_axi_awready)) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_awready_stable: assert property (dma_axi_awready_stable) else
+        $display("DMA AXI awready changed in middle of bus clock");
 
-    // Assertion to check wready stays stable during entire bus clock
-   property dma_axi_wready_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_wready != $past(dma_axi_wready)) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_wready_stable: assert property (dma_axi_wready_stable) else
-       $display("DMA AXI wready changed in middle of bus clock");
+     // Assertion to check wready stays stable during entire bus clock
+    property dma_axi_wready_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_wready != $past(dma_axi_wready)) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_wready_stable: assert property (dma_axi_wready_stable) else
+        $display("DMA AXI wready changed in middle of bus clock");
 
-    // Assertion to check arready stays stable during entire bus clock
-   property dma_axi_arready_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_arready != $past(dma_axi_arready)) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_arready_stable: assert property (dma_axi_arready_stable) else
-       $display("DMA AXI arready changed in middle of bus clock");
+     // Assertion to check arready stays stable during entire bus clock
+    property dma_axi_arready_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_arready != $past(dma_axi_arready)) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_arready_stable: assert property (dma_axi_arready_stable) else
+        $display("DMA AXI arready changed in middle of bus clock");
 
-    // Assertion to check bvalid stays stable during entire bus clock
-   property dma_axi_bvalid_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_bvalid != $past(dma_axi_bvalid)) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_bvalid_stable: assert property (dma_axi_bvalid_stable) else
-       $display("DMA AXI bvalid changed in middle of bus clock");
+     // Assertion to check bvalid stays stable during entire bus clock
+    property dma_axi_bvalid_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_bvalid != $past(dma_axi_bvalid)) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_bvalid_stable: assert property (dma_axi_bvalid_stable) else
+        $display("DMA AXI bvalid changed in middle of bus clock");
 
-    // Assertion to check bid stays stable during entire bus clock
-    property dma_axi_bid_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_bvalid & (dma_axi_bid[pt.DMA_BUS_TAG-1:0] != $past(dma_axi_bid[pt.DMA_BUS_TAG-1:0]))) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_bid_stable: assert property (dma_axi_bid_stable) else
-       $display("DMA AXI bid changed in middle of bus clock");
+     // Assertion to check bid stays stable during entire bus clock
+     property dma_axi_bid_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_bvalid & (dma_axi_bid[pt.DMA_BUS_TAG-1:0] != $past(dma_axi_bid[pt.DMA_BUS_TAG-1:0]))) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_bid_stable: assert property (dma_axi_bid_stable) else
+        $display("DMA AXI bid changed in middle of bus clock");
 
-    // Assertion to check bresp stays stable during entire bus clock
-    property dma_axi_bresp_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_bvalid & (dma_axi_bresp[1:0] != $past(dma_axi_bresp[1:0]))) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_bresp_stable: assert property (dma_axi_bresp_stable) else
-       $display("DMA AXI bresp changed in middle of bus clock");
+     // Assertion to check bresp stays stable during entire bus clock
+     property dma_axi_bresp_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_bvalid & (dma_axi_bresp[1:0] != $past(dma_axi_bresp[1:0]))) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_bresp_stable: assert property (dma_axi_bresp_stable) else
+        $display("DMA AXI bresp changed in middle of bus clock");
 
-    // Assertion to check rvalid stays stable during entire bus clock
-    property dma_axi_rvalid_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid != $past(dma_axi_rvalid)) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_rvalid_stable: assert property (dma_axi_rvalid_stable) else
-       $display("DMA AXI rvalid changed in middle of bus clock");
+     // Assertion to check rvalid stays stable during entire bus clock
+     property dma_axi_rvalid_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid != $past(dma_axi_rvalid)) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_rvalid_stable: assert property (dma_axi_rvalid_stable) else
+        $display("DMA AXI rvalid changed in middle of bus clock");
 
-    // Assertion to check rid stays stable during entire bus clock
-    property dma_axi_rid_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid & (dma_axi_rid[pt.DMA_BUS_TAG-1:0] != $past(dma_axi_rid[pt.DMA_BUS_TAG-1:0]))) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_rid_stable: assert property (dma_axi_rid_stable) else
-       $display("DMA AXI rid changed in middle of bus clock");
+     // Assertion to check rid stays stable during entire bus clock
+     property dma_axi_rid_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid & (dma_axi_rid[pt.DMA_BUS_TAG-1:0] != $past(dma_axi_rid[pt.DMA_BUS_TAG-1:0]))) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_rid_stable: assert property (dma_axi_rid_stable) else
+        $display("DMA AXI rid changed in middle of bus clock");
 
-    // Assertion to check rresp stays stable during entire bus clock
-    property dma_axi_rresp_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid & (dma_axi_rresp[1:0] != $past(dma_axi_rresp[1:0]))) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_rresp_stable: assert property (dma_axi_rresp_stable) else
-       $display("DMA AXI rresp changed in middle of bus clock");
+     // Assertion to check rresp stays stable during entire bus clock
+     property dma_axi_rresp_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid & (dma_axi_rresp[1:0] != $past(dma_axi_rresp[1:0]))) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_rresp_stable: assert property (dma_axi_rresp_stable) else
+        $display("DMA AXI rresp changed in middle of bus clock");
 
-    // Assertion to check rdata stays stable during entire bus clock
-    property dma_axi_rdata_stable;
-       @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid & (dma_axi_rdata[63:0] != $past(dma_axi_rdata[63:0]))) |-> $past(dma_bus_clk_en);
-    endproperty
-    assert_dma_axi_rdata_stable: assert property (dma_axi_rdata_stable) else
-       $display("DMA AXI rdata changed in middle of bus clock");
+     // Assertion to check rdata stays stable during entire bus clock
+     property dma_axi_rdata_stable;
+        @(posedge clk) disable iff(~rst_l)  (dma_axi_rvalid & (dma_axi_rdata[63:0] != $past(dma_axi_rdata[63:0]))) |-> $past(dma_bus_clk_en);
+     endproperty
+     assert_dma_axi_rdata_stable: assert property (dma_axi_rdata_stable) else
+        $display("DMA AXI rdata changed in middle of bus clock");
 
 `endif
 

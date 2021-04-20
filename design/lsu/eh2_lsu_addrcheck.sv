@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import eh2_pkg::*;
 )(
    input logic              lsu_c2_dc2_clk,       // clock
    input logic              lsu_c2_dc3_clk,
+   input logic              clk_override,
    input logic              clk,
    input logic              rst_l,                       // reset
 
@@ -75,9 +76,8 @@ import eh2_pkg::*;
    logic [3:0]  rs1_region_dc1, rs1_region_dc2;              // region from the rs operand of the agu
    logic [4:0]  csr_idx;
    logic        addr_in_iccm;
-   logic        start_addr_dccm_or_pic;
-   logic        base_reg_dccm_or_pic;
-   logic [31:0] rs1_dc2;
+   logic        start_addr_dccm_or_pic_dc2;
+   logic        base_reg_dccm_or_pic_dc1, base_reg_dccm_or_pic_dc2;
    logic        unmapped_access_fault_dc2, mpu_access_fault_dc2, picm_access_fault_dc2, regpred_access_fault_dc2, amo_access_fault_dc2;
    logic        regcross_misaligned_fault_dc2, sideeffect_misaligned_fault_dc2;
    logic [3:0]  access_fault_mscause_dc2;
@@ -133,9 +133,8 @@ import eh2_pkg::*;
    );
 
    assign rs1_region_dc1[3:0] = rs1_dc1[31:28];
-   assign rs1_region_dc2[3:0] = rs1_dc2[31:28];
-   assign start_addr_dccm_or_pic  = start_addr_in_dccm_region_dc2 | start_addr_in_pic_region_dc2;
-   assign base_reg_dccm_or_pic    = ((rs1_region_dc2[3:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE) | (rs1_region_dc2[3:0] == pt.PIC_REGION);
+   assign start_addr_dccm_or_pic_dc2  = start_addr_in_dccm_region_dc2 | start_addr_in_pic_region_dc2;
+   assign base_reg_dccm_or_pic_dc1    = ((rs1_region_dc1[3:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE) | (rs1_region_dc1[3:0] == pt.PIC_REGION);
 
    assign addr_in_dccm_region_dc1 = (rs1_region_dc1[3:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE;  // We don't need to look at final address since lsu will take an exception if final region is different
    assign addr_in_pic_region_dc1  = (rs1_region_dc1[3:0] == pt.PIC_REGION);   // We don't need to look at final address since lsu will take an exception if final region is different
@@ -178,7 +177,7 @@ import eh2_pkg::*;
    // 5. Region prediction access fault: Base Address in DCCM/PIC and Final address in non-DCCM/non-PIC region or vice versa
    // 6. Ld/St access to picm are not word aligned or word size
 
-   assign regpred_access_fault_dc2  = (start_addr_dccm_or_pic ^ base_reg_dccm_or_pic);                            // 5. Region prediction access fault: Base Address in DCCM/PIC and Final address in non-DCCM/non-PIC region or vice versa
+   assign regpred_access_fault_dc2  = (start_addr_dccm_or_pic_dc2 ^ base_reg_dccm_or_pic_dc2);                            // 5. Region prediction access fault: Base Address in DCCM/PIC and Final address in non-DCCM/non-PIC region or vice versa
    assign picm_access_fault_dc2     = (addr_in_pic_dc2 & ((start_addr_dc2[1:0] != 2'b0) | ~lsu_pkt_dc2.word));    // 6. Ld/St access to picm are not word aligned or word size
    assign amo_access_fault_dc2      =  (lsu_pkt_dc2.atomic & (start_addr_dc2[1:0] != 2'b0))                     | // 7. AMO are not word aligned OR AMO address not in dccm region
                                        (lsu_pkt_dc2.valid & lsu_pkt_dc2.atomic & ~addr_in_dccm_dc2);
@@ -217,6 +216,7 @@ import eh2_pkg::*;
    assign fir_nondccm_access_error_dc2 = ~(start_addr_in_dccm_region_dc2 & end_addr_in_dccm_region_dc2) & lsu_pkt_dc2.valid & lsu_pkt_dc2.fast_int;
 
 
+   rvdff #(.WIDTH(1)) base_reg_dccmorpic_dc2ff       (.din(base_reg_dccm_or_pic_dc1),      .dout(base_reg_dccm_or_pic_dc2),      .clk(lsu_c2_dc2_clk), .*);
    rvdff #(.WIDTH(1)) start_addr_in_dccm_dc2ff       (.din(start_addr_in_dccm_dc1),        .dout(start_addr_in_dccm_dc2),        .clk(lsu_c2_dc2_clk), .*);
    rvdff #(.WIDTH(1)) end_addr_in_dccm_dc2ff         (.din(end_addr_in_dccm_dc1),          .dout(end_addr_in_dccm_dc2),          .clk(lsu_c2_dc2_clk), .*);
    rvdff #(.WIDTH(1)) start_addr_in_pic_dc2ff        (.din(start_addr_in_pic_dc1),         .dout(start_addr_in_pic_dc2),         .clk(lsu_c2_dc2_clk), .*);
@@ -225,7 +225,6 @@ import eh2_pkg::*;
    rvdff #(.WIDTH(1)) start_addr_in_pic_region_dc2ff (.din(start_addr_in_pic_region_dc1),  .dout(start_addr_in_pic_region_dc2),  .clk(lsu_c2_dc2_clk), .*);
    rvdff #(.WIDTH(1)) end_addr_in_dccm_region_dc2ff  (.din(end_addr_in_dccm_region_dc1),   .dout(end_addr_in_dccm_region_dc2),   .clk(lsu_c2_dc2_clk), .*);
    rvdff #(.WIDTH(1)) end_addr_in_pic_region_dc2ff   (.din(end_addr_in_pic_region_dc1),    .dout(end_addr_in_pic_region_dc2),    .clk(lsu_c2_dc2_clk), .*);
-   rvdffe #(.WIDTH(32)) rs1_dc2ff                    (.din(rs1_dc1[31:0]),                 .dout(rs1_dc2[31:0]),                 .en(lsu_pkt_dc1.valid), .*);
    rvdff #(.WIDTH(1)) is_sideeffects_dc3ff           (.din(is_sideeffects_dc2),            .dout(is_sideeffects_dc3),            .clk(lsu_c2_dc3_clk), .*);
 
 endmodule // lsu_addrcheck

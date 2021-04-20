@@ -1,6 +1,6 @@
 //********************************************************************************
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import eh2_pkg::*;
 `include "eh2_param.vh"
  )(
    input logic                                        clk,
+   input logic                                        active_clk,
    input logic                                        rst_l,
    input logic                                        clk_override,
 
@@ -31,7 +32,7 @@ import eh2_pkg::*;
    input logic                                        iccm_wren,
    input logic                                        iccm_rden,
    input logic [pt.ICCM_BITS-1:1]                     iccm_rw_addr,
-   input logic [pt.NUM_THREADS-1:0]                   iccm_buf_correct_ecc_thr,                // ICCM is doing a single bit error correct cycle
+   input logic [pt.NUM_THREADS-1:0]                   iccm_buf_correct_ecc_thr,            // ICCM is doing a single bit error correct cycle
    input logic                                        iccm_correction_state,               // We are under a correction - This is needed to guard replacements when hit
    input logic                                        iccm_stop_fetch,                     // We have fetched more than needed for 4 bytes. Need to squash any further hits for plru updates
    input logic                                        iccm_corr_scnd_fetch,                // dont match on middle bank when under correction
@@ -40,6 +41,7 @@ import eh2_pkg::*;
    input logic [77:0]                                 iccm_wr_data,
 
 
+   input  eh2_ccm_ext_in_pkt_t   [pt.ICCM_NUM_BANKS-1:0] iccm_ext_in_pkt,
 
    output logic [63:0]                                iccm_rd_data,
    output logic [116:0]                               iccm_rd_data_ecc,
@@ -49,7 +51,6 @@ import eh2_pkg::*;
    logic [pt.ICCM_NUM_BANKS-1:0]                                        wren_bank;
    logic [pt.ICCM_NUM_BANKS-1:0]                                        rden_bank;
    logic [pt.ICCM_NUM_BANKS-1:0]                                        iccm_clken;
-   logic [pt.ICCM_NUM_BANKS-1:0]                                        iccm_clk  ;
    logic [pt.ICCM_NUM_BANKS-1:0] [pt.ICCM_BITS-1:pt.ICCM_BANK_INDEX_LO] addr_bank;
 
    logic [pt.ICCM_NUM_BANKS-1:0] [38:0] iccm_bank_dout, iccm_bank_dout_fn;
@@ -96,7 +97,7 @@ import eh2_pkg::*;
                                                                                                     (addr_md_bank[pt.ICCM_BANK_HI:2] == i) ? addr_md_bank[pt.ICCM_BITS-1 : pt.ICCM_BANK_INDEX_LO] :
                                                                                                                                              iccm_rw_addr[pt.ICCM_BITS-1 : pt.ICCM_BANK_INDEX_LO]);
 
-     rvoclkhdr iccm_hi0_c1_cgc  ( .en(iccm_clken[i]), .l1clk(iccm_clk[i]), .* );
+
  `ifdef VERILATOR
 
     eh2_ram #(.depth(1<<pt.ICCM_INDEX_BITS), .width(39)) iccm_bank (
@@ -106,7 +107,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
  `else
@@ -118,7 +130,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -131,7 +154,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -144,7 +178,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -156,7 +201,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -168,7 +224,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -180,7 +247,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -192,7 +270,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -204,7 +293,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -216,7 +316,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -228,7 +339,18 @@ import eh2_pkg::*;
                                      .WE(wren_bank[i]),
                                      .ADR(addr_bank[i]),
                                      .D(iccm_bank_wr_data[i][38:0]),
-                                     .Q(iccm_bank_dout[i][38:0])
+                                     .Q(iccm_bank_dout[i][38:0]),
+                                     .ROP ( ),
+                                     // These are used by SoC
+                                     .TEST1(iccm_ext_in_pkt[i].TEST1),
+                                     .RME(iccm_ext_in_pkt[i].RME),
+                                     .RM(iccm_ext_in_pkt[i].RM),
+                                     .LS(iccm_ext_in_pkt[i].LS),
+                                     .DS(iccm_ext_in_pkt[i].DS),
+                                     .SD(iccm_ext_in_pkt[i].SD) ,
+                                     .TEST_RNM(iccm_ext_in_pkt[i].TEST_RNM),
+                                     .BC1(iccm_ext_in_pkt[i].BC1),
+                                     .BC2(iccm_ext_in_pkt[i].BC2)
 
                                       );
      end // block: iccm
@@ -269,22 +391,22 @@ import eh2_pkg::*;
                                                                                              ((addr_hi_bank[pt.ICCM_BITS-1:2] == redundant_address[pt.NUM_THREADS-1][0][pt.ICCM_BITS-1:2]) & (addr_hi_bank[3:2] == i) & ~iccm_correction_state))) &  ifc_select_tid_f1;
 
         rvdff #(1) t0_selred0  (.*,
-                        .clk(clk),
+                        .clk(active_clk),
                         .din(sel_red0[0][i]),
                         .dout(sel_red0_q[0][i]));
 
         rvdff #(1) t0_selred1  (.*,
-                        .clk(clk),
+                        .clk(active_clk),
                         .din(sel_red1[0][i]),
                         .dout(sel_red1_q[0][i]));
 
         rvdff #(1) t1_selred0  (.*,
-                        .clk(clk),
+                        .clk(active_clk),
                         .din(sel_red0[pt.NUM_THREADS-1][i]),
                         .dout(sel_red0_q[pt.NUM_THREADS-1][i]));
 
         rvdff #(1) t1_selred1  (.*,
-                        .clk(clk),
+                        .clk(active_clk),
                         .din(sel_red1[pt.NUM_THREADS-1][i]),
                         .dout(sel_red1_q[pt.NUM_THREADS-1][i]));
 
@@ -316,12 +438,12 @@ import eh2_pkg::*;
                                                                            ((addr_hi_bank[pt.ICCM_BITS-1:2] == redundant_address[pt.NUM_THREADS-1][0][pt.ICCM_BITS-1:2]) & (addr_hi_bank[3:2] == i) & ~iccm_correction_state))) &  ~ifc_select_tid_f1;
 
         rvdff #(1) t0_selred0  (.*,
-                        .clk(clk),
+                        .clk(active_clk),
                         .din(sel_red0[pt.NUM_THREADS-1][i]),
                         .dout(sel_red0_q[pt.NUM_THREADS-1][i]));
 
         rvdff #(1) t0_selred1  (.*,
-                        .clk(clk),
+                        .clk(active_clk),
                         .din(sel_red1[pt.NUM_THREADS-1][i]),
                         .dout(sel_red1_q[pt.NUM_THREADS-1][i]));
 
@@ -348,31 +470,31 @@ if (pt.NUM_THREADS > 1) begin: more_than_1
    assign redundant_lru_in[0]  = iccm_buf_correct_ecc_thr[0] ? ~redundant_lru[0] : (|sel_red0_lru[0][pt.ICCM_NUM_BANKS-1:0]) ? 1'b1 : 1'b0;
 
    rvdffs #(1) t0_red_lru  (.*,                               // LRU flop for the redundant replacements
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_lru_en[0]),
                    .din(redundant_lru_in[0]),
                    .dout(redundant_lru[0]));
 
     rvdffs #(pt.ICCM_BITS-2) t0_r0_address  (.*,                 // Redundant Row 0 address
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r0_addr_en[0]),
                    .din(iccm_rw_addr[pt.ICCM_BITS-1:2]),
                    .dout(redundant_address[0][0][pt.ICCM_BITS-1:2]));
 
    rvdffs #(pt.ICCM_BITS-2) t0_r1_address  (.*,                   // Redundant Row 0 address
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r1_addr_en[0]),
                    .din(iccm_rw_addr[pt.ICCM_BITS-1:2]),
                    .dout(redundant_address[0][1][pt.ICCM_BITS-1:2]));
 
     rvdffs #(1) t0_r0_valid  (.*,
-                   .clk(clk),                                  // Redundant Row 0 Valid
+                   .clk(active_clk),                                  // Redundant Row 0 Valid
                    .en(r0_addr_en[0]),
                    .din(1'b1),
                    .dout(redundant_valid[0][0]));
 
    rvdffs #(1) t0_r1_valid  (.*,                                   // Redundant Row 1 Valid
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r1_addr_en[0]),
                    .din(1'b1),
                    .dout(redundant_valid[0][1]));
@@ -388,7 +510,7 @@ if (pt.NUM_THREADS > 1) begin: more_than_1
     assign redundant_data0_in[0][38:0] = (((iccm_rw_addr[2] == redundant_address[0][0][2]) & iccm_rw_addr[2]) | (redundant_address[0][0][2] & (iccm_wr_size[1:0] == 2'b11))) ? iccm_wr_data[77:39]  : iccm_wr_data[38:0];
 
     rvdffs #(39) t0_r0_data  (.*,                                 // Redundant Row 1 data
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_data0_en[0]),
                    .din(redundant_data0_in[0][38:0]),
                    .dout(redundant_data[0][0][38:0]));
@@ -399,7 +521,7 @@ if (pt.NUM_THREADS > 1) begin: more_than_1
    assign redundant_data1_in[0][38:0] = (((iccm_rw_addr[2] == redundant_address[0][1][2]) & iccm_rw_addr[2]) | (redundant_address[0][1][2] & (iccm_wr_size[1:0] == 2'b11))) ? iccm_wr_data[77:39]  : iccm_wr_data[38:0];
 
     rvdffs #(39) t0_r1_data  (.*,                                  // Redundant Row 1 data
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_data1_en[0]),
                    .din(redundant_data1_in[0][38:0]),
                    .dout(redundant_data[0][1][38:0]));
@@ -416,31 +538,31 @@ if (pt.NUM_THREADS > 1) begin: more_than_1
    assign redundant_lru_in[pt.NUM_THREADS-1]  = iccm_buf_correct_ecc_thr[pt.NUM_THREADS-1] ? ~redundant_lru[pt.NUM_THREADS-1] : (|sel_red0_lru[pt.NUM_THREADS-1][pt.ICCM_NUM_BANKS-1:0]) ? 1'b1 : 1'b0;
 
    rvdffs #(1) t1_red_lru  (.*,                               // LRU flop for the redundant replacements
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_lru_en[pt.NUM_THREADS-1]),
                    .din(redundant_lru_in[pt.NUM_THREADS-1]),
                    .dout(redundant_lru[pt.NUM_THREADS-1]));
 
     rvdffs #(pt.ICCM_BITS-2) t1_r0_address  (.*,                 // Redundant Row 0 address
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r0_addr_en[pt.NUM_THREADS-1]),
                    .din(iccm_rw_addr[pt.ICCM_BITS-1:2]),
                    .dout(redundant_address[pt.NUM_THREADS-1][0][pt.ICCM_BITS-1:2]));
 
    rvdffs #(pt.ICCM_BITS-2) t1_r1_address  (.*,                   // Redundant Row 0 address
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r1_addr_en[pt.NUM_THREADS-1]),
                    .din(iccm_rw_addr[pt.ICCM_BITS-1:2]),
                    .dout(redundant_address[pt.NUM_THREADS-1][1][pt.ICCM_BITS-1:2]));
 
     rvdffs #(1) t1_r0_valid  (.*,
-                   .clk(clk),                                  // Redundant Row 0 Valid
+                   .clk(active_clk),                                  // Redundant Row 0 Valid
                    .en(r0_addr_en[pt.NUM_THREADS-1]),
                    .din(1'b1),
                    .dout(redundant_valid[pt.NUM_THREADS-1][0]));
 
    rvdffs #(1) t1_r1_valid  (.*,                                   // Redundant Row 1 Valid
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r1_addr_en[pt.NUM_THREADS-1]),
                    .din(1'b1),
                    .dout(redundant_valid[pt.NUM_THREADS-1][1]));
@@ -456,7 +578,7 @@ if (pt.NUM_THREADS > 1) begin: more_than_1
     assign redundant_data0_in[pt.NUM_THREADS-1][38:0] = (((iccm_rw_addr[2] == redundant_address[pt.NUM_THREADS-1][0][2]) & iccm_rw_addr[2]) | (redundant_address[pt.NUM_THREADS-1][0][2] & (iccm_wr_size[1:0] == 2'b11))) ? iccm_wr_data[77:39]  : iccm_wr_data[38:0];
 
     rvdffs #(39) t1_r0_data  (.*,                                 // Redundant Row 1 data
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_data0_en[pt.NUM_THREADS-1]),
                    .din(redundant_data0_in[pt.NUM_THREADS-1][38:0]),
                    .dout(redundant_data[pt.NUM_THREADS-1][0][38:0]));
@@ -467,7 +589,7 @@ if (pt.NUM_THREADS > 1) begin: more_than_1
    assign redundant_data1_in[pt.NUM_THREADS-1][38:0] = (((iccm_rw_addr[2] == redundant_address[pt.NUM_THREADS-1][1][2]) & iccm_rw_addr[2]) | (redundant_address[pt.NUM_THREADS-1][1][2] & (iccm_wr_size[1:0] == 2'b11))) ? iccm_wr_data[77:39]  : iccm_wr_data[38:0];
 
     rvdffs #(39) t1_r1_data  (.*,                                  // Redundant Row 1 data
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_data1_en[pt.NUM_THREADS-1]),
                    .din(redundant_data1_in[pt.NUM_THREADS-1][38:0]),
                    .dout(redundant_data[pt.NUM_THREADS-1][1][38:0]));
@@ -481,31 +603,31 @@ else begin: one_th
    assign redundant_lru_in[pt.NUM_THREADS-1]  = iccm_buf_correct_ecc_thr[pt.NUM_THREADS-1:0] ? ~redundant_lru[pt.NUM_THREADS-1] : (|sel_red0_lru[pt.NUM_THREADS-1][pt.ICCM_NUM_BANKS-1:0]) ? 1'b1 : 1'b0;
 
    rvdffs #(pt.NUM_THREADS) red_lru  (.*,                               // LRU flop for the redundant replacements
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_lru_en[pt.NUM_THREADS-1]),
                    .din(redundant_lru_in[pt.NUM_THREADS-1]),
                    .dout(redundant_lru[pt.NUM_THREADS-1]));
 
     rvdffs #(pt.ICCM_BITS-2) r0_address  (.*,                 // Redundant Row 0 address
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r0_addr_en[pt.NUM_THREADS-1]),
                    .din(iccm_rw_addr[pt.ICCM_BITS-1:2]),
                    .dout(redundant_address[pt.NUM_THREADS-1][0][pt.ICCM_BITS-1:2]));
 
    rvdffs #(pt.ICCM_BITS-2) r1_address  (.*,                   // Redundant Row 0 address
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r1_addr_en[pt.NUM_THREADS-1]),
                    .din(iccm_rw_addr[pt.ICCM_BITS-1:2]),
                    .dout(redundant_address[pt.NUM_THREADS-1][1][pt.ICCM_BITS-1:2]));
 
     rvdffs #(1) r0_valid  (.*,
-                   .clk(clk),                                  // Redundant Row 0 Valid
+                   .clk(active_clk),                                  // Redundant Row 0 Valid
                    .en(r0_addr_en[pt.NUM_THREADS-1]),
                    .din(1'b1),
                    .dout(redundant_valid[pt.NUM_THREADS-1][0]));
 
    rvdffs #(1) r1_valid  (.*,                                   // Redundant Row 1 Valid
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(r1_addr_en[pt.NUM_THREADS-1]),
                    .din(1'b1),
                    .dout(redundant_valid[pt.NUM_THREADS-1][1]));
@@ -521,7 +643,7 @@ else begin: one_th
     assign redundant_data0_in[pt.NUM_THREADS-1][38:0] = (((iccm_rw_addr[2] == redundant_address[pt.NUM_THREADS-1][0][2]) & iccm_rw_addr[2]) | (redundant_address[pt.NUM_THREADS-1][0][2] & (iccm_wr_size[1:0] == 2'b11))) ? iccm_wr_data[77:39]  : iccm_wr_data[38:0];
 
     rvdffs #(39) r0_data  (.*,                                 // Redundant Row 1 data
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_data0_en[pt.NUM_THREADS-1]),
                    .din(redundant_data0_in[pt.NUM_THREADS-1][38:0]),
                    .dout(redundant_data[pt.NUM_THREADS-1][0][38:0]));
@@ -532,15 +654,15 @@ else begin: one_th
    assign redundant_data1_in[pt.NUM_THREADS-1][38:0] = (((iccm_rw_addr[2] == redundant_address[pt.NUM_THREADS-1][1][2]) & iccm_rw_addr[2]) | (redundant_address[pt.NUM_THREADS-1][1][2] & (iccm_wr_size[1:0] == 2'b11))) ? iccm_wr_data[77:39]  : iccm_wr_data[38:0];
 
     rvdffs #(39) r1_data  (.*,                                  // Redundant Row 1 data
-                   .clk(clk),
+                   .clk(active_clk),
                    .en(redundant_data1_en[pt.NUM_THREADS-1]),
                    .din(redundant_data1_in[pt.NUM_THREADS-1][38:0]),
                    .dout(redundant_data[pt.NUM_THREADS-1][1][38:0]));
 end
 
-   rvdffs  #(pt.ICCM_BANK_HI)   rd_addr_lo_ff (.*, .din(iccm_rw_addr [pt.ICCM_BANK_HI:1]), .dout(iccm_rd_addr_lo_q[pt.ICCM_BANK_HI:1]), .en(1'b1));   // bit 0 of address is always 0
-   rvdffs  #(pt.ICCM_BANK_BITS) rd_addr_md_ff (.*, .din(addr_md_bank[pt.ICCM_BANK_HI:2]),  .dout(iccm_rd_addr_md_q[pt.ICCM_BANK_HI:2]), .en(1'b1));
-   rvdffs  #(pt.ICCM_BANK_BITS) rd_addr_hi_ff (.*, .din(addr_hi_bank[pt.ICCM_BANK_HI:2]),  .dout(iccm_rd_addr_hi_q[pt.ICCM_BANK_HI:2]), .en(1'b1));
+   rvdffs  #(pt.ICCM_BANK_HI)   rd_addr_lo_ff (.*, .clk(active_clk), .din(iccm_rw_addr [pt.ICCM_BANK_HI:1]), .dout(iccm_rd_addr_lo_q[pt.ICCM_BANK_HI:1]), .en(1'b1));   // bit 0 of address is always 0
+   rvdffs  #(pt.ICCM_BANK_BITS) rd_addr_md_ff (.*, .clk(active_clk), .din(addr_md_bank[pt.ICCM_BANK_HI:2]),  .dout(iccm_rd_addr_md_q[pt.ICCM_BANK_HI:2]), .en(1'b1));
+   rvdffs  #(pt.ICCM_BANK_BITS) rd_addr_hi_ff (.*, .clk(active_clk), .din(addr_hi_bank[pt.ICCM_BANK_HI:2]),  .dout(iccm_rd_addr_hi_q[pt.ICCM_BANK_HI:2]), .en(1'b1));
 
    assign iccm_rd_data_pre[95:0] = {iccm_bank_dout_fn[iccm_rd_addr_hi_q][31:0], iccm_bank_dout_fn[iccm_rd_addr_md_q][31:0], iccm_bank_dout_fn[iccm_rd_addr_lo_q[pt.ICCM_BANK_HI:2]][31:0]};
    assign iccm_data[63:0]        = 64'({16'b0, (iccm_rd_data_pre[95:0] >> (16*iccm_rd_addr_lo_q[1]))});

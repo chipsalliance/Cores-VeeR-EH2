@@ -4,13 +4,13 @@
 package eh2_pkg;
 // performance monitor stuff
 typedef struct packed {
-                       logic [2:0] rv_i_valid_ip;
-                       logic [63:0] rv_i_insn_ip;
-                       logic [63:0] rv_i_address_ip;
-                       logic [2:0] rv_i_exception_ip;
-                       logic [4:0] rv_i_ecause_ip;
-                       logic [2:0] rv_i_interrupt_ip;
-                       logic [31:0] rv_i_tval_ip;
+                       logic [1:0] trace_rv_i_valid_ip;
+                       logic [63:0] trace_rv_i_insn_ip;
+                       logic [63:0] trace_rv_i_address_ip;
+                       logic [1:0] trace_rv_i_exception_ip;
+                       logic [4:0] trace_rv_i_ecause_ip;
+                       logic [1:0] trace_rv_i_interrupt_ip;
+                       logic [31:0] trace_rv_i_tval_ip;
                        } eh2_trace_pkt_t;
 
 
@@ -71,15 +71,14 @@ typedef struct packed {
                        } eh2_rets_pkt_t;
 
 typedef struct packed {
-                       logic valid;
-                       logic [11:0] toffset;
-                       logic [1:0] hist;
+                       logic ret;
+                       logic [31:1] prett;  // predicted ret target
                        logic br_error;
                        logic br_start_error;
                        logic bank;
-                       logic [31:1] prett;  // predicted ret target
+                       logic valid;
+                       logic [1:0] hist;
                        logic way;
-                       logic ret;
                        } eh2_br_pkt_t;
 
 typedef struct packed {
@@ -94,16 +93,16 @@ typedef struct packed {
 
 
 typedef struct packed {
-                        logic [15:0]         cinst;
                         logic  [1:0]         icaf_type;
-                        logic                icaf_f1;
+                        logic                icaf_second;
                         logic                dbecc;
                         logic                icaf;
                         logic [31:1]         pc;
-                        logic                pc4;
                         eh2_br_pkt_t         brp;
                         logic [31:0]         inst;
                         eh2_predecode_pkt_t predecode;
+                        logic                pc4;
+                        logic [15:0]         cinst;
                        } eh2_ib_pkt_t;
 
 typedef struct packed {
@@ -114,77 +113,84 @@ typedef struct packed {
                        logic bank;
                        logic way;
                        logic middle;
+                       logic tid;
                        } eh2_br_tlu_pkt_t;
 
-typedef struct packed {
-                       logic misp;
-                       logic ataken;
+typedef struct packed {// data bits - upper 19b not likely to change
+                       logic [31:1] prett;
                        logic boffset;
-                       logic pc4;
                        logic [1:0] hist;
-                       logic [11:0] toffset;
                        logic bank;
+                       logic way;
+                       // ctl bits
+                       logic ataken;
                        logic valid;
+                       logic pc4;
+                       logic misp;
                        logic br_error;
                        logic br_start_error;
-                       logic [31:1] prett;
                        logic pcall;
                        logic pret;
                        logic pja;
-                       logic way;
                        } eh2_predict_pkt_t;
 
 typedef struct packed {
-                       logic           i0legal;            // this is new per pipe for everything that matters
+                       // bits not likely to change for power
                        logic           i0icaf;
                        logic [1:0]     i0icaf_type;
-                       logic           i0icaf_f1;
+                       logic           i0icaf_second;
                        logic           i0fence_i;
-                       logic           i0tid;
-                       logic           i1tid;
                        logic [3:0]     i0trigger;
                        logic [3:0]     i1trigger;
                        logic           pmu_i0_br_unpred;     // pmu
                        logic           pmu_i1_br_unpred;     // pmu
-                       logic           lsu_pipe0;
                        logic           pmu_divide;
                        logic           pmu_lsu_misaligned;
+                       // bits likely to change for power
+                       logic           i0legal;
+                       logic           i0tid;
+                       logic           i1tid;
+                       logic           lsu_pipe0;
                        eh2_inst_pkt_t pmu_i0_itype;        // pmu - instruction type
                        eh2_inst_pkt_t pmu_i1_itype;        // pmu - instruction type
                        } eh2_trap_pkt_t;
 
 typedef struct packed {
-                       logic [4:0] i0rd;
-                       logic i0mul;
-                       logic i0load;
-                       logic i0store;
+                       // bits unlikely to change
                        logic i0sc;
                        logic i0div;
-                       logic i0v;
-                       logic i0valid;
-                       logic i0secondary;
-                       logic i0tid;
                        logic i0csrwen;
                        logic i0csrwonly;
+                       logic i1sc;
                        logic [11:0] i0csrwaddr;
+                       // less likely to toggle
                        logic [1:0] i0rs1bype2;
                        logic [1:0] i0rs2bype2;
                        logic [3:0] i0rs1bype3;
                        logic [3:0] i0rs2bype3;
+                       // less likely to toggle
+                       logic [1:0] i1rs1bype2;
+                       logic [1:0] i1rs2bype2;
+                       logic [6:0] i1rs1bype3;
+                       logic [6:0] i1rs2bype3;
+                       // bits likely to change
+                       logic [4:0] i0rd;
+                       logic i0mul;
+                       logic i0load;
+                       logic i0store;
+                       logic i0v;
+                       logic i0valid;
+                       logic i0secondary;
+                       logic i0tid;
                        logic [4:0] i1rd;
                        logic i1mul;
                        logic i1load;
                        logic i1store;
-                       logic i1sc;
                        logic i1v;
                        logic i1valid;
                        logic i1tid;
                        logic i1secondary;
                        logic           lsu_tid;
-                       logic [1:0] i1rs1bype2;
-                       logic [1:0] i1rs2bype2;
-                       logic [6:0] i1rs1bype3;
-                       logic [6:0] i1rs2bype3;
                        } eh2_dest_pkt_t;
 
 typedef struct packed {
@@ -202,6 +208,31 @@ typedef struct packed {
 
 
 typedef struct packed {
+                       // unlikely to change
+                       logic clz;
+                       logic ctz;
+                       logic cpop;
+                       logic sext_b;
+                       logic sext_h;
+                       logic min;
+                       logic max;
+                       logic pack;
+                       logic packu;
+                       logic packh;
+                       logic rol;
+                       logic ror;
+                       logic grev;
+                       logic gorc;
+                       logic zbb;
+                       logic bset;
+                       logic bclr;
+                       logic binv;
+                       logic bext;
+                       logic sh1add;
+                       logic sh2add;
+                       logic sh3add;
+                       logic zba;
+                       // likely to change
                        logic land;
                        logic lor;
                        logic lxor;
@@ -225,20 +256,27 @@ typedef struct packed {
                        } eh2_alu_pkt_t;
 
 typedef struct packed {
-                       logic by;
-                       logic half;
-                       logic word;
-                       logic dword;  // for dma
-                       logic load;
-                       logic store;
-                       logic pipe;   // which pipe is load/store
-                       logic unsign;
+                       // unlikely to change
                        logic atomic;               // this is atomic instruction
+                       logic atomic64;
                        logic fast_int;
+                       logic barrier;
                        logic lr;
                        logic sc;
                        logic [4:0] atomic_instr;   // this will be decoded to get which of the amo instruction lsu is doing
                        logic dma;               // dma pkt
+                       // may change
+                       logic by;
+                       logic half;
+                       logic word;
+                       logic dword;
+                       logic load;
+                       logic store;
+                       logic pipe;   // which pipe is load/store
+                       logic unsign;
+/* verilator lint_off SYMRSVDWORD */
+                       logic stack;
+/* verilator lint_on SYMRSVDWORD */
                        logic tid;
                        logic store_data_bypass_c1;
                        logic load_ldst_bypass_c1;
@@ -261,6 +299,52 @@ typedef struct packed {
                       } eh2_lsu_error_pkt_t;
 
 typedef struct packed {
+                       logic clz;
+                       logic ctz;
+                       logic cpop;
+                       logic sext_b;
+                       logic sext_h;
+                       logic min;
+                       logic max;
+                       logic pack;
+                       logic packu;
+                       logic packh;
+                       logic rol;
+                       logic ror;
+                       logic grev;
+                       logic gorc;
+                       logic zbb;
+                       logic bset;
+                       logic bclr;
+                       logic binv;
+                       logic bext;
+                       logic zbs;
+                       logic bcompress;
+                       logic bdecompress;
+                       logic zbe;
+                       logic clmul;
+                       logic clmulh;
+                       logic clmulr;
+                       logic zbc;
+                       logic shfl;
+                       logic unshfl;
+                       logic xperm_n;
+                       logic xperm_b;
+                       logic xperm_h;
+                       logic zbp;
+                       logic crc32_b;
+                       logic crc32_h;
+                       logic crc32_w;
+                       logic crc32c_b;
+                       logic crc32c_h;
+                       logic crc32c_w;
+                       logic zbr;
+                       logic bfp;
+                       logic zbf;
+                       logic sh1add;
+                       logic sh2add;
+                       logic sh3add;
+                       logic zba;
                        logic alu;
                        logic atomic;
                        logic lr;
@@ -325,6 +409,25 @@ typedef struct packed {
                        logic low;
                        logic load_mul_rs1_bypass_e1;
                        logic load_mul_rs2_bypass_e1;
+                       logic bcompress;
+                       logic bdecompress;
+                       logic clmul;
+                       logic clmulh;
+                       logic clmulr;
+                       logic grev;
+                       logic gorc;
+                       logic shfl;
+                       logic unshfl;
+                       logic crc32_b;
+                       logic crc32_h;
+                       logic crc32_w;
+                       logic crc32c_b;
+                       logic crc32c_h;
+                       logic crc32c_w;
+                       logic bfp;
+                       logic xperm_n;
+                       logic xperm_b;
+                       logic xperm_h;
                        } eh2_mul_pkt_t;
 
 typedef struct packed {
@@ -405,6 +508,14 @@ typedef struct packed {
             } eh2_cache_debug_pkt_t;
 
 typedef struct packed {
+                       logic [3:0] wayhit_f1;
+                       logic [3:0] wayhit_p1_f1;
+                       logic [1:0] tag_match_way0_f1;
+                       logic [1:0] tag_match_way0_p1_f1;
+                       logic [3:0] tag_match_vway1_expanded_f1;
+                       } eh2_btb_sram_pkt;
+
+typedef struct packed {
                        logic csr_misa;
                        logic csr_mvendorid;
                        logic csr_marchid;
@@ -474,6 +585,7 @@ typedef struct packed {
                        logic csr_mhartnum;
                        logic csr_mhartstart;
                        logic csr_mnmipdel;
+                       logic valid_only;
                        logic presync;
                        logic postsync;
                        logic glob;
@@ -482,3 +594,4 @@ typedef struct packed {
 
 
 endpackage // eh2_pkg
+//`endif

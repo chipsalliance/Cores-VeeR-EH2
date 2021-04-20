@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,10 +36,10 @@ import eh2_pkg::*;
 
    output logic [pt.NUM_THREADS-1:0] [63:0] trace_rv_i_insn_ip,
    output logic [pt.NUM_THREADS-1:0] [63:0] trace_rv_i_address_ip,
-   output logic [pt.NUM_THREADS-1:0] [2:0]  trace_rv_i_valid_ip,
-   output logic [pt.NUM_THREADS-1:0] [2:0]  trace_rv_i_exception_ip,
+   output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_valid_ip,
+   output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_exception_ip,
    output logic [pt.NUM_THREADS-1:0] [4:0]  trace_rv_i_ecause_ip,
-   output logic [pt.NUM_THREADS-1:0] [2:0]  trace_rv_i_interrupt_ip,
+   output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_interrupt_ip,
    output logic [pt.NUM_THREADS-1:0] [31:0] trace_rv_i_tval_ip,
 
    // Bus signals
@@ -228,6 +228,7 @@ import eh2_pkg::*;
 
 `endif
 
+
 `ifdef RV_BUILD_AHB_LITE
  //// AHB LITE BUS
    output logic [31:0]               haddr,
@@ -294,8 +295,14 @@ import eh2_pkg::*;
    input logic                       dbg_bus_clk_en, // Clock ratio b/w cpu core clk & AHB master interface
    input logic                       dma_bus_clk_en, // Clock ratio b/w cpu core clk & AHB slave interface
 
+ // all of these test inputs are brought to top-level; must be tied off based on usage by physical design (ie. icache or not, iccm or not, dccm or not)
 
-//   input logic                   ext_int,
+   input                             eh2_dccm_ext_in_pkt_t  [pt.DCCM_NUM_BANKS-1:0] dccm_ext_in_pkt,
+   input                             eh2_ccm_ext_in_pkt_t  [pt.ICCM_NUM_BANKS/4-1:0][1:0][1:0] iccm_ext_in_pkt,
+   input                             eh2_ccm_ext_in_pkt_t  [1:0] btb_ext_in_pkt,
+   input                             eh2_ic_data_ext_in_pkt_t  [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0] ic_data_ext_in_pkt,
+   input                             eh2_ic_tag_ext_in_pkt_t   [pt.ICACHE_NUM_WAYS-1:0]                        ic_tag_ext_in_pkt,
+
    input logic [pt.NUM_THREADS-1:0]  timer_int,
    input logic [pt.NUM_THREADS-1:0]  soft_int,
    input logic [pt.PIC_TOTAL_INT:1] extintsrc_req,
@@ -305,29 +312,30 @@ import eh2_pkg::*;
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt2,                  // toggles when perf counter 2 has an event inc
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt3,                  // toggles when perf counter 3 has an event inc
 
-   input logic                       jtag_tck, // JTAG clk
-   input logic                       jtag_tms, // JTAG TMS
-   input logic                       jtag_tdi, // JTAG tdi
+   // ports added by the soc team
+   input logic                       jtag_tck,    // JTAG clk
+   input logic                       jtag_tms,    // JTAG TMS
+   input logic                       jtag_tdi,    // JTAG tdi
    input logic                       jtag_trst_n, // JTAG Reset
-   output logic                      jtag_tdo, // JTAG TDO
+   output logic                      jtag_tdo,    // JTAG TDO
 
    input logic [31:4]     core_id, // Core ID
 
 
    // external MPC halt/run interface
    input logic  [pt.NUM_THREADS-1:0] mpc_debug_halt_req, // Async halt request
-   input logic  [pt.NUM_THREADS-1:0] mpc_debug_run_req, // Async run request
-   input logic  [pt.NUM_THREADS-1:0] mpc_reset_run_req, // Run/halt after reset
+   input logic  [pt.NUM_THREADS-1:0] mpc_debug_run_req,  // Async run request
+   input logic  [pt.NUM_THREADS-1:0] mpc_reset_run_req,  // Run/halt after reset
    output logic [pt.NUM_THREADS-1:0] mpc_debug_halt_ack, // Halt ack
-   output logic [pt.NUM_THREADS-1:0] mpc_debug_run_ack, // Run ack
+   output logic [pt.NUM_THREADS-1:0] mpc_debug_run_ack,  // Run ack
    output logic [pt.NUM_THREADS-1:0] debug_brkpt_status, // debug breakpoint
 
    output logic [pt.NUM_THREADS-1:0] dec_tlu_mhartstart, // running harts
 
-   input logic          [pt.NUM_THREADS-1:0]         i_cpu_halt_req, // Async halt req to CPU
-   output logic         [pt.NUM_THREADS-1:0]         o_cpu_halt_ack, // core response to halt
-   output logic         [pt.NUM_THREADS-1:0]         o_cpu_halt_status, // 1'b1 indicates core is halted
-   output logic         [pt.NUM_THREADS-1:0]              o_debug_mode_status, // Core to the PMU that core is in debug mode. When core is in debug mode, the PMU should refrain from sendng a halt or run request
+   input logic          [pt.NUM_THREADS-1:0]         i_cpu_halt_req,      // Async halt req to CPU
+   output logic         [pt.NUM_THREADS-1:0]         o_cpu_halt_ack,      // core response to halt
+   output logic         [pt.NUM_THREADS-1:0]         o_cpu_halt_status,   // 1'b1 indicates core is halted
+   output logic         [pt.NUM_THREADS-1:0]         o_debug_mode_status, // Core to the PMU that core is in debug mode. When core is in debug mode, the PMU should refrain from sendng a halt or run request
    input logic          [pt.NUM_THREADS-1:0]         i_cpu_run_req, // Async restart req to CPU
    output logic         [pt.NUM_THREADS-1:0]         o_cpu_run_ack, // Core response to run req
    input logic                       scan_mode, // To enable scan mode
@@ -357,7 +365,7 @@ import eh2_pkg::*;
 
    logic [pt.ICACHE_NUM_WAYS-1:0]   ic_tag_valid;   // Valid from the I$ tag valid outside (in flops).
 
-   logic [pt.ICACHE_NUM_WAYS-1:0]   ic_rd_hit;      // ic_rd_hit[3:0]
+   logic [pt.ICACHE_NUM_WAYS-1:0]   ic_rd_hit;
    logic         ic_tag_perr;    // Ic tag parity error
 
    logic [pt.ICACHE_INDEX_HI:3]  ic_debug_addr;      // Read/Write addresss to the Icache.
@@ -393,20 +401,35 @@ import eh2_pkg::*;
    logic [63:0]    iccm_rd_data;
    logic [116:0]   iccm_rd_data_ecc;
 
+   // BTB
+   eh2_btb_sram_pkt btb_sram_pkt;
+   logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0] btb_vbank0_rd_data_f1;
+   logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0] btb_vbank1_rd_data_f1;
+   logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0] btb_vbank2_rd_data_f1;
+   logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0] btb_vbank3_rd_data_f1;
+   logic                                              btb_wren;
+   logic                                              btb_rden;
+   logic [1:0] [pt.BTB_ADDR_HI:1]             btb_rw_addr;  // per bank
+   logic [1:0] [pt.BTB_ADDR_HI:1]             btb_rw_addr_f1;  // per bank
+   logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0] btb_sram_wr_data;
+   logic [1:0] [pt.BTB_BTAG_SIZE-1:0]                 btb_sram_rd_tag_f1;
+
+   logic           active_l2clk;
+   logic           free_l2clk;
 
    logic        core_rst_l;     // Core reset including rst_l and dbg_rst_l
-   logic        jtag_tdoEn;
-
-   logic        dmi_reg_en;
-   logic [6:0]  dmi_reg_addr;
-   logic        dmi_reg_wr_en;
-   logic [31:0] dmi_reg_wdata;
-   logic [31:0] dmi_reg_rdata;
-   logic        dmi_hard_reset;
 
    logic        dccm_clk_override;
    logic        icm_clk_override;
    logic        dec_tlu_core_ecc_disable;
+   logic        btb_clk_override;
+
+   // DMI signals
+   logic                   dmi_reg_en;                // read or write
+   logic [6:0]             dmi_reg_addr;              // address of DM register
+   logic                   dmi_reg_wr_en;             // write enable
+   logic [31:0]            dmi_reg_wdata;             // write data
+   logic [31:0]            dmi_reg_rdata;             // read data
 
    // zero out the signals not presented at the wrapper instantiation level
 `ifdef RV_BUILD_AXI4
@@ -439,34 +462,34 @@ import eh2_pkg::*;
    logic                        lsu_hresp;
 
    // Debug Syster Bus AHB
-   logic [31:0]                sb_haddr;
-   logic [2:0]                 sb_hburst;
-   logic                       sb_hmastlock;
-   logic [3:0]                 sb_hprot;
-   logic [2:0]                 sb_hsize;
-   logic [1:0]                 sb_htrans;
-   logic                       sb_hwrite;
-   logic [63:0]                sb_hwdata;
+   logic [31:0]                 sb_haddr;
+   logic [2:0]                  sb_hburst;
+   logic                        sb_hmastlock;
+   logic [3:0]                  sb_hprot;
+   logic [2:0]                  sb_hsize;
+   logic [1:0]                  sb_htrans;
+   logic                        sb_hwrite;
+   logic [63:0]                 sb_hwdata;
 
-    logic [63:0]               sb_hrdata;
-    logic                      sb_hready;
-    logic                      sb_hresp;
+   logic [63:0]                 sb_hrdata;
+   logic                        sb_hready;
+   logic                        sb_hresp;
 
    // DMA Slave
-   logic                       dma_hsel;
-   logic [31:0]                dma_haddr;
-   logic [2:0]                 dma_hburst;
-   logic                       dma_hmastlock;
-   logic [3:0]                 dma_hprot;
-   logic [2:0]                 dma_hsize;
-   logic [1:0]                 dma_htrans;
-   logic                       dma_hwrite;
-   logic [63:0]                dma_hwdata;
-   logic                       dma_hreadyin;
+   logic                        dma_hsel;
+   logic [31:0]                 dma_haddr;
+   logic [2:0]                  dma_hburst;
+   logic                        dma_hmastlock;
+   logic [3:0]                  dma_hprot;
+   logic [2:0]                  dma_hsize;
+   logic [1:0]                  dma_htrans;
+   logic                        dma_hwrite;
+   logic [63:0]                 dma_hwdata;
+   logic                        dma_hreadyin;
 
-   logic [63:0]                dma_hrdata;
-   logic                       dma_hreadyout;
-   logic                       dma_hresp;
+   logic [63:0]                 dma_hrdata;
+   logic                        dma_hreadyout;
+   logic                        dma_hresp;
 
    // IFU
    assign  hrdata[63:0]                           = '0;
@@ -494,6 +517,7 @@ import eh2_pkg::*;
    assign  dma_hreadyin                           = '0;
 
 `endif //  `ifdef RV_BUILD_AXI4
+
 
 `ifdef RV_BUILD_AHB_LITE
    logic                           lsu_axi_awvalid;
@@ -676,75 +700,96 @@ import eh2_pkg::*;
    logic                           dma_axi_rlast;
 
    // LSU AXI
-   assign lsu_axi_awready = '0;
-   assign lsu_axi_wready = '0;
-   assign lsu_axi_bvalid = '0;
-   assign lsu_axi_bresp[1:0] = '0;
-   assign lsu_axi_bid[pt.LSU_BUS_TAG-1:0] = '0;
+   assign lsu_axi_awready                         = '0;
+   assign lsu_axi_wready                          = '0;
+   assign lsu_axi_bvalid                          = '0;
+   assign lsu_axi_bresp[1:0]                      = '0;
+   assign lsu_axi_bid[pt.LSU_BUS_TAG-1:0]         = '0;
 
-   assign lsu_axi_arready = '0;
-   assign lsu_axi_rvalid = '0;
-   assign lsu_axi_rid[pt.LSU_BUS_TAG-1:0] = '0;
-   assign lsu_axi_rdata[63:0] = '0;
-   assign lsu_axi_rresp[1:0] = '0;
-   assign lsu_axi_rlast = '0;
+   assign lsu_axi_arready                         = '0;
+   assign lsu_axi_rvalid                          = '0;
+   assign lsu_axi_rid[pt.LSU_BUS_TAG-1:0]         = '0;
+   assign lsu_axi_rdata[63:0]                     = '0;
+   assign lsu_axi_rresp[1:0]                      = '0;
+   assign lsu_axi_rlast                           = '0;
 
    // IFU AXI
-   assign ifu_axi_awready = '0;
-   assign ifu_axi_wready = '0;
-   assign ifu_axi_bvalid = '0;
-   assign ifu_axi_bresp[1:0] = '0;
-   assign ifu_axi_bid[pt.IFU_BUS_TAG-1:0] = '0;
+   assign ifu_axi_awready                         = '0;
+   assign ifu_axi_wready                          = '0;
+   assign ifu_axi_bvalid                          = '0;
+   assign ifu_axi_bresp[1:0]                      = '0;
+   assign ifu_axi_bid[pt.IFU_BUS_TAG-1:0]         = '0;
 
-   assign ifu_axi_arready = '0;
-   assign ifu_axi_rvalid = '0;
-   assign ifu_axi_rid[pt.IFU_BUS_TAG-1:0] = '0;
-   assign ifu_axi_rdata[63:0] = '0;
-   assign ifu_axi_rresp[1:0] = '0;
-   assign ifu_axi_rlast = '0;
+   assign ifu_axi_arready                         = '0;
+   assign ifu_axi_rvalid                          = '0;
+   assign ifu_axi_rid[pt.IFU_BUS_TAG-1:0]         = '0;
+   assign ifu_axi_rdata[63:0]                     = '0;
+   assign ifu_axi_rresp[1:0]                      = '0;
+   assign ifu_axi_rlast                           = '0;
 
    // Debug AXI
-   assign sb_axi_awready = '0;
-   assign sb_axi_wready = '0;
-   assign sb_axi_bvalid = '0;
-   assign sb_axi_bresp[1:0] = '0;
-   assign sb_axi_bid[pt.SB_BUS_TAG-1:0] = '0;
+   assign sb_axi_awready                          = '0;
+   assign sb_axi_wready                           = '0;
+   assign sb_axi_bvalid                           = '0;
+   assign sb_axi_bresp[1:0]                       = '0;
+   assign sb_axi_bid[pt.SB_BUS_TAG-1:0]           = '0;
 
-   assign sb_axi_arready = '0;
-   assign sb_axi_rvalid = '0;
-   assign sb_axi_rid[pt.SB_BUS_TAG-1:0] = '0;
-   assign sb_axi_rdata[63:0] = '0;
-   assign sb_axi_rresp[1:0] = '0;
-   assign sb_axi_rlast = '0;
+   assign sb_axi_arready                          = '0;
+   assign sb_axi_rvalid                           = '0;
+   assign sb_axi_rid[pt.SB_BUS_TAG-1:0]           = '0;
+   assign sb_axi_rdata[63:0]                      = '0;
+   assign sb_axi_rresp[1:0]                       = '0;
+   assign sb_axi_rlast                            = '0;
 
    // DMA AXI
    assign  dma_axi_awvalid = '0;
-   assign  dma_axi_awid[pt.DMA_BUS_TAG-1:0] = '0;
-   assign  dma_axi_awaddr[31:0] = '0;
-   assign  dma_axi_awsize[2:0] = '0;
-   assign  dma_axi_awprot[2:0] = '0;
-   assign  dma_axi_awlen[7:0] = '0;
-   assign  dma_axi_awburst[1:0] = '0;
+   assign  dma_axi_awid[pt.DMA_BUS_TAG-1:0]       = '0;
+   assign  dma_axi_awaddr[31:0]                   = '0;
+   assign  dma_axi_awsize[2:0]                    = '0;
+   assign  dma_axi_awprot[2:0]                    = '0;
+   assign  dma_axi_awlen[7:0]                     = '0;
+   assign  dma_axi_awburst[1:0]                   = '0;
 
-   assign  dma_axi_wvalid = '0;
-   assign  dma_axi_wdata[63:0] = '0;
-   assign  dma_axi_wstrb[7:0] = '0;
-   assign  dma_axi_wlast = '0;
+   assign  dma_axi_wvalid                         = '0;
+   assign  dma_axi_wdata[63:0]                    = '0;
+   assign  dma_axi_wstrb[7:0]                     = '0;
+   assign  dma_axi_wlast                          = '0;
 
-   assign  dma_axi_bready = '0;
+   assign  dma_axi_bready                         = '0;
 
-   assign  dma_axi_arvalid = '0;
-   assign  dma_axi_arid[pt.DMA_BUS_TAG-1:0] = '0;
-   assign  dma_axi_araddr[31:0] = '0;
-   assign  dma_axi_arsize[2:0] = '0;
-   assign  dma_axi_arprot[2:0] = '0;
-   assign  dma_axi_arlen[7:0] = '0;
-   assign  dma_axi_arburst[1:0] = '0;
+   assign  dma_axi_arvalid                        = '0;
+   assign  dma_axi_arid[pt.DMA_BUS_TAG-1:0]       = '0;
+   assign  dma_axi_araddr[31:0]                   = '0;
+   assign  dma_axi_arsize[2:0]                    = '0;
+   assign  dma_axi_arprot[2:0]                    = '0;
+   assign  dma_axi_arlen[7:0]                     = '0;
+   assign  dma_axi_arburst[1:0]                   = '0;
 
-   assign  dma_axi_rready = '0;
+   assign  dma_axi_rready                         = '0;
 
 `endif //  `ifdef RV_BUILD_AHB_LITE
 
+   dmi_wrapper  dmi_wrapper (
+
+    // JTAG signals
+        .jtag_id        (jtag_id),          // JTAG ID
+        .trst_n         (jtag_trst_n),      // JTAG reset
+        .tck            (jtag_tck),         // JTAG clock
+        .tms            (jtag_tms),         // Test mode select
+        .tdi            (jtag_tdi),         // Test Data Input
+        .tdo            (jtag_tdo),         // Test Data Output
+        .tdoEnable      (),                 // Test Data Output enable, NC
+
+    // Processor Signals
+        .core_rst_n     (dbg_rst_l),        // DM reset, active low
+        .core_clk       (clk),              // Core clock
+        .rd_data        (dmi_reg_rdata),    // Read data from  Processor
+        .reg_wr_data    (dmi_reg_wdata),    // Write data to Processor
+        .reg_wr_addr    (dmi_reg_addr),     // Write address to Processor
+        .reg_en         (dmi_reg_en),       // access enable
+        .reg_wr_en      (dmi_reg_wr_en),    // Write enable to Processor
+        .dmi_hard_reset ()                  // hard reset of the DTM, NC
+    );
 
    // Instantiate the eh2_swerv core
    eh2_swerv #(.pt(pt)) swerv (
@@ -753,32 +798,17 @@ import eh2_pkg::*;
 
    // Instantiate the mem
    eh2_mem #(.pt(pt)) mem (
+        .clk(active_l2clk),
         .rst_l(core_rst_l),
         .*
         );
 
-  // Instantiate the JTAG/DMI
-   dmi_wrapper  dmi_wrapper (
-           // JTAG signals
-           .trst_n(jtag_trst_n),           // JTAG reset
-           .tck   (jtag_tck),              // JTAG clock
-           .tms   (jtag_tms),              // Test mode select
-           .tdi   (jtag_tdi),              // Test Data Input
-           .tdo   (jtag_tdo),              // Test Data Output
-           .tdoEnable (),                  // Test Data Output enable
-
-           // Processor Signals
-           .core_rst_n  (dbg_rst_l),     // Core reset, active low
-           .core_clk    (clk),            // Core clock
-           .jtag_id     (jtag_id),        // 32 bit JTAG ID
-           .rd_data     (dmi_reg_rdata),  // 32 bit Read data from  Processor
-           .reg_wr_data (dmi_reg_wdata),  // 32 bit Write data to Processor
-           .reg_wr_addr (dmi_reg_addr),   // 32 bit Write address to Processor
-           .reg_en      (dmi_reg_en),     // 1 bit  Write interface bit to Processor
-           .reg_wr_en   (dmi_reg_wr_en),   // 1 bit  Write enable to Processor
-           .dmi_hard_reset   (dmi_hard_reset)   //a hard reset of the DTM, causing the DTM to forget about any outstanding DMI transactions
-);
-
+`ifdef RV_ASSERT_ON
+initial begin
+    $assertoff(0, swerv);
+    @ (negedge clk) $asserton(0, swerv);
+end
+`endif
 
 endmodule
 

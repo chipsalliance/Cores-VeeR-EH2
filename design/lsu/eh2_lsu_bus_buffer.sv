@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,6 +43,8 @@ import eh2_pkg::*;
    input logic                          lsu_c2_dc4_clk,
    input logic                          lsu_c2_dc5_clk,
 
+   input logic                          lsu_busm_clken,
+   input logic                          lsu_bus_obuf_c1_clken,
    input logic                          lsu_bus_ibuf_c1_clk,
    input logic                          lsu_bus_obuf_c1_clk,
    input logic                          lsu_bus_buf_c1_clk,
@@ -50,11 +52,11 @@ import eh2_pkg::*;
    input logic                          lsu_busm_clk,
 
 
-   input                                eh2_lsu_pkt_t lsu_pkt_dc1_pre,        // lsu packet flowing down the pipe
-   input                                eh2_lsu_pkt_t lsu_pkt_dc2,            // lsu packet flowing down the pipe
-   input                                eh2_lsu_pkt_t lsu_pkt_dc3,            // lsu packet flowing down the pipe
-   input                                eh2_lsu_pkt_t lsu_pkt_dc4,            // lsu packet flowing down the pipe
-   input                                eh2_lsu_pkt_t lsu_pkt_dc5,            // lsu packet flowing down the pipe
+   input                                eh2_lsu_pkt_t lsu_pkt_dc1_pre,   // lsu packet flowing down the pipe
+   input                                eh2_lsu_pkt_t lsu_pkt_dc2,       // lsu packet flowing down the pipe
+   input                                eh2_lsu_pkt_t lsu_pkt_dc3,       // lsu packet flowing down the pipe
+   input                                eh2_lsu_pkt_t lsu_pkt_dc4,       // lsu packet flowing down the pipe
+   input                                eh2_lsu_pkt_t lsu_pkt_dc5,       // lsu packet flowing down the pipe
 
    input logic                          tid,
    input logic                          bus_tid,
@@ -62,7 +64,6 @@ import eh2_pkg::*;
    input logic [31:0]                   end_addr_dc2,                     // lsu address flowing down the pipe
    input logic [31:0]                   lsu_addr_dc5,                     // lsu address flowing down the pipe
    input logic [31:0]                   end_addr_dc5,                     // lsu address flowing down the pipe
-   input logic [63:0]                   store_data_ext_dc5,               // store data flowing down the pipe
 
    input logic [3:0]                    ldst_byteen_hi_dc5,
    input logic [3:0]                    ldst_byteen_lo_dc5,
@@ -86,7 +87,6 @@ import eh2_pkg::*;
    input logic                          ldst_dual_dc3,                    // load/store is unaligned at 32 bit boundary
    input logic                          ldst_dual_dc4,                    // load/store is unaligned at 32 bit boundary
    input logic                          ldst_dual_dc5,                    // load/store is unaligned at 32 bit boundary
-   input logic                          lsu_nonblock_load_valid_dc5,
 
    input logic [7:0]                    ldst_byteen_ext_dc2,
 
@@ -172,7 +172,6 @@ import eh2_pkg::*;
    logic                                lsu_nonblock_unsign, lsu_nonblock_dual;
    logic [DEPTH_LOG2-1:0]               lsu_imprecise_error_load_tag;
    logic [pt.LSU_BUS_TAG-1:0]           lsu_imprecise_error_store_tag;
-
 
    logic [DEPTH-1:0]                    CmdPtr0Dec, CmdPtr1Dec;
    logic [DEPTH-1:0]                    RspPtrDec;
@@ -283,6 +282,7 @@ import eh2_pkg::*;
    logic                               obuf_write_in;
    logic                               obuf_nosend_in;
    logic                               obuf_rdrsp_pend_in;
+   logic                               obuf_rdrsp_pend_en;
    logic                               obuf_sideeffect_in;
    logic                               obuf_aligned_in;
    logic [31:0]                        obuf_addr_in;
@@ -449,10 +449,11 @@ import eh2_pkg::*;
 
    assign obuf_cmd_done_in    = ~(obuf_wr_en | obuf_rst) & (obuf_cmd_done | (bus_wcmd_sent & (bus_tid == tid)));
    assign obuf_data_done_in   = ~(obuf_wr_en | obuf_rst) & (obuf_data_done | (bus_wdata_sent & (bus_tid == tid)));
-   assign obuf_rdrsp_pend_in  = (~(obuf_wr_en & ~obuf_nosend_in) & obuf_rdrsp_pend & ~(bus_rsp_read & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag))) |
-                                ((bus_cmd_sent & ~obuf_write & (bus_tid == tid))) & ~dec_tlu_force_halt ;
+   assign obuf_rdrsp_pend_in  = ((~(obuf_wr_en & ~obuf_nosend_in) & obuf_rdrsp_pend & ~(bus_rsp_read & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag))) |
+                                 ((bus_cmd_sent & ~obuf_write & (bus_tid == tid)))) & ~dec_tlu_force_halt ;
+   assign obuf_rdrsp_pend_en  = dec_tlu_force_halt | lsu_bus_clk_en;
    assign obuf_rdrsp_tag_in[pt.LSU_BUS_TAG-1:0] = (bus_cmd_sent & ~obuf_write & (bus_tid == tid)) ? obuf_tag0[pt.LSU_BUS_TAG-1:0] : obuf_rdrsp_tag[pt.LSU_BUS_TAG-1:0];
-   // No ld to ld fwd for aligned
+
    assign obuf_nosend_in      = (obuf_addr_in[31:3] == obuf_addr[31:3]) & obuf_aligned_in & ~obuf_sideeffect & ~obuf_write & ~obuf_write_in & ~dec_tlu_external_ldfwd_disable &
                                 ((obuf_valid & ~obuf_nosend) | (obuf_rdrsp_pend & ~(bus_rsp_read & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag))));
 
@@ -460,39 +461,39 @@ import eh2_pkg::*;
                                                 (buf_addr[CmdPtr0][2] ? {buf_byteen[CmdPtr0],4'b0} : {4'b0,buf_byteen[CmdPtr0]});
    assign obuf_byteen1_in[7:0] = ibuf_buf_byp ? (end_addr_dc5[2] ? {ldst_byteen_hi_dc5[3:0],4'b0} : {4'b0,ldst_byteen_hi_dc5[3:0]}) :
                                                 (buf_addr[CmdPtr1][2] ? {buf_byteen[CmdPtr1],4'b0} : {4'b0,buf_byteen[CmdPtr1]});
-   assign obuf_data0_in[63:0]  = ibuf_buf_byp ? (lsu_addr_dc5[2] ? {store_data_lo_dc5[31:0],32'b0} : {32'b0,store_data_lo_dc5[31:0]}) :
-                                                (buf_addr[CmdPtr0][2] ? {buf_data[CmdPtr0],32'b0}  : {32'b0,buf_data[CmdPtr0]});
-   assign obuf_data1_in[63:0]  = ibuf_buf_byp ? (lsu_addr_dc5[2] ? {store_data_hi_dc5[31:0],32'b0} :{32'b0,store_data_hi_dc5[31:0]}) :
+   assign obuf_data0_in[63:0]  = ibuf_buf_byp ? (lsu_addr_dc5[2] ? {store_data_lo_dc5[31:0],32'b0} : {32'h0,store_data_lo_dc5[31:0]}) :
+                                                (buf_addr[CmdPtr0][2] ? {buf_data[CmdPtr0],32'b0} : {32'h0,buf_data[CmdPtr0]});
+   assign obuf_data1_in[63:0]  = ibuf_buf_byp ? (end_addr_dc5[2] ? {store_data_hi_dc5[31:0],32'b0} :{32'b0,store_data_hi_dc5[31:0]}) :
                                                 (buf_addr[CmdPtr1][2] ? {buf_data[CmdPtr1],32'b0} : {32'b0,buf_data[CmdPtr1]});
    for (genvar i=0 ;i<8; i++) begin
-      assign obuf_byteen_in[i] = obuf_byteen0_in[i] | (obuf_merge_en & obuf_byteen1_in[i]);
+      assign obuf_byteen_in[i]           = obuf_byteen0_in[i] | (obuf_merge_en & obuf_byteen1_in[i]);
       assign obuf_data_in[(8*i)+7:(8*i)] = (obuf_merge_en & obuf_byteen1_in[i]) ? obuf_data1_in[(8*i)+7:(8*i)] : obuf_data0_in[(8*i)+7:(8*i)];
    end
 
    // No store obuf merging for AXI since all stores are sent non-posted. Can't track the second id right now
    assign obuf_merge_en = ((CmdPtr0 != CmdPtr1) & found_cmdptr0 & found_cmdptr1 & (buf_state[CmdPtr0] == CMD) & (buf_state[CmdPtr1] == CMD) &
                            ~buf_cmd_state_bus_en[CmdPtr0] & ~buf_sideeffect[CmdPtr0] &
-                           ((buf_write[CmdPtr0] & buf_write[CmdPtr1] & (buf_addr[CmdPtr0][31:3] == buf_addr[CmdPtr1][31:3]) & ~bus_coalescing_disable & ~pt.BUILD_AXI_NATIVE) |
+                           ((buf_write[CmdPtr0] & buf_write[CmdPtr1] & (buf_addr[CmdPtr0][31:3] == buf_addr[CmdPtr1][31:3]) & ~bus_coalescing_disable & !pt.BUILD_AXI_NATIVE) |
                             (~buf_write[CmdPtr0] & buf_dual[CmdPtr0] & ~buf_dualhi[CmdPtr0] & buf_samedw[CmdPtr0]))) |  // CmdPtr0/CmdPtr1 are for same load which is within a DW
                           (ibuf_buf_byp & ldst_samedw_dc5 & ldst_dual_dc5);
 
-   rvdff   #(.WIDTH(1))              obuf_wren_ff      (.din(obuf_wr_en),                  .dout(obuf_wr_enQ),                                        .clk(lsu_busm_clk), .*);
-   rvdffsc #(.WIDTH(1))              obuf_valid_ff     (.din(1'b1),                        .dout(obuf_valid),      .en(obuf_wr_en), .clear(obuf_rst), .clk(lsu_free_c2_clk), .*);
-   rvdffs  #(.WIDTH(1))              obuf_nosend_ff    (.din(obuf_nosend_in),              .dout(obuf_nosend),     .en(obuf_wr_en),                  .clk(lsu_free_c2_clk), .*);
-   rvdff   #(.WIDTH(1))              obuf_cmd_done_ff  (.din(obuf_cmd_done_in),            .dout(obuf_cmd_done),                                      .clk(lsu_busm_clk), .*);
-   rvdff   #(.WIDTH(1))              obuf_data_done_ff (.din(obuf_data_done_in),           .dout(obuf_data_done),                                     .clk(lsu_busm_clk), .*);
-   rvdff   #(.WIDTH(1))              obuf_rdrsp_pend_ff(.din(obuf_rdrsp_pend_in),          .dout(obuf_rdrsp_pend),                                    .clk(lsu_busm_clk), .*);
-   rvdff   #(.WIDTH(pt.LSU_BUS_TAG)) obuf_rdrsp_tagff  (.din(obuf_rdrsp_tag_in),           .dout(obuf_rdrsp_tag),                                     .clk(lsu_busm_clk), .*);
-   rvdffs  #(.WIDTH(pt.LSU_BUS_TAG)) obuf_tag0ff       (.din(obuf_tag0_in),                .dout(obuf_tag0),       .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffs  #(.WIDTH(pt.LSU_BUS_TAG)) obuf_tag1ff       (.din(obuf_tag1_in),                .dout(obuf_tag1),       .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffs  #(.WIDTH(1))              obuf_mergeff      (.din(obuf_merge_in),               .dout(obuf_merge),      .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffs  #(.WIDTH(1))              obuf_writeff      (.din(obuf_write_in),               .dout(obuf_write),      .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffs  #(.WIDTH(1))              obuf_sideeffectff (.din(obuf_sideeffect_in),          .dout(obuf_sideeffect), .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffs  #(.WIDTH(2))              obuf_szff         (.din(obuf_sz_in[1:0]),             .dout(obuf_sz),         .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffe  #(.WIDTH(32))             obuf_addrff       (.din(obuf_addr_in[31:0]),          .dout(obuf_addr),       .en(obuf_wr_en),                                              .*);
-   rvdffs  #(.WIDTH(8))              obuf_byteenff     (.din(obuf_byteen_in[7:0]),         .dout(obuf_byteen),     .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .*);
-   rvdffe  #(.WIDTH(64))             obuf_dataff       (.din(obuf_data_in[63:0]),          .dout(obuf_data),       .en(obuf_wr_en),                                              .*);
-   rvdff   #(.WIDTH(TIMER_LOG2))     obuf_timerff      (.din(obuf_wr_timer_in),            .dout(obuf_wr_timer),                                      .clk(lsu_busm_clk), .*);
+   rvdff_fpga  #(.WIDTH(1))              obuf_wren_ff      (.din(obuf_wr_en),                  .dout(obuf_wr_enQ),                                        .clk(lsu_busm_clk),        .clken(lsu_busm_clken), .rawclk(clk),        .*);
+   rvdffsc     #(.WIDTH(1))              obuf_valid_ff     (.din(1'b1),                        .dout(obuf_valid),      .en(obuf_wr_en), .clear(obuf_rst), .clk(lsu_free_c2_clk),                                                  .*);
+   rvdffs      #(.WIDTH(1))              obuf_nosend_ff    (.din(obuf_nosend_in),              .dout(obuf_nosend),     .en(obuf_wr_en),                   .clk(lsu_free_c2_clk),                                                  .*);
+   rvdffs      #(.WIDTH(1))              obuf_rdrsp_pend_ff(.din(obuf_rdrsp_pend_in),          .dout(obuf_rdrsp_pend), .en(obuf_rdrsp_pend_en),           .clk(lsu_free_c2_clk),                                                  .*);
+   rvdff_fpga  #(.WIDTH(1))              obuf_cmd_done_ff  (.din(obuf_cmd_done_in),            .dout(obuf_cmd_done),                                      .clk(lsu_busm_clk),        .clken(lsu_busm_clken),        .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(1))              obuf_data_done_ff (.din(obuf_data_done_in),           .dout(obuf_data_done),                                     .clk(lsu_busm_clk),        .clken(lsu_busm_clken),        .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(pt.LSU_BUS_TAG)) obuf_rdrsp_tagff  (.din(obuf_rdrsp_tag_in),           .dout(obuf_rdrsp_tag),                                     .clk(lsu_busm_clk),        .clken(lsu_busm_clken),        .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(pt.LSU_BUS_TAG)) obuf_tag0ff       (.din(obuf_tag0_in),                .dout(obuf_tag0),       .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(pt.LSU_BUS_TAG)) obuf_tag1ff       (.din(obuf_tag1_in),                .dout(obuf_tag1),       .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(1))              obuf_mergeff      (.din(obuf_merge_in),               .dout(obuf_merge),      .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(1))              obuf_writeff      (.din(obuf_write_in),               .dout(obuf_write),      .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(1))              obuf_sideeffectff (.din(obuf_sideeffect_in),          .dout(obuf_sideeffect), .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(2))              obuf_szff         (.din(obuf_sz_in[1:0]),             .dout(obuf_sz),         .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffs_fpga #(.WIDTH(8))              obuf_byteenff     (.din(obuf_byteen_in[7:0]),         .dout(obuf_byteen),     .en(obuf_wr_en),                   .clk(lsu_bus_obuf_c1_clk), .clken(lsu_bus_obuf_c1_clken), .rawclk(clk), .*);
+   rvdffe     #(.WIDTH(32))              obuf_addrff       (.din(obuf_addr_in[31:0]),          .dout(obuf_addr),       .en(obuf_wr_en),                                                                                           .*);
+   rvdffe     #(.WIDTH(64))              obuf_dataff       (.din(obuf_data_in[63:0]),          .dout(obuf_data),       .en(obuf_wr_en),                                                                                           .*);
+   rvdff_fpga #(.WIDTH(TIMER_LOG2))      obuf_timerff      (.din(obuf_wr_timer_in),            .dout(obuf_wr_timer),                                      .clk(lsu_busm_clk),        .clken(lsu_busm_clken), .rawclk(clk),        .*);
 
    //------------------------------------------------------------------------------
    // Output buffer logic ends here
@@ -553,7 +554,7 @@ import eh2_pkg::*;
                                             (ibuf_drain_vld & lsu_busreq_dc5 & (ibuf_byp | ldst_dual_dc5) & (lsu_pkt_dc5.tid ~^ tid) & (DEPTH_LOG2'(i) == WrPtr0_dc5) & (DEPTH_LOG2'(j) == ibuf_tag))  |       // Set case for dual lo
                                             (ibuf_byp & lsu_busreq_dc5 & ldst_dual_dc5 & (lsu_pkt_dc5.tid ~^ tid) & (DEPTH_LOG2'(i) == WrPtr1_dc5) & (DEPTH_LOG2'(j) == WrPtr0_dc5)));
          assign buf_age_in[i][j] = buf_age_set[i][j] | buf_age[i][j];
-         assign buf_age[i][j]    = buf_ageQ[i][j] & ~((buf_state[j] == CMD) & buf_cmd_state_bus_en[j]);  // Reset case
+         assign buf_age[i][j]    = buf_ageQ[i][j] & ~((buf_state[j] == CMD) & buf_cmd_state_bus_en[j]) & ~dec_tlu_force_halt;  // Reset case
 
          assign buf_age_younger[i][j] = (i == j) ? 1'b0: (~buf_age[i][j] & (buf_state[j] != IDLE));   // Younger entries
       end
@@ -567,7 +568,7 @@ import eh2_pkg::*;
                                             (ibuf_drain_vld & lsu_busreq_dc5 & (ibuf_byp | ldst_dual_dc5) & (lsu_pkt_dc5.tid ~^ tid) & (DEPTH_LOG2'(i) == WrPtr0_dc5) & (DEPTH_LOG2'(j) == ibuf_tag))  |       // Set case for dual lo
                                             (ibuf_byp & lsu_busreq_dc5 & ldst_dual_dc5 & (lsu_pkt_dc5.tid ~^ tid) & (DEPTH_LOG2'(i) == WrPtr1_dc5) & (DEPTH_LOG2'(j) == WrPtr0_dc5)));
          assign buf_rspage_in[i][j] = buf_rspage_set[i][j] | buf_rspage[i][j];
-         assign buf_rspage[i][j]    = buf_rspageQ[i][j] & ~((buf_state[j] == DONE) | (buf_state[j] == IDLE));  // Reset case
+         assign buf_rspage[i][j]    = buf_rspageQ[i][j] & ~((buf_state[j] == DONE) | (buf_state[j] == IDLE)) & ~dec_tlu_force_halt;  // Reset case
          assign buf_rsp_pickage[i][j] = buf_rspageQ[i][j] & (buf_state[j] == DONE_WAIT);
      end
    end
@@ -602,8 +603,8 @@ import eh2_pkg::*;
          buf_data_in[i]           = '0;
          buf_data_en[i]           = '0;
          buf_error_en[i]          = '0;
-         buf_rst[i]               = '0;
-         buf_ldfwd_en[i]          = '0;
+         buf_rst[i]               = dec_tlu_force_halt;
+         buf_ldfwd_en[i]          = dec_tlu_force_halt;
          buf_ldfwd_in[i]          = '0;
          buf_ldfwdtag_in[i]       = '0;
 
@@ -623,7 +624,8 @@ import eh2_pkg::*;
                      buf_cmd_state_bus_en[i]  = '0;
             end
             CMD: begin
-                     buf_nxtstate[i]          = dec_tlu_force_halt ? IDLE : (obuf_nosend & bus_rsp_read & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag)) ? DONE_WAIT : RESP;
+                     buf_nxtstate[i]          = dec_tlu_force_halt ? IDLE :
+                                                      (obuf_nosend & bus_rsp_read & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag)) ? DONE_WAIT : RESP;
                      buf_cmd_state_bus_en[i]  = ((obuf_tag0 == i) | (obuf_merge & (obuf_tag1 == i))) & obuf_valid & obuf_wr_enQ;  // Just use the recently written obuf_valid
                      buf_state_bus_en[i]      = buf_cmd_state_bus_en[i];
                      buf_state_en[i]          = (buf_state_bus_en[i] & lsu_bus_clk_en) | dec_tlu_force_halt;
@@ -631,7 +633,7 @@ import eh2_pkg::*;
                      buf_ldfwd_en[i]          = buf_state_en[i] & ~buf_write[i] & obuf_nosend & ~dec_tlu_force_halt;
                      buf_ldfwdtag_in[i]       = DEPTH_LOG2'(obuf_rdrsp_tag[pt.LSU_BUS_TAG-2:0]);
                      buf_data_en[i]           = buf_state_bus_en[i] & lsu_bus_clk_en & obuf_nosend & bus_rsp_read;
-                     buf_error_en[i]          = buf_state_bus_en[i] & lsu_bus_clk_en & obuf_nosend & bus_rsp_read_error;
+                     buf_error_en[i]          = buf_state_bus_en[i] & lsu_bus_clk_en & obuf_nosend & bus_rsp_read_error & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag);
                      buf_data_in[i]           = buf_error_en[i] ? bus_rsp_rdata[31:0] : (buf_addr[i][2] ? bus_rsp_rdata[63:32] : bus_rsp_rdata[31:0]);
            end
             RESP: begin
@@ -648,9 +650,9 @@ import eh2_pkg::*;
                      buf_state_en[i]           = (buf_state_bus_en[i] & lsu_bus_clk_en) | dec_tlu_force_halt;
                      buf_data_en[i]            = buf_state_bus_en[i] & bus_rsp_read & lsu_bus_clk_en;
                       // Need to capture the error for stores as well for AXI
-                     buf_error_en[i]           = buf_state_bus_en[i] & lsu_bus_clk_en & ((bus_rsp_read_error  & (bus_rsp_read_tag  == (pt.LSU_BUS_TAG)'(i))) |
-                                                                                         (bus_rsp_read_error  & buf_ldfwd[i] & (bus_rsp_read_tag == (pt.LSU_BUS_TAG)'(buf_ldfwdtag[i]))) |
-                                                                                         (bus_rsp_write_error & pt.BUILD_AXI_NATIVE & (bus_rsp_write_tag == (pt.LSU_BUS_TAG)'(i))));
+                     buf_error_en[i]           = buf_state_bus_en[i] & lsu_bus_clk_en & ((bus_rsp_read_error  & (bus_rsp_read_tid == tid)  & (bus_rsp_read_tag  == (pt.LSU_BUS_TAG)'(i))) |
+                                                                                         (bus_rsp_read_error  & (bus_rsp_read_tid == tid)  & buf_ldfwd[i] & (bus_rsp_read_tag == (pt.LSU_BUS_TAG)'(buf_ldfwdtag[i]))) |
+                                                                                         (bus_rsp_write_error & (bus_rsp_write_tid == tid) & pt.BUILD_AXI_NATIVE & (bus_rsp_write_tag == (pt.LSU_BUS_TAG)'(i))));
                      buf_data_in[i][31:0]      = (buf_state_en[i] & ~buf_error_en[i]) ? (buf_addr[i][2] ? bus_rsp_rdata[63:32] : bus_rsp_rdata[31:0]) : bus_rsp_rdata[31:0];
                      buf_cmd_state_bus_en[i]  = '0;
             end
@@ -765,7 +767,7 @@ import eh2_pkg::*;
                                    ({32{ lsu_nonblock_unsign & (lsu_nonblock_sz[1:0] == 2'b01)}} & {16'b0,lsu_nonblock_data_unalgn[15:0]}) |
                                    ({32{~lsu_nonblock_unsign & (lsu_nonblock_sz[1:0] == 2'b00)}} & {{24{lsu_nonblock_data_unalgn[7]}}, lsu_nonblock_data_unalgn[7:0]}) |
                                    ({32{~lsu_nonblock_unsign & (lsu_nonblock_sz[1:0] == 2'b01)}} & {{16{lsu_nonblock_data_unalgn[15]}},lsu_nonblock_data_unalgn[15:0]}) |
-                                   ({32{(lsu_nonblock_sz[1:0] == 2'b10)}} & lsu_nonblock_data_unalgn[31:0]);
+                                   ({32{(lsu_nonblock_sz[1] == 1'b1)}} & lsu_nonblock_data_unalgn[31:0]);
 
    // Determine if there is a pending return to sideeffect load/store
    always_comb begin
@@ -775,7 +777,7 @@ import eh2_pkg::*;
       end
    end
 
-   // We have no ordering rules for AXI . Need to check outstanding trxns to same address for AXI
+   // We have no ordering rules for AXI. Need to check outstanding trxns to same address for AXI
    always_comb begin
       bus_addr_match_pending = '0;
       for (int i=0; i<DEPTH; i++) begin
@@ -803,15 +805,19 @@ import eh2_pkg::*;
    rvdff #(.WIDTH(DEPTH_LOG2)) lsu_WrPtr1_dc4ff (.din(WrPtr1_dc3), .dout(WrPtr1_dc4), .clk(lsu_c2_dc4_clk), .*);
    rvdff #(.WIDTH(DEPTH_LOG2)) lsu_WrPtr1_dc5ff (.din(WrPtr1_dc4), .dout(WrPtr1_dc5), .clk(lsu_c2_dc5_clk), .*);
 
-`ifdef ASSERT_ON
+`ifdef RV_ASSERT_ON
 
    for (genvar i=0; i<4; i++) begin: GenByte
       assert_ld_byte_hitvecfn_lo_onehot: assert #0 ($onehot0(ld_byte_hitvecfn_lo[i][DEPTH-1:0]));
       assert_ld_byte_hitvecfn_hi_onehot: assert #0 ($onehot0(ld_byte_hitvecfn_hi[i][DEPTH-1:0]));
    end
 
-   assert_CmdPtr0Dec_onehot: assert #0 ($onehot0(CmdPtr0Dec[DEPTH-1:0]));
-   assert_CmdPtr1Dec_onehot: assert #0 ($onehot0(CmdPtr1Dec[DEPTH-1:0]));
+   for (genvar i=0; i<DEPTH; i++) begin: GenAssertAge
+      assert_bufempty_agevec: assert #0 (~(lsu_bus_buffer_empty_any & |(buf_age[i])));
+   end
+
+   assert_CmdPtr0Dec_onehot: assert #0 ($onehot0(CmdPtr0Dec[DEPTH-1:0] & ~{DEPTH{dec_tlu_force_halt}}));
+   assert_CmdPtr1Dec_onehot: assert #0 ($onehot0(CmdPtr1Dec[DEPTH-1:0] & ~{DEPTH{dec_tlu_force_halt}}));
 
    property obuf_nosend_sideeffect;
       @(posedge clk) disable iff (~rst_l) (obuf_valid & obuf_nosend) |-> ~obuf_sideeffect;

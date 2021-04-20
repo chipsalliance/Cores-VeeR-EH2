@@ -1,4 +1,4 @@
-$RV_ROOT/design/eh2_soc.sv
+$RV_ROOT/design/include/eh2_def.sv
 $RV_ROOT/design/eh2_swerv_wrapper.sv
 $RV_ROOT/design/eh2_mem.sv
 $RV_ROOT/design/eh2_pic_ctrl.sv
@@ -11,11 +11,14 @@ $RV_ROOT/design/ifu/eh2_ifu_bp_ctl.sv
 $RV_ROOT/design/ifu/eh2_ifu_ic_mem.sv
 $RV_ROOT/design/ifu/eh2_ifu_mem_ctl.sv
 $RV_ROOT/design/ifu/eh2_ifu_iccm_mem.sv
+$RV_ROOT/design/ifu/eh2_ifu_btb_mem.sv
 $RV_ROOT/design/ifu/eh2_ifu.sv
 $RV_ROOT/design/dec/eh2_dec_decode_ctl.sv
 $RV_ROOT/design/dec/eh2_dec_gpr_ctl.sv
 $RV_ROOT/design/dec/eh2_dec_ib_ctl.sv
 $RV_ROOT/design/dec/eh2_dec_tlu_ctl.sv
+$RV_ROOT/design/dec/eh2_dec_tlu_top.sv
+$RV_ROOT/design/dec/eh2_dec_csr.sv
 $RV_ROOT/design/dec/eh2_dec_trigger.sv
 $RV_ROOT/design/dec/eh2_dec.sv
 $RV_ROOT/design/exu/eh2_exu_alu_ctl.sv

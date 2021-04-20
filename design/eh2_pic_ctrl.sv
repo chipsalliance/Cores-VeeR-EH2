@@ -1,6 +1,6 @@
 //********************************************************************************
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,9 +29,12 @@ import eh2_pkg::*;
 
                      input  logic                   clk,                  // Core clock
                      input  logic                   free_clk,             // free clock
-                     input  logic                   active_clk,           // active clock
                      input  logic                   rst_l,                // Reset for all flops
                      input  logic                   clk_override,         // Clock over-ride for gating
+                     input  logic                   io_clk_override,      // PIC IO  Clock over-ride for gating
+
+                     input  logic [pt.NUM_THREADS-1:0] o_cpu_halt_status, // PMU interface, halted
+
                      input  logic [pt.PIC_TOTAL_INT_PLUS1-1:0]   extintsrc_req,  // Interrupt requests
                      input  logic [31:0]            picm_rdaddr,          // Address of the register
                      input  logic [31:0]            picm_wraddr,          // Address of the register
@@ -76,10 +79,22 @@ localparam INTPRIORITY_BITS      =  4 ;
 localparam ID_BITS               =  8 ;
 localparam int GW_CONFIG[pt.PIC_TOTAL_INT_PLUS1-1:0] = '{default:0} ;
 
-logic                   mexintpend_ff;           // External Inerrupt request to the core
-logic [7:0]             claimid_ff;              // Claim Id of the requested interrupt
-logic [3:0]             pl_ff;                   // Priority level of the requested interrupt
-logic                   mhwakeup_ff;             // Wake-up interrupt request
+localparam INT_ENABLE_GRPS       =   (pt.PIC_TOTAL_INT_PLUS1 - 1)  / 4 ;
+
+logic [pt.PIC_TOTAL_INT_PLUS1-1:0]           intenable_clk_enable ;
+logic [INT_ENABLE_GRPS:0]                    intenable_clk_enable_grp ;
+logic [INT_ENABLE_GRPS:0]                    gw_clk ;
+
+logic [pt.NUM_THREADS-1:0]                   mexintpend_ff;           // External Inerrupt request to the core
+logic [pt.NUM_THREADS-1:0]  [7:0]            claimid_ff;              // Claim Id of the requested interrupt
+logic [pt.NUM_THREADS-1:0]  [3:0]            pl_ff;                   // Priority level of the requested interrupt
+logic [pt.NUM_THREADS-1:0]                   mhwakeup_ff;             // Wake-up interrupt request
+
+logic [pt.NUM_THREADS-1:0]                   mexintpend;
+logic [pt.NUM_THREADS-1:0] [7:0]             claimid;
+logic [pt.NUM_THREADS-1:0] [3:0]             pl;
+logic [pt.NUM_THREADS-1:0]                   mhwakeup;
+
 
 logic  addr_intpend_base_match;
 logic  addr_intpend_thr_base_match;
@@ -137,10 +152,10 @@ logic [INTPRIORITY_BITS-1:0]                 selected_int_priority;
 logic [INT_GRPS-1:0] [31:0]                  intpend_rd_part_out ;
 logic [INT_GRPS-1:0] [31:0]                  intpend_thr_rd_part_out ;
 
-logic                                        curr_int_thr;
-logic                                        curr_int_thr_ff;
-logic                                        curr_int_thr_final;
-logic                                        curr_int_thr_final_in;
+logic                                        curr_int_tid;
+logic                                        curr_int_tid_ff;
+logic                                        curr_int_tid_final;
+logic                                        curr_int_tid_final_in;
 logic                                        config_reg;
 logic                                        intpriord;
 logic                                        config_reg_we ;
@@ -161,11 +176,11 @@ logic [ID_BITS-1:0]                          claimid_in ;
 logic [INTPRIORITY_BITS-1:0]                 pl_in ;
 logic [INTPRIORITY_BITS-1:0]                 pl_in_q ;
 
-logic [pt.PIC_TOTAL_INT_PLUS1-1:0]           extintsrc_req_sync;
-logic [pt.PIC_TOTAL_INT_PLUS1-1:0]           extintsrc_req_gw;
-logic [pt.PIC_TOTAL_INT_PLUS1-1:0]           thr_mx_intpend_reg;
-logic                                        picm_bypass_ff;
-logic                                        delg_reg_read;
+logic [pt.PIC_TOTAL_INT_PLUS1-1:0]                        extintsrc_req_sync;
+logic [pt.PIC_TOTAL_INT_PLUS1-1:0]                        extintsrc_req_gw;
+logic [pt.PIC_TOTAL_INT_PLUS1-1:0]                        thr_mx_intpend_reg;
+logic                                                     picm_bypass_ff;
+logic                                                     delg_reg_read;
 
 logic [(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2)):0] [INTPRIORITY_BITS-1:0] l2_intpend_w_prior_en_ff;
 logic [(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2)):0] [ID_BITS-1:0]          l2_intpend_id_ff;
@@ -189,11 +204,6 @@ logic [NUM_LEVELS:NUM_LEVELS/2] [(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2))+1:0]
    logic                                     pic_del_c1_clk;
    logic                                     gw_config_c1_clk;
    logic                                     nxt_thr;
-
-   logic                                     mexintpend;
-   logic [7:0]                               claimid;
-   logic [3:0]                               pl;
-   logic                                     mhwakeup;
 
 
 
@@ -246,39 +256,101 @@ end
 
 rvdff #(32) picm_radd_flop  (.*, .din (picm_rdaddr),        .dout(picm_raddr_ff),         .clk(pic_raddr_c1_clk));
 rvdff #(32) picm_wadd_flop  (.*, .din (picm_wraddr),        .dout(picm_waddr_ff),         .clk(pic_data_c1_clk));
-rvdff  #(1) picm_wre_flop   (.*, .din (picm_wren),          .dout(picm_wren_ff),          .clk(active_clk));
-rvdff  #(1) picm_rde_flop   (.*, .din (picm_rden),          .dout(picm_rden_ff),          .clk(active_clk));
-rvdff  #(1) picm_rdt_flop   (.*, .din (picm_rd_thr),        .dout(picm_rd_thr_ff),        .clk(active_clk));
-rvdff  #(1) picm_mke_flop   (.*, .din (picm_mken),          .dout(picm_mken_ff),          .clk(active_clk));
+rvdff  #(1) picm_wre_flop   (.*, .din (picm_wren),          .dout(picm_wren_ff),          .clk(free_clk));
+rvdff  #(1) picm_rde_flop   (.*, .din (picm_rden),          .dout(picm_rden_ff),          .clk(free_clk));
+rvdff  #(1) picm_rdt_flop   (.*, .din (picm_rd_thr),        .dout(picm_rd_thr_ff),        .clk(free_clk));
+rvdff  #(1) picm_mke_flop   (.*, .din (picm_mken),          .dout(picm_mken_ff),          .clk(free_clk));
 rvdff #(32) picm_dat_flop   (.*, .din (picm_wr_data[31:0]), .dout(picm_wr_data_ff[31:0]), .clk(pic_data_c1_clk));
 
 
 
-   assign nxt_thr = (pt.NUM_THREADS == 2) & ~curr_int_thr;
+   if (pt.NUM_THREADS==1)
+     assign curr_int_tid = '0;
+   else begin
 
-   rvdff  #(1) curr_thr      (.*, .din (nxt_thr),          .dout(curr_int_thr),          .clk(free_clk));
-   rvdff  #(1) curr_thr_ff   (.*, .din (curr_int_thr),     .dout(curr_int_thr_ff),          .clk(free_clk));
+      logic ready_pulse;
+      logic [2:0] ready_cnt_in, ready_cnt;
+      logic [1:0] ready;
+      logic [1:0] active_thread;
+      logic       active1;
+      logic       active2;
+      logic       favor;
+      logic       tid;
+
+
+      assign ready_pulse = ready_cnt[2:0] == 3'b111;
+
+      assign ready_cnt_in[2:0] = (ready_pulse) ? '0 : ready_cnt[2:0] + 3'b1;
+
+      rvdff #(3) ready_cntff (.*, .din(ready_cnt_in[2:0]), .dout(ready_cnt[2:0]), .clk(free_clk));
+
+
+      assign active_thread[1:0] = (~o_cpu_halt_status[1:0] | {2{io_clk_override}});
+      assign active1            = ^active_thread[1:0] ;
+      assign active2            = &active_thread[1:0] ;
+
+
+
+      assign ready[1:0] = (active2) ? 2'b11 :
+                          (active1 & ~ready_pulse) ?  active_thread[1:0] :
+                          (active1 &  ready_pulse) ? ~active_thread[1:0] :
+                          {2{ready_pulse}};
+
+
+      rvarbiter2_pic pic_arbiter (.*,
+                                  .clk(free_clk),
+                                  .shift(1'b1),
+                                  .tid(tid),
+                                  .favor(favor)
+                                  );
+
+      assign curr_int_tid = (|ready[1:0]) ? tid : favor;
+
+   end
+
+
+   rvdff  #(1) curr_thr_ff   (.*, .din (curr_int_tid),     .dout(curr_int_tid_ff),          .clk(free_clk));
 
 if (pt.PIC_2CYCLE == 1) begin : pic2cyle
-   assign curr_int_thr_final_in = curr_int_thr_ff ;
-   rvdff  #(1) curr_thr_ff2  (.*, .din (curr_int_thr_ff),  .dout(curr_int_thr_final),          .clk(free_clk));
+   assign curr_int_tid_final_in = curr_int_tid_ff ;
+   rvdff  #(1) curr_thr_ff2  (.*, .din (curr_int_tid_ff),  .dout(curr_int_tid_final),          .clk(free_clk));
 end else begin: not_pic2cycle
-   assign curr_int_thr_final_in = curr_int_thr ;
-   assign curr_int_thr_final = curr_int_thr_ff ;
+   assign curr_int_tid_final_in = curr_int_tid ;
+   assign curr_int_tid_final = curr_int_tid_ff ;
 end
 
 
 
-rvsyncss  #(pt.PIC_TOTAL_INT_PLUS1-1) sync_inst
-(
- .clk (free_clk),
- .dout(extintsrc_req_sync[pt.PIC_TOTAL_INT_PLUS1-1:1]),
- .din (extintsrc_req[pt.PIC_TOTAL_INT_PLUS1-1:1]),
- .*) ;
-
-assign extintsrc_req_sync[0] = extintsrc_req[0];
 
 genvar i ;
+genvar p ;
+for (p=0; p<=INT_ENABLE_GRPS ; p++) begin  : IO_CLK_GRP
+wire grp_clk, grp_clken;
+
+    assign grp_clken = |intenable_clk_enable[(p==INT_ENABLE_GRPS?pt.PIC_TOTAL_INT_PLUS1-1:p*4+3) : p*4] | io_clk_override;
+
+  `ifndef RV_FPGA_OPTIMIZE
+    rvclkhdr intenable_c1_cgc( .en(grp_clken),  .l1clk(grp_clk), .* );
+  `else
+    assign gw_clk[p] = 1'b0 ;
+  `endif
+
+
+    for(genvar i= (p==0 ? 1: 0); i< (p==INT_ENABLE_GRPS ? pt.PIC_TOTAL_INT_PLUS1-p*4 :4); i++) begin : GW
+        eh2_configurable_gw gw_inst(
+             .*,
+            .gw_clk(grp_clk),
+            .rawclk(clk),
+            .clken (grp_clken),
+            .extintsrc_req(extintsrc_req[i+p*4]) ,
+            .meigwctrl_polarity(gw_config_reg[i+p*4][0]) ,
+            .meigwctrl_type(gw_config_reg[i+p*4][1]) ,
+            .meigwclr(gw_clear_reg_we[i+p*4]) ,
+            .extintsrc_req_config(extintsrc_req_gw[i+p*4])
+        );
+    end
+end
+
 for (i=0; i<pt.PIC_TOTAL_INT_PLUS1 ; i++) begin  : SETREG
 
  if (i > 0 ) begin : NON_ZERO_INT
@@ -306,16 +378,9 @@ for (i=0; i<pt.PIC_TOTAL_INT_PLUS1 ; i++) begin  : SETREG
 
      rvdffs #(INTPRIORITY_BITS) intpriority_ff  (.*, .en( intpriority_reg_we[i]), .din (picm_wr_data_ff[INTPRIORITY_BITS-1:0]), .dout(intpriority_reg[i]), .clk(pic_pri_c1_clk));
      rvdffs #(1)                 intenable_ff   (.*, .en( intenable_reg_we[i]),   .din (picm_wr_data_ff[0]),                    .dout(intenable_reg[i]),   .clk(pic_int_c1_clk));
+     rvdffs #(2)                 gw_config_ff   (.*, .en( gw_config_reg_we[i]),   .din (picm_wr_data_ff[1:0]),                  .dout(gw_config_reg[i]),   .clk(gw_config_c1_clk));
 
-
-        rvdffs #(2)                 gw_config_ff   (.*, .en( gw_config_reg_we[i]),   .din (picm_wr_data_ff[1:0]),                  .dout(gw_config_reg[i]),   .clk(gw_config_c1_clk));
-        eh2_configurable_gw config_gw_inst(.*, .clk(free_clk),
-                         .extintsrc_req_sync(extintsrc_req_sync[i]) ,
-                         .meigwctrl_polarity(gw_config_reg[i][0]) ,
-                         .meigwctrl_type(gw_config_reg[i][1]) ,
-                         .meigwclr(gw_clear_reg_we[i]) ,
-                         .extintsrc_req_config(extintsrc_req_gw[i])
-                            );
+     assign intenable_clk_enable[i]  =  gw_config_reg[i][1] | intenable_reg_we[i] | intenable_reg[i] | gw_clear_reg_we[i] ;
 
 
  end else begin : INT_ZERO
@@ -335,11 +400,13 @@ for (i=0; i<pt.PIC_TOTAL_INT_PLUS1 ; i++) begin  : SETREG
      assign intenable_reg[i]   = 1'b0 ;
      assign delg_reg[i]        = 1'b0 ;
      assign extintsrc_req_gw[i] = 1'b0 ;
+     assign extintsrc_req_sync[i]    = 1'b0 ;
+     assign intenable_clk_enable[i] = 1'b0;
  end
 
 
     assign intpriority_reg_inv[i] =  intpriord ? ~intpriority_reg[i] : intpriority_reg[i] ;
-    assign delg_thr_match[i]      =  (delg_reg[i] &  curr_int_thr) |   (~delg_reg[i] & ~curr_int_thr) ;
+    assign delg_thr_match[i]      =  (delg_reg[i] &  curr_int_tid) |   (~delg_reg[i] & ~curr_int_tid) ;
 
     assign intpend_w_prior_en[i]  =  {INTPRIORITY_BITS{(extintsrc_req_gw[i] & intenable_reg[i] & delg_thr_match[i])}} & intpriority_reg_inv[i] ;
     assign intpend_id[i]          =  i ;
@@ -352,12 +419,12 @@ end
  genvar l, m , j, k;
 
 if (pt.PIC_2CYCLE == 1) begin : genblock
-
         logic [NUM_LEVELS/2:0] [pt.PIC_TOTAL_INT_PLUS1+2:0] [INTPRIORITY_BITS-1:0] level_intpend_w_prior_en;
         logic [NUM_LEVELS/2:0] [pt.PIC_TOTAL_INT_PLUS1+2:0] [ID_BITS-1:0]          level_intpend_id;
 
         assign level_intpend_w_prior_en[0][pt.PIC_TOTAL_INT_PLUS1+2:0] = {4'b0,4'b0,4'b0,intpend_w_prior_en[pt.PIC_TOTAL_INT_PLUS1-1:0]} ;
         assign level_intpend_id[0][pt.PIC_TOTAL_INT_PLUS1+2:0]         = {8'b0,8'b0,8'b0,intpend_id[pt.PIC_TOTAL_INT_PLUS1-1:0]} ;
+
 
         assign levelx_intpend_w_prior_en[NUM_LEVELS/2][(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2))+1:0] = {{1*INTPRIORITY_BITS{1'b0}},l2_intpend_w_prior_en_ff[(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2)):0]} ;
         assign levelx_intpend_id[NUM_LEVELS/2][(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2))+1:0]         = {{1*ID_BITS{1'b1}},l2_intpend_id_ff[(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2)):0]} ;
@@ -381,8 +448,11 @@ if (pt.PIC_2CYCLE == 1) begin : genblock
  end
 
         for (i=0; i<=pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2) ; i++) begin : MIDDLE_FLOPS
-          rvdff #(INTPRIORITY_BITS) level2_intpend_prior_reg  (.*, .din (level_intpend_w_prior_en[NUM_LEVELS/2][i]), .dout(l2_intpend_w_prior_en_ff[i]),  .clk(free_clk));
-          rvdff #(ID_BITS)          level2_intpend_id_reg     (.*, .din (level_intpend_id[NUM_LEVELS/2][i]),         .dout(l2_intpend_id_ff[i]),          .clk(free_clk));
+
+           rvdffie #(INTPRIORITY_BITS+ID_BITS) level2_intpend_reg  (.*,
+                                                                    .din ({level_intpend_w_prior_en[NUM_LEVELS/2][i], level_intpend_id[NUM_LEVELS/2][i]}),
+                                                                    .dout({l2_intpend_w_prior_en_ff[i],               l2_intpend_id_ff[i]})
+                                                                    );
         end
 
  for (j=NUM_LEVELS/2; j<NUM_LEVELS ; j++) begin : BOT_LEVELS
@@ -402,6 +472,7 @@ if (pt.PIC_2CYCLE == 1) begin : genblock
                         .out_priority(levelx_intpend_w_prior_en[j+1][k])) ;
     end
   end
+
         assign claimid_in[ID_BITS-1:0]                      =      levelx_intpend_id[NUM_LEVELS][0] ;   // This is the last level output
         assign selected_int_priority[INTPRIORITY_BITS-1:0]  =      levelx_intpend_w_prior_en[NUM_LEVELS][0] ;
 end
@@ -437,6 +508,8 @@ else begin : genblock
 
 end
 
+
+
 ///////////////////////////////////////////////////////////////////////
 // Config Reg`
 ///////////////////////////////////////////////////////////////////////
@@ -456,47 +529,71 @@ assign intpriord  = config_reg ;
 /// ClaimId  Reg and Corresponding PL
 ///////////////////////////////////////////////////////////
 assign pl_in_q[INTPRIORITY_BITS-1:0] = intpriord ? ~pl_in : pl_in ;
-rvdff #(ID_BITS)          claimid_fl  (.*,  .din (claimid_in[ID_BITS-1:00]),     .dout(claimid[ID_BITS-1:00]),    .clk(free_clk));
-rvdff  #(INTPRIORITY_BITS) pl_fl      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[INTPRIORITY_BITS-1:0]), .clk(free_clk));
 
 if (pt.NUM_THREADS > 1 ) begin:   more_than_1_thr
-  rvdff #(ID_BITS)          claimid_ff_f2  (.*,  .din (claimid[ID_BITS-1:00]),     .dout(claimid_ff[ID_BITS-1:00]),    .clk(free_clk));
-  rvdff  #(INTPRIORITY_BITS) pl_ff_f2      (.*, .din (pl[INTPRIORITY_BITS-1:0]), .dout(pl_ff[INTPRIORITY_BITS-1:0]), .clk(free_clk));
-  rvdff #(1) mexintpend_ff_f2  (.*, .clk(free_clk), .din (mexintpend), .dout(mexintpend_ff));
-  rvdff #(1) wake_up_ff_f2     (.*, .clk(free_clk), .din (mhwakeup), .dout(mhwakeup_ff));
-  assign claimid_out[0]  =  curr_int_thr_final ?  claimid_ff : claimid ;
-  assign claimid_out[1]  = ~curr_int_thr_final ?  claimid_ff : claimid ;
 
-  assign  pl_out[0]      =  curr_int_thr_final ?  pl_ff : pl ;
-  assign  pl_out[1]      = ~curr_int_thr_final ?  pl_ff : pl ;
+//  Per thread hold flops
 
-  assign  mexintpend_out[0]      =  curr_int_thr_final ?  mexintpend_ff : mexintpend ;
-  assign  mexintpend_out[1]      = ~curr_int_thr_final ?  mexintpend_ff : mexintpend ;
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                mexintpend_fl_thr0  (.*, .clk(free_clk), .din (mexintpend_in ), .dout(mexintpend[0]), .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                mexintpend_fl_thr1  (.*, .clk(free_clk), .din (mexintpend_in ), .dout(mexintpend[1]), .en( curr_int_tid_final_in));
 
-  assign mhwakeup_out[0] =    curr_int_thr_final ?   mhwakeup_ff : mhwakeup ;
-  assign mhwakeup_out[1] =   ~curr_int_thr_final ?   mhwakeup_ff : mhwakeup ;
+  rvdffe  #(.WIDTH(INTPRIORITY_BITS),.OVERRIDE(1)) pl_fl_thr0      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[0][INTPRIORITY_BITS-1:0]), .clk(free_clk), .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(INTPRIORITY_BITS),.OVERRIDE(1)) pl_fl_thr1      (.*, .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl[1][INTPRIORITY_BITS-1:0]), .clk(free_clk), .en( curr_int_tid_final_in));
 
-  assign meipt    =  curr_int_thr_final_in ? dec_tlu_meipt[1]    : dec_tlu_meipt[0] ;
-  assign meicurpl =  curr_int_thr_final_in ? dec_tlu_meicurpl[1] : dec_tlu_meicurpl[0] ;
+  rvdffe  #(.WIDTH(ID_BITS),.OVERRIDE(1))          claimid_fl_thr0 (.*, .din (claimid_in[ID_BITS-1:00]),      .dout(claimid[0][ID_BITS-1:00]), .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(ID_BITS),.OVERRIDE(1))          claimid_fl_thr1 (.*, .din (claimid_in[ID_BITS-1:00]),      .dout(claimid[1][ID_BITS-1:00]), .en( curr_int_tid_final_in));
+
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                wake_up_ff_thr0      (.*, .din (mhwakeup_in),    .dout(mhwakeup[0]),      .clk(free_clk),  .en(~curr_int_tid_final_in));
+  rvdffe  #(.WIDTH(1),.OVERRIDE(1))                wake_up_ff_thr1      (.*, .din (mhwakeup_in),    .dout(mhwakeup[1]),      .clk(free_clk),  .en( curr_int_tid_final_in));
+
+///////
+
+
+  rvdffie #(2*ID_BITS)          claimid_ff_f2     (.*, .din (claimid),      .dout(claimid_ff) );
+  rvdff   #(2*INTPRIORITY_BITS) pl_ff_f2          (.*, .din (pl),           .dout(pl_ff), .clk(free_clk));
+  rvdff   #(2)                  mexintpend_ff_f2  (.*, .clk(free_clk),      .din (mexintpend[1:0]), .dout(mexintpend_ff[1:0]));
+  rvdff   #(2)                  wake_up_ff_f2     (.*, .clk(free_clk),      .din (mhwakeup[1:0]),   .dout(mhwakeup_ff[1:0]));
+
+  assign claimid_out[0]  =  curr_int_tid_final ?  claimid_ff[0] : claimid[0] ;
+  assign claimid_out[1]  = ~curr_int_tid_final ?  claimid_ff[1] : claimid[1] ;
+
+  assign  pl_out[0]      =  curr_int_tid_final ?  pl_ff[0]: pl[0];
+  assign  pl_out[1]      = ~curr_int_tid_final ?  pl_ff[1]: pl[1];
+
+  assign  mexintpend_out[0]      =  curr_int_tid_final ?  mexintpend_ff[0] : mexintpend[0] ;
+  assign  mexintpend_out[1]      = ~curr_int_tid_final ?  mexintpend_ff[1] : mexintpend[1] ;
+
+  assign mhwakeup_out[0] =    curr_int_tid_final ?   mhwakeup_ff[0] : mhwakeup[0] ;
+  assign mhwakeup_out[1] =   ~curr_int_tid_final ?   mhwakeup_ff[1] : mhwakeup[1] ;
+
+  assign meipt    =  curr_int_tid_final_in ? dec_tlu_meipt[1]    : dec_tlu_meipt[0] ;
+  assign meicurpl =  curr_int_tid_final_in ? dec_tlu_meicurpl[1] : dec_tlu_meicurpl[0] ;
+
 end else begin : one_thread
-  assign claimid_out[pt.NUM_THREADS-1:0] = {pt.NUM_THREADS{claimid}} ;
-  assign pl_out[pt.NUM_THREADS-1:0]      = {pt.NUM_THREADS{pl}} ;
-  assign mexintpend_out[pt.NUM_THREADS-1:0] = {pt.NUM_THREADS{mexintpend}} ;
-  assign mhwakeup_out[pt.NUM_THREADS-1:0] = {pt.NUM_THREADS{mhwakeup}} ;
+
+  rvdff   #(1)                mexintpend_fl (.*,  .din (mexintpend_in),                 .dout(mexintpend), .clk(free_clk));
+  rvdffie #(ID_BITS)          claimid_fl    (.*,  .din (claimid_in[ID_BITS-1:00]),      .dout(claimid) );
+  rvdff   #(INTPRIORITY_BITS) pl_fl         (.*,  .din (pl_in_q[INTPRIORITY_BITS-1:0]), .dout(pl),         .clk(free_clk));
+  rvdff   #(1)                wake_up_ff    (.*,  .din (mhwakeup_in),                   .dout(mhwakeup),   .clk(free_clk));
+
+
+  assign claimid_out[pt.NUM_THREADS-1:0]    = claimid[pt.NUM_THREADS-1:0];
+  assign pl_out[pt.NUM_THREADS-1:0]         = pl[pt.NUM_THREADS-1:0] ;
+  assign mexintpend_out[pt.NUM_THREADS-1:0] = mexintpend[pt.NUM_THREADS-1:0] ;
+  assign mhwakeup_out[pt.NUM_THREADS-1:0]   = mhwakeup[pt.NUM_THREADS-1:0] ;
 
   assign meipt    =  dec_tlu_meipt[0] ;
   assign meicurpl =  dec_tlu_meicurpl[0] ;
+
 end
 
 assign meipt_inv[INTPRIORITY_BITS-1:0]    = intpriord ? ~meipt[INTPRIORITY_BITS-1:0]    : meipt[INTPRIORITY_BITS-1:0] ;
 assign meicurpl_inv[INTPRIORITY_BITS-1:0] = intpriord ? ~meicurpl[INTPRIORITY_BITS-1:0] : meicurpl[INTPRIORITY_BITS-1:0] ;
 assign mexintpend_in = (( selected_int_priority[INTPRIORITY_BITS-1:0] > meipt_inv[INTPRIORITY_BITS-1:0]) &
                         ( selected_int_priority[INTPRIORITY_BITS-1:0] > meicurpl_inv[INTPRIORITY_BITS-1:0]) );
-rvdff #(1) mexintpend_fl  (.*, .clk(free_clk), .din (mexintpend_in), .dout(mexintpend));
 
 assign maxint[INTPRIORITY_BITS-1:0]      =  intpriord ? 0 : 15 ;
 assign mhwakeup_in = ( pl_in_q[INTPRIORITY_BITS-1:0] == maxint) ;
-rvdff #(1) wake_up_ff  (.*, .clk(free_clk), .din (mhwakeup_in), .dout(mhwakeup));
 
 
 
@@ -604,10 +701,11 @@ endmodule // cmp_and_mux
 
 
 module eh2_configurable_gw (
-                             input logic clk,
+                             input logic gw_clk,
+                             input logic rawclk,
+                             input logic clken,
                              input logic rst_l,
-
-                             input logic extintsrc_req_sync ,
+                             input logic extintsrc_req,
                              input logic meigwctrl_polarity ,
                              input logic meigwctrl_type ,
                              input logic meigwclr ,
@@ -615,11 +713,15 @@ module eh2_configurable_gw (
                              output logic extintsrc_req_config
                             );
 
+  logic  gw_int_pending_in, gw_int_pending, extintsrc_req_sync;
 
-  logic  gw_int_pending_in , gw_int_pending ;
-
+  rvsyncss_fpga  #(1) sync_inst (
+      .dout        (extintsrc_req_sync),
+      .din         (extintsrc_req),
+      .*) ;
   assign gw_int_pending_in =  (extintsrc_req_sync ^ meigwctrl_polarity) | (gw_int_pending & ~meigwclr) ;
-  rvdff #(1) int_pend_ff        (.*, .clk(clk), .din (gw_int_pending_in),     .dout(gw_int_pending));
+ rvdff_fpga #(1) int_pend_ff        (.*, .clk(gw_clk), .rawclk(rawclk), .clken(clken), .din (gw_int_pending_in),     .dout(gw_int_pending));
+
 
   assign extintsrc_req_config =  meigwctrl_type ? ((extintsrc_req_sync ^  meigwctrl_polarity) | gw_int_pending) : (extintsrc_req_sync ^  meigwctrl_polarity) ;
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,10 +27,8 @@ import eh2_pkg::*;
 )
   (
    input logic clk,
-   input logic free_clk,
    input logic active_clk,
 
-   input logic clk_override, // overrides clock gating
    input logic rst_l, // reset enable, from core pin
    input logic scan_mode, // scan
 
@@ -42,8 +40,14 @@ import eh2_pkg::*;
    input logic ifu_fb_consume2,  // Aligner consumed 2 fetch buffers
 
    input logic dec_tlu_flush_noredir_wb, // Don't fetch on flush
+   input logic dec_tlu_flush_mp_wb,
+   input logic dec_tlu_flush_lower_wb, // Flush
    input logic exu_flush_final, // FLush
    input logic [31:1] exu_flush_path_final, // Flush path
+   input logic [31:1] dec_tlu_flush_path_wb, // Flush path
+
+   input logic exu_flush_final_early, // FLush
+   input logic [31:1] exu_flush_path_final_early, // Flush path
 
    input logic ifu_bp_kill_next_f2, // kill next fetch, taken target found
    input logic [31:1] ifu_bp_btb_target_f2, //  predicted target PC
@@ -60,7 +64,13 @@ import eh2_pkg::*;
    output logic  fetch_uncacheable_f1, // fetch to uncacheable address as determined by MRAC
 
    output logic [31:1] fetch_addr_f1, // fetch addr F1
+   output logic [31:1] fetch_addr_bf, // fetch addr F1
+   output logic [31:1] fetch_addr_f2,
 
+   output [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] fetch_btb_rd_addr_f1, // btb read hash
+   output [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] fetch_btb_rd_addr_p1_f1, // btb read hash
+
+   output logic  fetch_req_bf,
    output logic  fetch_req_f1,  // fetch request valid F1
    output logic  fetch_req_f1_raw, // for clock-gating in mem_ctl
    output logic  fetch_req_f2,  // fetch request valid F2
@@ -74,18 +84,17 @@ import eh2_pkg::*;
    );
 
 
-   logic [31:1]  fetch_addr_bf,  miss_addr, ifc_fetch_addr_f1_raw, ifc_fetch_addr_f2;
+   logic [31:1]  miss_addr, ifc_fetch_addr_f1_raw;
    logic [31:3]  fetch_addr_next;
    logic [31:1]  miss_addr_ns;
    logic [4:0]   cacheable_select;
    logic [4:0]   fb_write_f1, fb_write_ns;
 
-   logic         ifc_fetch_req_bf;
    logic         fb_full_f1_ns, fb_full_f1;
-   logic         fb_right, fb_right2, fb_right3, fb_left, wfm, fetch_ns, idle;
-   logic         fetch_req_f2_ns;
+   logic         fb_right, fb_right2, fb_right3, fb_left, wfm, fetch_ns, fetch, idle;
+   logic         fetch_req_f2_ns, fetch_req_f1_raw_unqual;
    logic         missff_en;
-   logic         fetch_crit_word, ic_crit_wd_rdy_d1, fetch_crit_word_d1, fetch_crit_word_d2, my_bp_kill_next_f2;
+   logic         fetch_crit_word, ic_crit_wd_rdy_f, ic_crit_wd_rdy_d1, fetch_crit_word_d1, fetch_crit_word_d2, my_bp_kill_next_f2;
    logic         sel_last_addr_bf, sel_miss_addr_bf, sel_btb_addr_bf, sel_next_addr_bf;
    logic         miss_f2, miss_a;
    logic         flush_fb, dma_iccm_stall_any_f;
@@ -100,23 +109,17 @@ import eh2_pkg::*;
    logic         line_wrap, lost_arb;
    logic [2:1]   fetch_addr_next_2_1;
 
-   logic         ifc_f2_clk;
-
    logic         fetch_req_f1_won;
-   logic         reset_delayed;
    logic         iccm_acc_in_range_f1;
    logic         iccm_acc_in_region_f1;
-
-
+   logic [31:1]  exu_flush_path_final_early_f;
 
    if (pt.ICCM_ENABLE == 1)
      begin
         logic iccm_acc_in_region_f1;
         logic iccm_acc_in_range_f1;
      end
-   logic dma_stall;
-
-   rvoclkhdr ifu_fa2_cgc ( .en(fetch_req_f1_won | clk_override), .l1clk(ifc_f2_clk), .* );
+   logic dma_stall, kill_fetch;
 
    // FSM assignment
     typedef enum logic [1:0] { IDLE  = 2'b00,
@@ -128,29 +131,21 @@ import eh2_pkg::*;
 
    assign dma_stall = ic_dma_active | dma_iccm_stall_any_f;
 
-   assign reset_delayed = 1'b0;
 
-   rvdff #(2) ran_ff (.*, .clk(free_clk), .din({dma_iccm_stall_any, miss_f2}), .dout({dma_iccm_stall_any_f, miss_a}));
+   rvdff #(2) ran_ff (.*, .clk(active_clk), .din({dma_iccm_stall_any, miss_f2}), .dout({dma_iccm_stall_any_f, miss_a}));
 
    // If crit word fetch is blocked, try again
-   assign ic_crit_wd_rdy_mod = ic_crit_wd_rdy & ~((fetch_crit_word_d2 | ic_write_stall) & ~fetch_req_f2);
+   assign ic_crit_wd_rdy_mod = ic_crit_wd_rdy_f & ~((fetch_crit_word_d2 | ic_write_stall) & ~fetch_req_f2);
 
    // For Ifills, we fetch the critical word. Needed for perf and for rom bypass
-   assign fetch_crit_word = ic_crit_wd_rdy_mod & ~ic_crit_wd_rdy_d1 & ~exu_flush_final & ~ic_write_stall;
+   assign fetch_crit_word = ic_crit_wd_rdy_mod & ~ic_crit_wd_rdy_d1 & ~flush_fb & ~ic_write_stall;
    assign my_bp_kill_next_f2 = ifu_bp_kill_next_f2 & ifc_fetch_req_f2_raw;
-   assign missff_en = exu_flush_final | (~ic_hit_f2 & fetch_req_f2) | fetch_crit_word_d1 | my_bp_kill_next_f2 | (fetch_req_f2 & ~fetch_req_f1_won & ~fetch_crit_word_d2);
-   assign miss_sel_flush = exu_flush_final & (((wfm | idle) & ~fetch_crit_word_d1)  | dma_stall | ic_write_stall | lost_arb);
-   assign miss_sel_f2 = ~exu_flush_final & ~ic_hit_f2 & fetch_req_f2;
-   assign miss_sel_f1 = ~exu_flush_final & ~miss_sel_f2 & ~fetch_req_f1_won & fetch_req_f2 & ~fetch_crit_word_d2 & ~my_bp_kill_next_f2;
+   assign missff_en = flush_fb | (~ic_hit_f2 & fetch_req_f2) | fetch_crit_word_d1 | my_bp_kill_next_f2 | (fetch_req_f2 & ~fetch_req_f1_won & ~fetch_crit_word_d2);
+   assign miss_sel_f2 = ~flush_fb & ~ic_hit_f2 & fetch_req_f2;
+   assign miss_sel_f1 = ~flush_fb & ~miss_sel_f2 & ~fetch_req_f1_won & fetch_req_f2 & ~fetch_crit_word_d2 & ~my_bp_kill_next_f2;
    assign miss_sel_bf = ~miss_sel_f2 & ~miss_sel_f1 & ~miss_sel_flush;
 
-   assign miss_addr_ns[31:1] = ( ({31{miss_sel_flush}} & exu_flush_path_final[31:1]) |
-                                 ({31{miss_sel_f2}} & ifc_fetch_addr_f2[31:1]) |
-                                 ({31{miss_sel_f1}} & fetch_addr_f1[31:1]) |
-                                 ({31{miss_sel_bf}} & fetch_addr_bf[31:1]));
-
-
-
+   // pcie too much pressure
    rvdffe #(31) faddmiss_ff (.*, .en(missff_en), .din(miss_addr_ns[31:1]), .dout(miss_addr[31:1]));
 
 
@@ -159,61 +154,120 @@ import eh2_pkg::*;
    // - Miss *or* flush during WFM (icache miss buffer is blocking)
    // - Sequential
 
+logic dec_tlu_flush_noredir_wb_f, flush_noredir, ic_crit_wd_rdy_qual, flush_lower_qual;
+   logic [31:1] fetch_addr_bf_pre;
+if(pt.BTB_USE_SRAM) begin
+
+   // hold the early flush path
+   rvdffe #(31) faddmiss_ff (.*, .en(exu_flush_final_early), .din(exu_flush_path_final_early[31:1]), .dout(exu_flush_path_final_early_f[31:1]));
+   assign flush_lower_qual = dec_tlu_flush_lower_wb & ~dec_tlu_flush_mp_wb;
+   assign flush_fb = exu_flush_final | flush_lower_qual;
+   assign sel_last_addr_bf =  (flush_fb & ~fetch_req_f1_won) | (~fetch_req_f1_won & ~my_bp_kill_next_f2 & fetch_req_f2);
+   assign sel_miss_addr_bf =  ~(flush_fb & ~fetch_req_f1_won) & ~fetch_req_f1_won & ~my_bp_kill_next_f2 & ~fetch_req_f2;
+   assign sel_btb_addr_bf  =  my_bp_kill_next_f2;
+   assign sel_next_addr_bf =  fetch_req_f1_won;
+
+   assign miss_sel_flush = flush_fb & (((wfm | idle) & ~fetch_crit_word_d1)  | dma_stall | ic_write_stall | lost_arb);
+
+   assign fetch_addr_bf_pre[31:1] = (({31{ flush_lower_qual}} & dec_tlu_flush_path_wb[31:1]) | // Flush path
+                                     ({31{~flush_lower_qual & sel_miss_addr_bf}} & miss_addr[31:1]) | // MISS path
+                                     ({31{~flush_lower_qual & sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[31:1]})| // BTB target
+                                     ({31{~flush_lower_qual & sel_last_addr_bf}} & {fetch_addr_f1[31:1]})| // Last cycle
+                                     ({31{~flush_lower_qual & sel_next_addr_bf}} & {fetch_addr_next[31:3],fetch_addr_next_2_1[2:1]})); // SEQ path
+
+   assign fetch_addr_bf[31:1] = ({31{ exu_flush_final_early}} & exu_flush_path_final_early[31:1]) |
+                                ({31{~exu_flush_final_early}} & fetch_addr_bf_pre[31:1]) ;
+
+   assign miss_addr_ns[31:1] = ( ({31{miss_sel_flush}} & (flush_lower_qual ? dec_tlu_flush_path_wb[31:1] : exu_flush_path_final_early_f[31:1])) |
+                                 ({31{miss_sel_f2}} & fetch_addr_f2[31:1]) |
+                                 ({31{miss_sel_f1}} & fetch_addr_f1[31:1]) |
+                                 ({31{miss_sel_bf}} & fetch_addr_bf_pre[31:1]));
+
+   assign fetch_addr_f1[31:1] = ifc_fetch_addr_f1_raw[31:1];
+
+   assign ic_crit_wd_rdy_qual = ic_crit_wd_rdy & ~dec_tlu_flush_noredir_wb;
+
+   rvdff #(5) iccrit_ff (.*, .clk(active_clk), .din({dec_tlu_flush_noredir_wb, ic_crit_wd_rdy_qual, ic_crit_wd_rdy_mod, fetch_crit_word,    fetch_crit_word_d1}),
+                                              .dout({dec_tlu_flush_noredir_wb_f, ic_crit_wd_rdy_f, ic_crit_wd_rdy_d1,  fetch_crit_word_d1, fetch_crit_word_d2}));
+
+   assign fetch = state == FETCH ;
+   assign fetch_req_bf = (fetch | fetch_crit_word);
+   assign fetch_bf_en = (fetch | fetch_crit_word | exu_flush_final_early | exu_flush_final | flush_lower_qual);
+   assign flush_noredir = dec_tlu_flush_noredir_wb | dec_tlu_flush_noredir_wb_f;
+   assign kill_fetch = flush_lower_qual;
+
+end
+else begin // NOT SRAM
+   assign flush_fb = exu_flush_final;
+   // tlu flush and exu mispredict flush are combined when not using srams for the btb
+   assign miss_sel_flush = exu_flush_final & (((wfm | idle) & ~fetch_crit_word_d1)  | dma_stall | ic_write_stall | lost_arb);
    assign sel_last_addr_bf = ~miss_sel_flush & ~fetch_req_f1_won & fetch_req_f2 & ~my_bp_kill_next_f2;
    assign sel_miss_addr_bf = ~miss_sel_flush & ~my_bp_kill_next_f2 & ~fetch_req_f1_won & ~fetch_req_f2;
    assign sel_btb_addr_bf  = ~miss_sel_flush & my_bp_kill_next_f2;
    assign sel_next_addr_bf = ~miss_sel_flush & fetch_req_f1_won;
-
-
    assign fetch_addr_bf[31:1] = ( ({31{miss_sel_flush}} &  exu_flush_path_final[31:1]) | // FLUSH path
-                                   ({31{sel_miss_addr_bf}} & miss_addr[31:1]) | // MISS path
-                                   ({31{sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[31:1]})| // BTB target
-                                   ({31{sel_last_addr_bf}} & {fetch_addr_f1[31:1]})| // Last cycle
-                                   ({31{sel_next_addr_bf}} & {fetch_addr_next[31:3],fetch_addr_next_2_1[2:1]})); // SEQ path
+                                  ({31{sel_miss_addr_bf}} & miss_addr[31:1]) | // MISS path
+                                  ({31{sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[31:1]})| // BTB target
+                                  ({31{sel_last_addr_bf}} & {fetch_addr_f1[31:1]})| // Last cycle
+                                  ({31{sel_next_addr_bf}} & {fetch_addr_next[31:3],fetch_addr_next_2_1[2:1]})); // SEQ path
+
+   assign miss_addr_ns[31:1] = ( ({31{miss_sel_flush}} & exu_flush_path_final[31:1]) |
+                                 ({31{miss_sel_f2}} & fetch_addr_f2[31:1]) |
+                                 ({31{miss_sel_f1}} & fetch_addr_f1[31:1]) |
+                                 ({31{miss_sel_bf}} & fetch_addr_bf[31:1]));
+
+   assign fetch_addr_f1[31:1] = ( ({31{exu_flush_final}} & exu_flush_path_final[31:1]) |
+                                  ({31{~exu_flush_final}} & ifc_fetch_addr_f1_raw[31:1]));
+   rvdff #(3) iccrit_ff (.*, .clk(active_clk), .din({ic_crit_wd_rdy_mod, fetch_crit_word,    fetch_crit_word_d1}),
+                                              .dout({ic_crit_wd_rdy_d1,  fetch_crit_word_d1, fetch_crit_word_d2}));
+   assign ic_crit_wd_rdy_f = ic_crit_wd_rdy;
+   assign fetch_req_bf = (fetch_ns | fetch_crit_word);
+   assign fetch_bf_en = (fetch_ns | fetch_crit_word);
+   assign flush_noredir = dec_tlu_flush_noredir_wb;
+   assign kill_fetch = '0;
+
+
+end // else: !if(pt.BTB_USE_SRAM)
 
    assign fetch_addr_next[31:3] = fetch_addr_f1[31:3] + 29'b1;
 
    assign line_wrap = (fetch_addr_next[pt.ICACHE_TAG_INDEX_LO] ^ fetch_addr_f1[pt.ICACHE_TAG_INDEX_LO]);
-
+// For verilator.... jb
    assign fetch_addr_next_2_1[2:1] = line_wrap ? 2'b0 : fetch_addr_f1[2:1];
 
-   assign ifc_fetch_req_bf = (fetch_ns | fetch_crit_word) ;
-   assign fetch_bf_en = (fetch_ns | fetch_crit_word);
 
    assign miss_f2 = fetch_req_f2 & ~ic_hit_f2;
 
-   assign mb_empty_mod = (ifu_ic_mb_empty | exu_flush_final) & ~dma_stall & ~miss_f2 & ~miss_a;
 
    // Halt flushes and takes us to IDLE
-   assign goto_idle = exu_flush_final & dec_tlu_flush_noredir_wb;
+   assign goto_idle = flush_fb & dec_tlu_flush_noredir_wb;
    // If we're in IDLE, and we get a flush, goto FETCH
-   assign leave_idle = exu_flush_final & ~dec_tlu_flush_noredir_wb & idle;
+   assign leave_idle = flush_fb & ~dec_tlu_flush_noredir_wb & idle;
+   assign mb_empty_mod = (ifu_ic_mb_empty | flush_fb) & ~dma_stall & ~miss_f2 & ~miss_a;
 
-//.i 7
+
+//.i 6
 //.o 2
-//.ilb state[1] state[0] reset_delayed miss_f2 mb_empty_mod  goto_idle leave_idle
+//.ilb state[1] state[0] miss_f2 mb_empty_mod  goto_idle leave_idle
 //.ob next_state[1] next_state[0]
 //.type fr
 //
 //# fetch 01, stall 10, wfm 11, idle 00
-//-- 1---- 01
-//-- 0--1- 00
-//00 0--00 00
-//00 0--01 01
+//-- --1- 00
+//00 --00 00
+//00 --01 01
 //
-//01 01-0- 11
-//01 00-0- 01
+//01 1-0- 11
+//01 0-0- 01
 //
-//11 0-10- 01
-//11 0-00- 11
+//11 -10- 01
+//11 -00- 11
 
-   assign next_state[1] = (~state[1] & state[0] & ~reset_delayed & miss_f2 & ~goto_idle) |
-                          (state[1] & ~reset_delayed & ~mb_empty_mod & ~goto_idle);
+   assign next_state[1] = state_t'((~state[1] & state[0] & miss_f2 & ~goto_idle) |
+                          (state[1] & ~mb_empty_mod & ~goto_idle));
 
-   assign next_state[0] = (~goto_idle & leave_idle) | (state[0] & ~goto_idle) |
-                          (reset_delayed);
+   assign next_state[0] = state_t'((~goto_idle & leave_idle) | (state[0] & ~goto_idle));
 
-   assign flush_fb = exu_flush_final;
 
    // model fb write logic to mass balance the fetch buffers
    assign fb_right = (~ifu_fb_consume1 & ~ifu_fb_consume2 & miss_f2) |  // F2 cache miss, repair mass balance
@@ -249,48 +303,62 @@ import eh2_pkg::*;
 if(pt.NUM_THREADS > 1) begin : ignoreconsume
    assign pmu_fetch_stall = wfm |
                                 (fetch_req_f1_raw &
-                                ( (fb_full_f1 & ~(exu_flush_final)) |
+                                ( (fb_full_f1 & ~(flush_fb)) |
                                   dma_stall));
    // BTB hit kills this fetch
    assign fetch_req_f1 = ( fetch_req_f1_raw &
-                               ~my_bp_kill_next_f2 &
-                               ~(fb_full_f1 & ~(exu_flush_final)) &
-                               ~dma_stall &
-                               ~ic_write_stall &
-                               ~dec_tlu_flush_noredir_wb );
+                           ~kill_fetch &
+                           ~my_bp_kill_next_f2 &
+                           ~(fb_full_f1 & ~(flush_fb)) &
+                           ~dma_stall &
+                           ~ic_write_stall &
+                           ~flush_noredir );
 
 end // block: ignoreconsume
 else begin
    assign pmu_fetch_stall = wfm |
                                 (fetch_req_f1_raw &
-                                ( (fb_full_f1 & ~(ifu_fb_consume2 | ifu_fb_consume1 | exu_flush_final)) |
+                                ( (fb_full_f1 & ~(ifu_fb_consume2 | ifu_fb_consume1 | flush_fb)) |
                                   dma_stall));
    // BTB hit kills this fetch
    assign fetch_req_f1 = ( fetch_req_f1_raw &
-                               ~my_bp_kill_next_f2 &
-                               ~(fb_full_f1 & ~(ifu_fb_consume2 | ifu_fb_consume1 | exu_flush_final)) &
-                               ~dma_stall &
-                               ~ic_write_stall &
-                               ~dec_tlu_flush_noredir_wb );
+                           ~kill_fetch &
+                           ~my_bp_kill_next_f2 &
+                           ~(fb_full_f1 & ~(ifu_fb_consume2 | ifu_fb_consume1 | flush_fb)) &
+                           ~dma_stall &
+                           ~ic_write_stall &
+                           ~flush_noredir );
 end
-   assign ready = fetch_req_f1;
+
+   if(pt.BTB_USE_SRAM) begin
+      assign ready = fetch_req_bf &
+                     ~(fb_full_f1 & ~(ifu_fb_consume2 | ifu_fb_consume1 | flush_fb));
+   end
+   else
+     assign ready = fetch_req_f1;
+
    assign fetch_req_f1_won = fetch_req_f1 & ~(tid ^ ifc_select_tid_f1);
    assign lost_arb = tid ^ ifc_select_tid_f1;
    // kill F2 request if we flush or if the prior fetch missed the cache/mem
-   assign fetch_req_f2_ns = fetch_req_f1_won & ~miss_f2;
+   assign fetch_req_f2_ns = fetch_req_f1_won & ~miss_f2 & ~miss_a;
 
-   rvdff #(2) req_ff (.*, .clk(active_clk), .din({ifc_fetch_req_bf, fetch_req_f2_ns}), .dout({fetch_req_f1_raw, ifc_fetch_req_f2_raw}));
+   rvdff #(2) req_ff (.*, .clk(active_clk), .din({fetch_req_bf, fetch_req_f2_ns}), .dout({fetch_req_f1_raw_unqual, ifc_fetch_req_f2_raw}));
+   assign fetch_req_f1_raw = fetch_req_f1_raw_unqual & ~miss_a;
 
-   assign fetch_req_f2 = ifc_fetch_req_f2_raw & ~exu_flush_final;
+   assign fetch_req_f2 = ifc_fetch_req_f2_raw & ~flush_fb;
 
+   // this flop needs a delayed clock *if* using SRAM btb
    rvdffe #(31) faddrf1_ff  (.*, .en(fetch_bf_en), .din(fetch_addr_bf[31:1]), .dout(ifc_fetch_addr_f1_raw[31:1]));
-   rvdff #(31) faddrf2_ff (.*,  .clk(ifc_f2_clk), .din(fetch_addr_f1[31:1]), .dout(ifc_fetch_addr_f2[31:1]));
 
-   assign fetch_addr_f1[31:1] = ( ({31{exu_flush_final}} & exu_flush_path_final[31:1]) |
-                                      ({31{~exu_flush_final}} & ifc_fetch_addr_f1_raw[31:1]));
+   rvdffpcie #(31) faddrf2_ff (.*,  .en(fetch_req_f1_won), .din(fetch_addr_f1[31:1]), .dout(fetch_addr_f2[31:1]));
 
-   rvdff #(3) iccrit_ff (.*, .clk(active_clk), .din({ic_crit_wd_rdy_mod, fetch_crit_word,    fetch_crit_word_d1}),
-                                              .dout({ic_crit_wd_rdy_d1,  fetch_crit_word_d1, fetch_crit_word_d2}));
+   // timing fix attempt
+   logic [31:3] fetch_addr_p1_f1;
+   eh2_btb_addr_hash #(.pt(pt)) f1hash(.pc(fetch_addr_f1[pt.BTB_INDEX3_HI:pt.BTB_INDEX1_LO]), .hash(fetch_btb_rd_addr_f1[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]));
+   assign fetch_addr_p1_f1[31:3] = fetch_addr_f1[31:3] + 29'b1;
+   eh2_btb_addr_hash #(.pt(pt)) f1hash_p1(.pc(fetch_addr_p1_f1[pt.BTB_INDEX3_HI:pt.BTB_INDEX1_LO]), .hash(fetch_btb_rd_addr_p1_f1[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]));
+
+
 
 if (pt.ICCM_ENABLE == 1)
  begin
@@ -310,14 +378,14 @@ if (pt.ICCM_ENABLE == 1)
    assign dma_access_ok = ( (~iccm_access_f1 |
                                  (fb_full_f1) |
                                  wfm |
-                                 idle ) & ~exu_flush_final) |
+                                 idle ) & ~flush_fb) |
                               dma_iccm_stall_any_f;
     end
     else begin
    assign dma_access_ok = ( (~iccm_access_f1 |
                                  (fb_full_f1 & ~(ifu_fb_consume2 | ifu_fb_consume1)) |
                                  wfm |
-                                 idle ) & ~exu_flush_final) |
+                                 idle ) & ~flush_fb) |
                               dma_iccm_stall_any_f;
        end
 

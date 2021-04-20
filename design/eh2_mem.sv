@@ -1,6 +1,6 @@
 //********************************************************************************
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2020 Western Digital Corporation or it's affiliates.
+// Copyright 2020 Western Digital Corporation or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import eh2_pkg::*;
    input logic         dccm_clk_override,
    input logic         icm_clk_override,
    input logic         dec_tlu_core_ecc_disable,
+   input logic         btb_clk_override,
 
    //DCCM ports
    input logic         dccm_wren,
@@ -40,8 +41,10 @@ import eh2_pkg::*;
    output logic [pt.DCCM_FDATA_WIDTH-1:0]  dccm_rd_data_lo,
    output logic [pt.DCCM_FDATA_WIDTH-1:0]  dccm_rd_data_hi,
 
+   input eh2_dccm_ext_in_pkt_t  [pt.DCCM_NUM_BANKS-1:0] dccm_ext_in_pkt,
 
    //ICCM ports
+   input eh2_ccm_ext_in_pkt_t   [pt.ICCM_NUM_BANKS/4-1:0][1:0][1:0]  iccm_ext_in_pkt,
 
    input logic [pt.ICCM_BITS-1:1]  iccm_rw_addr,
    input logic [pt.NUM_THREADS-1:0]iccm_buf_correct_ecc_thr,            // ICCM is doing a single bit error correct cycle
@@ -66,6 +69,8 @@ import eh2_pkg::*;
    input  logic [63:0]  ic_premux_data,     // Premux data to be muxed with each way of the Icache.
    input  logic         ic_sel_premux_data, // Premux data sel
 
+   input eh2_ic_data_ext_in_pkt_t   [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]         ic_data_ext_in_pkt,
+   input eh2_ic_tag_ext_in_pkt_t    [pt.ICACHE_NUM_WAYS-1:0]              ic_tag_ext_in_pkt,
 
    input logic [pt.ICACHE_BANKS_WAY-1:0] [70:0]               ic_wr_data,           // Data to fill to the Icache. With ECC
    output logic [63:0]               ic_rd_data ,          // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
@@ -88,11 +93,28 @@ import eh2_pkg::*;
    output logic [pt.ICACHE_NUM_WAYS-1:0]   ic_rd_hit,
    output logic         ic_tag_perr,        // Icache Tag parity error
 
+   // BTB ports
+ input eh2_ccm_ext_in_pkt_t   [1:0] btb_ext_in_pkt,
 
-   input  logic         scan_mode
+ input logic                         btb_wren,
+ input logic                         btb_rden,
+ input logic [1:0] [pt.BTB_ADDR_HI:1] btb_rw_addr,  // per bank
+ input logic [1:0] [pt.BTB_ADDR_HI:1] btb_rw_addr_f1,  // per bank
+ input logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0]         btb_sram_wr_data,
+ input logic [1:0] [pt.BTB_BTAG_SIZE-1:0] btb_sram_rd_tag_f1,
 
+ output eh2_btb_sram_pkt btb_sram_pkt,
+
+ output logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0]      btb_vbank0_rd_data_f1,
+ output logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0]      btb_vbank1_rd_data_f1,
+ output logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0]      btb_vbank2_rd_data_f1,
+ output logic [pt.BTB_TOFFSET_SIZE+pt.BTB_BTAG_SIZE+5-1:0]      btb_vbank3_rd_data_f1,
+
+ input  logic         scan_mode
 );
 
+   logic  active_clk;
+   rvoclkhdr active_cg   ( .en(1'b1),         .l1clk(active_clk), .* );
 
    // DCCM Instantiation
    if (pt.DCCM_ENABLE == 1) begin: Gen_dccm_enable
@@ -130,6 +152,13 @@ else  begin
    assign iccm_rd_data_ecc = '0 ;
 end
 
+// BTB sram
+if (pt.BTB_USE_SRAM == 1) begin : btb
+   eh2_ifu_btb_mem #(.pt(pt)) btb  (
+      .clk_override(btb_clk_override),
+      .*
+   );
+end
 
 
 endmodule

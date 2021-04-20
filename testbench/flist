@@ -1,3 +1,6 @@
++define+RV_OPENSOURCE
++libext+.v+.sv
++incdir+$RV_ROOT/testbench
 $RV_ROOT/design/eh2_swerv_wrapper.sv
 $RV_ROOT/design/eh2_mem.sv
 $RV_ROOT/design/eh2_pic_ctrl.sv
@@ -10,6 +13,7 @@ $RV_ROOT/design/ifu/eh2_ifu_bp_ctl.sv
 $RV_ROOT/design/ifu/eh2_ifu_ic_mem.sv
 $RV_ROOT/design/ifu/eh2_ifu_mem_ctl.sv
 $RV_ROOT/design/ifu/eh2_ifu_iccm_mem.sv
+$RV_ROOT/design/ifu/eh2_ifu_btb_mem.sv
 $RV_ROOT/design/ifu/eh2_ifu.sv
 $RV_ROOT/design/dec/eh2_dec_decode_ctl.sv
 $RV_ROOT/design/dec/eh2_dec_gpr_ctl.sv
@@ -42,4 +46,8 @@ $RV_ROOT/design/dmi/rvjtag_tap.v
 $RV_ROOT/design/lib/eh2_lib.sv
 -v $RV_ROOT/design/lib/beh_lib.sv
 -v $RV_ROOT/design/lib/mem_lib.sv
+-y $RV_ROOT/design/lib
 $RV_ROOT/testbench/axi_lsu_dma_bridge.sv
+$RV_ROOT/testbench/remote_bitbang.cc
+$RV_ROOT/testbench/SimJTAG.cc
+$RV_ROOT/testbench/SimJTAG.v

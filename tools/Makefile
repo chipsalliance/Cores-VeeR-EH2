@@ -101,7 +101,8 @@ all: clean verilator
 clean:
 	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots swerv* \
 	verilator* *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work \
-	dataset.asdb  library.cfg vsimsa.cfg  riviera-build wave.asdb*
+	work dataset.asdb  library.cfg vsimsa.cfg  riviera-build wave.asdb \
+	SimJTAG.so
 
 
 
@@ -138,10 +139,12 @@ irun-build: ${TBFILES} ${BUILD_DIR}/defines.h
 	  -I${RV_ROOT}/testbench -elaborate  -snapshot ${snapshot} $(profile)
 	touch irun-build
 
+SimJTAG.so : ${RV_ROOT}/testbench/remote_bitbang.cc ${RV_ROOT}/testbench/SimJTAG.cc
+	ccomp -dpi ${RV_ROOT}/testbench/remote_bitbang.cc ${RV_ROOT}/testbench/SimJTAG.cc -o SimJTAG
+
 riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h
 	vlib work
 	vlog -work work \
-		-err VCP2694 W1 \
 		+incdir+${RV_ROOT}/design/lib \
 		+incdir+${RV_ROOT}/design/include \
 		+incdir+${BUILD_DIR} \
@@ -168,12 +171,10 @@ vlog: program.hex ${TBFILES} ${BUILD_DIR}/defines.h
 	$(VLOG) -l vlog.log -sv -mfcu +incdir+${BUILD_DIR}+${RV_ROOT}/design/include+${RV_ROOT}/design/lib\
         $(defines) -f ${RV_ROOT}/testbench/flist ${TBFILES} -R +nowarn3829 ${DEBUG_PLUS} $(run_arg)
 
-riviera: program.hex riviera-build
-	vsim -c -lib work ${DEBUG_PLUS} ${RIVIERA_DEBUG} tb_top -do "run -all; exit" -l riviera.log
+riviera: program.hex riviera-build SimJTAG.so
+	vsim -c -lib work ${DEBUG_PLUS} ${RIVIERA_DEBUG} tb_top -sv_lib SimJTAG -do "run -all; exit" -l riviera.log
 
 
-riviera: program.hex riviera-build
-	vsim -c -lib work ${DEBUG_PLUS} ${RIVIERA_DEBUG} tb_top -do "run -all; exit" -l riviera.log
 
 #################### TEST Build #######################################
 

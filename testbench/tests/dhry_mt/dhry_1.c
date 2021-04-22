@@ -3,9 +3,9 @@
  *
  *                   "DHRYSTONE" Benchmark Program
  *                   -----------------------------
- *                                                                            
+ *
  *  Version:    C, Version 2.1
- *                                                                            
+ *
  *  File:       dhry_1.c (part 2 of 3)
  *
  *  Date:       May 25, 1988
@@ -72,7 +72,7 @@ extern long     time();
                 /* Measurements should last at least 2 seconds */
 #endif
 #ifdef MSC_CLOCK
-extern clock_t	clock();
+extern clock_t  clock();
 #define Too_Small_Time (2*HZ)
 #endif
 
@@ -83,13 +83,13 @@ extern char* strcpy(char*, const char*);
 
 extern Boolean Func_2 (Str_30, Str_30, int* Int_Global);
 extern void Proc_7 (One_Fifty Int_1_Par_Val, One_Fifty Int_2_Par_Val,
-		    One_Fifty *Int_Par_Ref);
+                    One_Fifty *Int_Par_Ref);
 
 extern void Proc_8 (Arr_1_Dim Arr_1_Par_Ref, Arr_2_Dim Arr_2_Par_Ref,
-		    int Int_1_Par_Val, int Int_2_Par_Val, int* Int_Glob);
+                    int Int_1_Par_Val, int Int_2_Par_Val, int* Int_Glob);
 
 extern void Proc_6 (Enumeration Enum_Val_Par,
-		    Enumeration *Enum_Ref_Par,
+                    Enumeration *Enum_Ref_Par,
                     int Int_Glob);
 
 void Proc_5();
@@ -148,7 +148,7 @@ driver (struct Globals* globals)
   globals->Ptr_Glob->Discr                       = Ident_1;
   globals->Ptr_Glob->variant.var_1.Enum_Comp     = Ident_3;
   globals->Ptr_Glob->variant.var_1.Int_Comp      = 40;
-  strcpy (globals->Ptr_Glob->variant.var_1.Str_Comp, 
+  strcpy (globals->Ptr_Glob->variant.var_1.Str_Comp,
           "DHRYSTONE PROGRAM, SOME STRING");
   strcpy (Str_1_Loc, "DHRYSTONE PROGRAM, 1'ST STRING");
 
@@ -179,7 +179,7 @@ if(hartid == 0) {
   /***************/
   /* Start timer */
   /***************/
- 
+
 #ifdef TIMES
   times (&globals->time_info);
   globals->Begin_Time = (long) globals->time_info.tms_utime;
@@ -248,7 +248,7 @@ if(hartid == 0) {
   /**************/
   /* Stop timer */
   /**************/
-  
+
 #ifdef TIMES
   times (&globals->time_info);
   globals->End_Time = (long) globals->time_info.tms_utime;
@@ -259,7 +259,7 @@ if(hartid == 0) {
 #ifdef MSC_CLOCK
   End_Time = clock();
 #endif
-#ifdef SWERV 
+#ifdef SWERV
     globals->End_Time = get_mcycle();
 #endif
 if(hartid == 0) {
@@ -327,14 +327,14 @@ if(hartid == 0) {
     printf ("Run time = %llu clocks for %d Dhrystones\n", globals->User_Time, Number_Of_Runs );
     printf ("Dhrystones per Second per MHz: %6.2f\n", 1000000.0*Number_Of_Runs/globals->User_Time);
     printf ("Dhrystone score per Second per MHz: %2.2f\n", 1000000.0/1757.0*Number_Of_Runs/globals->User_Time);
-    printf ("To get CPU absolute score multiply previous number by CPU fequency in MHz.\n");  
+    printf ("To get CPU absolute score multiply previous number by CPU fequency in MHz.\n");
 #else
 #ifdef TIME
-    Microseconds = (float) User_Time * Mic_secs_Per_Second 
+    Microseconds = (float) User_Time * Mic_secs_Per_Second
                         / (float) Number_Of_Runs;
     Dhrystones_Per_Second = (float) Number_Of_Runs / (float) User_Time;
 #else
-    Microseconds = (float) User_Time * Mic_secs_Per_Second 
+    Microseconds = (float) User_Time * Mic_secs_Per_Second
                         / ((float) HZ * ((float) Number_Of_Runs));
     Dhrystones_Per_Second = ((float) HZ * (float) Number_Of_Runs)
                         / (float) User_Time;
@@ -382,27 +382,27 @@ Proc_1 (globals, Ptr_Val_Par)
      REG Rec_Pointer Ptr_Val_Par;
     /* executed once */
 {
-  REG Rec_Pointer Next_Record = Ptr_Val_Par->Ptr_Comp;  
+  REG Rec_Pointer Next_Record = Ptr_Val_Par->Ptr_Comp;
                                         /* == Ptr_Glob_Next */
   /* Local variable, initialized with Ptr_Val_Par->Ptr_Comp,    */
   /* corresponds to "rename" in Ada, "with" in Pascal           */
-  
-  structassign (*Ptr_Val_Par->Ptr_Comp, *globals->Ptr_Glob); 
+
+  structassign (*Ptr_Val_Par->Ptr_Comp, *globals->Ptr_Glob);
   Ptr_Val_Par->variant.var_1.Int_Comp = 5;
-  Next_Record->variant.var_1.Int_Comp 
+  Next_Record->variant.var_1.Int_Comp
         = Ptr_Val_Par->variant.var_1.Int_Comp;
   Next_Record->Ptr_Comp = Ptr_Val_Par->Ptr_Comp;
   Proc_3 (globals, &Next_Record->Ptr_Comp);
-    /* Ptr_Val_Par->Ptr_Comp->Ptr_Comp 
+    /* Ptr_Val_Par->Ptr_Comp->Ptr_Comp
                         == Ptr_Glob->Ptr_Comp */
   if (Next_Record->Discr == Ident_1)
     /* then, executed */
   {
     Next_Record->variant.var_1.Int_Comp = 6;
-    Proc_6 (Ptr_Val_Par->variant.var_1.Enum_Comp, 
+    Proc_6 (Ptr_Val_Par->variant.var_1.Enum_Comp,
             &Next_Record->variant.var_1.Enum_Comp, globals->Int_Glob);
     Next_Record->Ptr_Comp = globals->Ptr_Glob->Ptr_Comp;
-    Proc_7 (Next_Record->variant.var_1.Int_Comp, 10, 
+    Proc_7 (Next_Record->variant.var_1.Int_Comp, 10,
            &Next_Record->variant.var_1.Int_Comp);
   }
   else /* not executed */
@@ -418,7 +418,7 @@ Proc_2 (globals, Int_Par_Ref)
   struct Globals* globals;
      One_Fifty   *Int_Par_Ref;
 {
-  One_Fifty  Int_Loc;  
+  One_Fifty  Int_Loc;
   Enumeration   Enum_Loc;
 
   Int_Loc = *Int_Par_Ref + 10;

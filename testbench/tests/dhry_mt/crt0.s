@@ -46,12 +46,12 @@ _finish:
         .rept 10
         nop
         .endr
-        
+
 setup_stack1:
         la sp, STACK-0x1000
         call    main
         j       _finish
-      
+
 // simplified handler to support 'write' system call of GCC
 .balign 16
 handlers:

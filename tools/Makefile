@@ -150,7 +150,7 @@ riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h
 		+incdir+${BUILD_DIR} \
 		-y ${RV_ROOT}/design/lib +libext+.v+.vh \
 		$(defines) \
-		-f ${RV_ROOT}/testbench/flist \
+		-f ${RV_ROOT}/testbench/flist.riviera \
 		${TBFILES}
 	touch riviera-build
 

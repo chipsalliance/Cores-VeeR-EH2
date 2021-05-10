@@ -48,3 +48,4 @@ $RV_ROOT/design/lib/eh2_lib.sv
 -v $RV_ROOT/design/lib/mem_lib.sv
 -y $RV_ROOT/design/lib
 $RV_ROOT/testbench/axi_lsu_dma_bridge.sv
+$RV_ROOT/testbench/SimJTAG.v

@@ -165,7 +165,7 @@ vlog: program.hex ${TBFILES} ${BUILD_DIR}/defines.h
 	$(VLOG) -l vlog.log -sv -mfcu +incdir+${BUILD_DIR}\
         $(defines) -f ${RV_ROOT}/testbench/flist ${TBFILES} -R +nowarn3829 ${DEBUG_PLUS} $(run_arg)
 
-riviera: program.hex riviera-build SimJtag.so
+riviera: program.hex riviera-build SimJTAG.so
 	vsim -c -lib work ${DEBUG_PLUS} ${RIVIERA_DEBUG} tb_top -sv_lib SimJTAG -do "run -all; exit" -l riviera.log
 
 

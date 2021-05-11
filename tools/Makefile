@@ -100,7 +100,7 @@ all: clean verilator
 
 clean:
 	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots swerv* \
-	verilator* *.map *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv work\
+	verilator* *.map *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv \
 	work dataset.asdb  library.cfg vsimsa.cfg  riviera-build wave.asdb \
 	SimJTAG.so
 

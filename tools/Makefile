@@ -138,7 +138,7 @@ irun-build: ${TBFILES} ${BUILD_DIR}/defines.h
 SimJTAG.so : ${RV_ROOT}/testbench/remote_bitbang.cc ${RV_ROOT}/testbench/SimJTAG.cc
 	ccomp -dpi ${RV_ROOT}/testbench/remote_bitbang.cc ${RV_ROOT}/testbench/SimJTAG.cc -o SimJTAG
 
-riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h
+riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h ${RV_ROOT}/testbench/flist.riviera
 	vlib work
 	vlog -work work \
 		+incdir+${BUILD_DIR} \

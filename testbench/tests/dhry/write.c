@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// newlib stab replacement function to implement printf in DemoTB
+// newlib stab replacement functions to use printf from GCC libraries in DemoTB
 
 
 #include <stdint.h>
@@ -46,4 +46,22 @@ while(mcycleh0 != mcycleh1) {
 cycles = mcycleh1;
 return (cycles << 32) | mcyclel;
 
+}
+
+// place initial heap to ext memory (address 0x80000000 is not used by demo TB)
+char * heap = (char *) 0x80000000;
+
+// newlib stab for _sbrk ... original uses ecall to get memory from OS.
+// this one just use 'endless' ext memory
+char * _sbrk (int adj){
+    char * rv = heap;
+
+   heap += adj;
+   return rv;
+}
+
+// dummy newlib replacement : original uses ecall to check file status from OS
+// this one does nothing, but always returns OK
+int _fstat(int fd){
+    return 0;
 }

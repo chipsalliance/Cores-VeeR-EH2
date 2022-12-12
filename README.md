@@ -1,14 +1,15 @@
-# EH2 VeeR RISC-V Core<sup>TM</sup> 1.4 from Western Digital
+# VeeR EH2 RISC-V Core
 
-This repository contains the EH2 RISC-V VeeR Core<sup>TM</sup>  design RTL
+This repository contains the VeeR EH2 RISC-V Core design RTL.
 
 ## Overview
+
 VeeR EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and subset of bit manipulation instructions (Zb*) extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability.
 
 ## License
 
 By contributing to this project, you agree that your contribution is governed by [Apache-2.0](LICENSE).  
-Files under the [tools](tools/) directory may be available under a different license. Please review individual file for details.
+Files under the [tools](tools/) directory may be available under a different license. Please review individual files for details.
 
 ## Directory Structure
 
@@ -30,19 +31,21 @@ Files under the [tools](tools/) directory may be available under a different lic
  
 ## Dependencies
 
-- Verilator **(4.102 or later)** must be installed on the system if running with verilator
-- If adding/removing instructions, espresso must be installed (used by *tools/coredecode*)
-- RISCV tool chain (based on gcc version 7.3 or higher) must be
-installed so that it can be used to prepare RISCV binaries to run.
+- Verilator **(4.102 or later)** must be installed on the system if running with Verilator
+- If adding/removing instructions, `espresso` must be installed (used by `tools/coredecode`)
+- A RISC-V tool chain (based on gcc version 7.3 or higher) must be
+installed so that it can be used to prepare RISC-V binaries to run.
 
 ## Quickstart guide
+
 1. Clone the repository
-1. Setup RV_ROOT to point to the path in your local filesystem
+1. Setup `RV_ROOT` to point to the path in your local filesystem
 1. Determine your configuration {optional}
-1. Run make with tools/Makefile
+1. Run `make` with `tools/Makefile`
 
 ## Release Notes for this version
-Please see [release notes](release-notes.md) for changes and bug fixes in this version of VeeR
+
+Please see [release notes](release-notes.md) for changes and bug fixes in this version of VeeR.
 
 ### Configurations
 
@@ -50,27 +53,24 @@ VeeR can be configured by running the `$RV_ROOT/configs/veer.config` script:
 
 `% $RV_ROOT/configs/veer.config -h` for detailed help options
 
-For example to build with a DCCM of size 64 Kb:  
+For example to build with a DCCM of size 64 Kb:
 
 `% $RV_ROOT/configs/veer.config -dccm_size=64`  
 
-This will update the **default** snapshot in $PWD/snapshots/default/ with parameters for a 64K DCCM.  
+This will update the **default** snapshot in `$PWD/snapshots/default/` with parameters for a 64K DCCM.  
 
-Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot *dccm64* and refer to it during the build.  
+Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot `dccm64` and refer to it during the build.  
 
 There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be selected via 
 the `-target=name` option to veer.config. See [configs/README.md](configs/README.md) for a description of these targets.
 
 **Building an FPGA speed optimized model:**
-Use ``-fpga_optimize=1`` option to ``veer.config`` to build a model that removes clock gating logic from flop model so that the FPGA builds can run at higher speeds. **This is now the default option for
-targets other than ``typical_pd``.**
+Use ``-fpga_optimize=1`` option to ``veer.config`` to build a model that removes clock gating logic from flop model so that the FPGA builds can run at higher speeds. **This is now the default option for targets other than ``typical_pd``.**
 
 **Building a Power optimized model (ASIC flows):**
-Use ``-fpga_optimize=0`` option to ``veer.config`` to build a model that **enables** clock gating logic into the flop model so that the ASIC flows get a better power footprint. **This is now the default option for
-target``typical_pd``.**
+Use ``-fpga_optimize=0`` option to ``veer.config`` to build a model that **enables** clock gating logic into the flop model so that the ASIC flows get a better power footprint. **This is now the default option for target ``typical_pd``.**
 
-
-This script derives the following consistent set of include files :  
+This script derives the following consistent set of include files:
 
     $PWD/snapshots/<snapshot_name>
     ├── common_defines.vh                       # `defines for testbench or design
@@ -83,36 +83,33 @@ This script derives the following consistent set of include files :
     └── whisper.json                            # JSON file for veer-iss
     └── link.ld                                 # default linker control file
 
-
-
 ### Building a model
 
 While in a work directory:
 
 1. Set the RV_ROOT environment variable to the root of the VeeR directory structure.
-Example for bash shell:  
-    `export RV_ROOT=/path/to/veer`  
-Example for csh or its derivatives:  
-    `setenv RV_ROOT /path/to/veer`
+
+   Example for bash shell: `export RV_ROOT=/path/to/veer`
+   Example for csh or its derivatives: `setenv RV_ROOT /path/to/veer`
     
 1. Create your specific configuration
 
-    *(Skip if default is sufficient)*  
-    *(Name your snapshot to distinguish it from the default. Without an explicit name, it will update/override the __default__ snapshot)* 
-    For example if `mybuild` is the name for the snapshot:
-
-    set BUILD_PATH environment variable:
+   *(Skip if default is sufficient)*  
+   *(Name your snapshot to distinguish it from the default. Without an explicit name, it will update/override the __default__ snapshot)*
+   
+   For example if `mybuild` is the name for the snapshot, set the `BUILD_PATH` environment variable:
     
-    `setenv BUILD_PATH snapshots/mybuild`
+   `setenv BUILD_PATH snapshots/mybuild`
+   
+   And then:
      
-    `$RV_ROOT/configs/veer.config [configuration options..] -snapshot=mybuild`  
+   `$RV_ROOT/configs/veer.config [configuration options..] -snapshot=mybuild`  
     
-    Snapshots are placed in `$BUILD_PATH` directory
-
+   Snapshots are placed in the `$BUILD_PATH` directory
 
 1. Running a simple Hello World program (verilator)
 
-    `make -f $RV_ROOT/tools/Makefile target=default_mt`
+   `make -f $RV_ROOT/tools/Makefile target=default_mt`
 
 This command will build a verilator model of VeeR EH2 with AXI bus, and
 execute a short sequence of instructions that writes out "HELLO WORLD"
@@ -124,12 +121,12 @@ The simulation produces output on the screen like:
 ```
 VerilatorTB: Start of sim
 
-----------------------------------------
-Hello World from VeeR EH2 hart0 @WDC !!
-----------------------------------------
-----------------------------------------
-Hello World from VeeR EH2 hart1 @WDC !!
-----------------------------------------
+-------------------------------
+Hello World from VeeR EH2 hart0
+-------------------------------
+-------------------------------
+Hello World from VeeR EH2 hart1
+-------------------------------
 TEST_PASSED
 
 Finished hart0 : minstret = 1158, mcycle = 2895
@@ -137,62 +134,62 @@ Finished hart1 : minstret = 1733, mcycle = 2822
 See "exec.log" for execution trace with register updates..
 ```
 
-The simulation generates following files:
+The simulation generates the following files:
 
- `console.log` contains what the cpu writes to the console address of 0xd0580000.  
- `exec.log` shows instruction trace with GPR updates.  
- `trace_port.csv` contains a log of the trace port.   
- When `debug=1` is provided, a vcd file `sim.vcd` is created and can be browsed by 
-  gtkwave or similar waveform viewers.
+* `console.log` contains what the cpu writes to the console address of 0xd0580000.  
+* `exec.log` shows instruction trace with GPR updates.  
+* `trace_port.csv` contains a log of the trace port.   
+
+When `debug=1` is provided, a vcd file `sim.vcd` is created and can be browsed by gtkwave or similar waveform viewers.
   
-You can re-execute simulation using:  
-   ` ./obj_dir/Vtb_top `  
-or  
-    `make -f $RV_ROOT/tools/Makefile verilator`
+You can re-execute simulation using: `./obj_dir/Vtb_top` or `make -f $RV_ROOT/tools/Makefile verilator`
 
+The simulation run/build command has the following generic form:
 
-  
-The simulation run/build command has following generic form:
-
-    make -f $RV_ROOT/tools/Makefile [<simulator>] [debug=1] [snapshot=<snap>] [target=<target>] [TEST=<test>] [TEST_DIR=<path_to_test_dir>][CONF_PARAMS=<conf_switches>]
+```
+make -f $RV_ROOT/tools/Makefile [<simulator>] [debug=1] [snapshot=<snap>] [target=<target>] [TEST=<test>] [TEST_DIR=<path_to_test_dir>][CONF_PARAMS=<conf_switches>]
+```
 
 where:
+
 ```
-<simulator> -  can be 'verilator' (by default) 'irun' - Cadence xrun, 'vcs' - Synopsys VCS, 'vlog' - Mentor Questa
-               if not provided, 'make' cleans work directory, builds verilator executable and runs a test.
-debug=1     -  allows VCD generation for verilator and VCS and SHM waves for irun option.
-<target>    -  predefined CPU configurations 'default' ( by default), 'default_mt', 'typical_pd', 'high_perf' 
-TEST        -  allows to run a C (<test>.c) or assembly (<test>.s) test, hello_world is run by default 
-TEST_DIR    -  alternative to test source directory testbench/asm
-<snap>      -  run and build executable model of custom CPU configuration, remember to provide 'snapshot' argument 
-               for runs on custom configurations.
-CONF_PARAMS -  allows to provide veer.config command line arguments like -set=dccm_size=32 or -unset=iccm_enable..
+<simulator> - can be 'verilator' (by default) 'irun' - Cadence xrun, 'vcs' - Synopsys VCS, 'vlog' - Mentor Questa
+              if not provided, 'make' cleans work directory, builds verilator executable and runs a test.
+debug=1     - allows VCD generation for verilator and VCS and SHM waves for irun option.
+<target>    - predefined CPU configurations 'default' ( by default), 'default_mt', 'typical_pd', 'high_perf' 
+TEST        - allows to run a C (<test>.c) or assembly (<test>.s) test, hello_world is run by default 
+TEST_DIR    - alternative to test source directory testbench/asm
+<snap>      - run and build executable model of custom CPU configuration, remember to provide 'snapshot' argument 
+              for runs on custom configurations.
+CONF_PARAMS - allows to provide veer.config command line arguments like -set=dccm_size=32 or -unset=iccm_enable..
 ```
+
 Example:
      
-    make -f $RV_ROOT/tools/Makefile verilator TEST=cmark
+```shell
+make -f $RV_ROOT/tools/Makefile verilator TEST=cmark
+```
 
-will simulate  testbench/asm/cmark.c program with verilator on default target
-
+will simulate the `testbench/asm/cmark.c` program with Verilator on the default target
 
 If you want to compile a test only, you can run:
 
-    make -f $RV_ROOT/tools/Makefile program.hex TEST=<test> [TEST_DIR=/path/to/dir]
+```
+make -f $RV_ROOT/tools/Makefile program.hex TEST=<test> [TEST_DIR=/path/to/dir]
+```
 
-
-The Makefile uses  `$RV_ROOT/testbench/linker.ld` file by default to build test executable.  
-User can provide test specific linker file in form `<test_name>.ld` to build the test executable,
+The `Makefile` uses  `$RV_ROOT/testbench/linker.ld` file by default to build the test executable.  
+The user can provide a test-specific linker file in `<test_name>.ld` to build the test executable,
  in the same directory with the test source.
 
-User also can create a test specific makefile in form `<test_name>.makefile`, contaning building instructions
-how to create `program.hex`  files used by simulation. The private makefile should be in the same directory
-as the test source.  
-*(`program.hex` file is loaded to instruction and data bus memory slaves  and
-optionally to DCCM/ICCM at the beginning of simulation)*.
+The user also can create a test-specific Makefile in `<test_name>.makefile`, contaning building instructions
+how to create `program.hex`  files used by simulation. The private `Makefile` should be in the same directory
+as the test source.
+*(the `program.hex` file is loaded to instruction and data bus memory slaves and optionally to DCCM/ICCM at the beginning of simulation)*.
 
-Note: You may need to delete `program.hex` file from work directory, before running a new test.
+Note: You may need to delete the `program.hex` file from the work directory, before running a new test.
 
-The  `$RV_ROOT/testbench/asm` directory contains following tests ready to simulate:
+The  `$RV_ROOT/testbench/asm` directory contains the following tests ready to simulate:
 ```
 hello_world       - default tes to run, prints Hello World message to screen and console.log
 hello_world_dccm  - the same as above, but takes the string from preloaded DCCM.
@@ -207,11 +204,6 @@ dhry              - dhrystone benchmark as example of multisouce program from te
 dhry_mt           - similar to above, but running two harts ( need to be run on MT configs )
 ```
 
-The `$RV_ROOT/testbench/hex` directory contains precompiled hex files of the tests, ready for simulation in case RISCV SW tools are not installed.
+The `$RV_ROOT/testbench/hex` directory contains precompiled hex files of the tests, ready for simulation in case RISC-V SW tools are not installed.
 
 **Note**: The testbench has a simple synthesizable bridge that allows you to load the ICCM via load/store instructions. This is only supported for AXI4 builds.
-
-----
-Western Digital, the Western Digital logo, G-Technology, SanDisk, Tegile, Upthere, WD, VeeR Core, VeeR ISS, 
-and OmniXtend are registered trademarks or trademarks of Western Digital Corporation or its affiliates in the US 
-and/or other countries. All other marks are the property of their respective owners.

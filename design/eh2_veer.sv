@@ -16,11 +16,11 @@
 //********************************************************************************
 // $Id$
 //
-// Function: Top level SWERV core file
+// Function: Top level VEER core file
 // Comments:
 //
 //********************************************************************************
-module eh2_swerv
+module eh2_veer
 import eh2_pkg::*;
 #(
 `include "eh2_param.vh"
@@ -1482,5 +1482,5 @@ import eh2_pkg::*;
    end
 
 
-endmodule // eh2_swerv
+endmodule // eh2_veer
 

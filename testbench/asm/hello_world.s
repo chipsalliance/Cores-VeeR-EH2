@@ -112,13 +112,13 @@ _finish:
 
 .data
 hw_data:
-.ascii "----------------------------------------\n"
-.ascii "Hello World from SweRV EH2 hart0 @WDC !!\n"
-.ascii "----------------------------------------\n"
+.ascii "-------------------------------\n"
+.ascii "Hello World from VeeR EH2 hart0\n"
+.ascii "-------------------------------\n"
 .byte 0
 
 hw_data1:
-.ascii "----------------------------------------\n"
-.ascii "Hello World from SweRV EH2 hart1 @WDC !!\n"
-.ascii "----------------------------------------\n"
+.ascii "-------------------------------\n"
+.ascii "Hello World from VeeR EH2 hart1\n"
+.ascii "-------------------------------\n"
 .byte 0

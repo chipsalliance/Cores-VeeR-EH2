@@ -16,11 +16,11 @@
 //********************************************************************************
 // $Id$
 //
-// Function: Top wrapper file with eh2_swerv/mem instantiated inside
+// Function: Top wrapper file with eh2_veer/mem instantiated inside
 // Comments:
 //
 //********************************************************************************
-module eh2_swerv_wrapper
+module eh2_veer_wrapper
 import eh2_pkg::*;
 #(
 `include "eh2_param.vh"
@@ -791,8 +791,8 @@ import eh2_pkg::*;
         .dmi_hard_reset ()                  // hard reset of the DTM, NC
     );
 
-   // Instantiate the eh2_swerv core
-   eh2_swerv #(.pt(pt)) swerv (
+   // Instantiate the eh2_veer core
+   eh2_veer #(.pt(pt)) veer (
                                 .*
                                );
 
@@ -805,8 +805,8 @@ import eh2_pkg::*;
 
 `ifdef RV_ASSERT_ON
 initial begin
-    $assertoff(0, swerv);
-    @ (negedge clk) $asserton(0, swerv);
+    $assertoff(0, veer);
+    @ (negedge clk) $asserton(0, veer);
 end
 `endif
 

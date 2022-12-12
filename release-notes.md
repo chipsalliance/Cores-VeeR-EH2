@@ -1,4 +1,4 @@
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.4 from Western Digital
+# EH2 VeeR RISC-V Core<sup>TM</sup> 1.4 from Western Digital
 
 * Clock gating bug fixes
 * Corner case bug fix for running hart PIC store colliding with debugger PIC access
@@ -10,7 +10,7 @@
 
 
 
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.3 from Western Digital
+# EH2 VeeR RISC-V Core<sup>TM</sup> 1.3 from Western Digital
 
 * Multiple debug module compliance deviations and bugs reported by Codasip
 * Updates to debug module to level compliance to version 0.13.2 of debug spec
@@ -38,10 +38,10 @@
     * Handling bigger test sizes using associative arrays in external memory slaves, 
     * simplified test building process and CCM loading functions (only program.hex is generated, no data.hex)
     * Improved Makefile and example tests (see README)
-    * Generating link.ld from swerv.config
+    * Generating link.ld from veer.config
     
 
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.2 from Western Digital
+# EH2 VeeR RISC-V Core<sup>TM</sup> 1.2 from Western Digital
 
 ## Release Notes
 
@@ -49,7 +49,7 @@
 * Added internal timers
 
 
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.1 from Western Digital
+# EH2 VeeR RISC-V Core<sup>TM</sup> 1.1 from Western Digital
 
 ## Release Notes
 
@@ -58,7 +58,7 @@
 * Demo testbench has a synthesizable bridge to allow accessing the ICCM with load/stores via the DMA port. (*This only works with the AXI4 build*)
 
 
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.0 from Western Digital
+# EH2 VeeR RISC-V Core<sup>TM</sup> 1.0 from Western Digital
 
 ## Release Notes
 

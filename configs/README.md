@@ -1,15 +1,15 @@
-# SweRV RISC-V EH2 core from Western Digital
+# VeeR RISC-V EH2 core from Western Digital
 
 ## Configuration
 
 ### Contents
 Name                    | Description
 ----------------------  | ------------------------------
-swerv.config            | Configuration script for SweRV-EH2  
+veer.config            | Configuration script for VeeR-EH2  
 
 
 This script will generate a consistent set of `defines/#defines` needed for the design and testbench.  
-A perl hash (*perl_configs.pl*) and a JSON format for SweRV-iss are also generated.
+A perl hash (*perl_configs.pl*) and a JSON format for VeeR-iss are also generated.
 This set of include files :  
 
     $RV_ROOT/configs/snapshots/default
@@ -21,7 +21,7 @@ This set of include files :
     ├── perl_configs.pl                         # Perl %configs hash for scripting
     ├── pic_map_auto.h                          # PIC memory map based on configure size
     ├── link.ld                                 # Default linker control file
-    └── whisper.json                            # JSON file for swerv-iss
+    └── whisper.json                            # JSON file for veer-iss
 
 
 
@@ -29,7 +29,7 @@ While the defines fines may be modified by hand, it is recommended that this scr
 
 ### Targets
 There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be 
-selected via the `-target=name` option to swerv.config.
+selected via the `-target=name` option to veer.config.
 
 Target                  | Description
 ----------------------  | ------------------------------
@@ -39,5 +39,5 @@ typical_pd              | No ICCM, AXI4 bus interface, dual hart
 high_perf               | Dual hart, large BTB/BHT, AXI4 interface
 
 
-`swerv.config` may be edited to add additional target configurations, or new configurations may be 
+`veer.config` may be edited to add additional target configurations, or new configurations may be 
 created via the command line `-set` or `-unset` options.

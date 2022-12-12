@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdint.h>
 extern uint64_t get_mcycle();
-#define  SWERV 1
+#define  VEER 1
 
 
 /* Global Variables: */
@@ -190,7 +190,7 @@ if(hartid == 0) {
 #ifdef MSC_CLOCK
   Begin_Time = clock();
 #endif
-#ifdef SWERV
+#ifdef VEER
     globals->Begin_Time = get_mcycle();
 #endif
 
@@ -259,7 +259,7 @@ if(hartid == 0) {
 #ifdef MSC_CLOCK
   End_Time = clock();
 #endif
-#ifdef SWERV
+#ifdef VEER
     globals->End_Time = get_mcycle();
 #endif
 if(hartid == 0) {
@@ -322,7 +322,7 @@ if(hartid == 0) {
   }
   else
   {
-#ifdef SWERV
+#ifdef VEER
     Number_Of_Runs *=2; // 2harts
     printf ("Run time = %llu clocks for %d Dhrystones\n", globals->User_Time, Number_Of_Runs );
     printf ("Dhrystones per Second per MHz: %6.2f\n", 1000000.0*Number_Of_Runs/globals->User_Time);

@@ -1,8 +1,8 @@
 $RV_ROOT/design/include/eh2_def.sv
-$RV_ROOT/design/eh2_swerv_wrapper.sv
+$RV_ROOT/design/eh2_veer_wrapper.sv
 $RV_ROOT/design/eh2_mem.sv
 $RV_ROOT/design/eh2_pic_ctrl.sv
-$RV_ROOT/design/eh2_swerv.sv
+$RV_ROOT/design/eh2_veer.sv
 $RV_ROOT/design/eh2_dma_ctrl.sv
 $RV_ROOT/design/ifu/eh2_ifu_aln_ctl.sv
 $RV_ROOT/design/ifu/eh2_ifu_compress_ctl.sv

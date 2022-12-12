@@ -24,7 +24,7 @@ ABI = -mabi=ilp32 -march=rv32imac
 
 
 # Check for RV_ROOT
-ifeq (,$(wildcard ${RV_ROOT}/configs/swerv.config))
+ifeq (,$(wildcard ${RV_ROOT}/configs/veer.config))
 $(error env var RV_ROOT does not point to a valid dir! Exiting!)
 endif
 
@@ -33,7 +33,7 @@ target = default
 snapshot = $(target)
 
 # Allow tool override
-SWERV_CONFIG = ${RV_ROOT}/configs/swerv.config
+VEER_CONFIG = ${RV_ROOT}/configs/veer.config
 IRUN = xrun
 VCS = vcs
 VLOG = qverilog
@@ -99,7 +99,7 @@ VERILATOR_MAKE_FLAGS = OPT_FAST="-Os"
 all: clean verilator
 
 clean:
-	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots swerv* \
+	rm -rf *.log *.s *.hex *.dis *.tbl irun* vcs* simv* snapshots veer* \
 	verilator* *.map *.exe obj* *.o ucli.key vc_hdrs.h csrc *.csv \
 	work dataset.asdb  library.cfg vsimsa.cfg  riviera-build wave.asdb \
 	SimJTAG.so
@@ -108,9 +108,9 @@ clean:
 
 ################## Model Builds ###############################
 
-# If define files do not exist, then run swerv.config.
+# If define files do not exist, then run veer.config.
 ${BUILD_DIR}/defines.h:
-	BUILD_PATH=${BUILD_DIR} ${RV_ROOT}/configs/swerv.config -target=$(target) $(CONF_PARAMS)
+	BUILD_PATH=${BUILD_DIR} ${RV_ROOT}/configs/veer.config -target=$(target) $(CONF_PARAMS)
 
 verilator-build: ${TBFILES} ${BUILD_DIR}/defines.h test_tb_top.cpp
 	echo '`undef RV_ASSERT_ON' >> ${BUILD_DIR}/common_defines.vh
@@ -129,7 +129,7 @@ vcs-build: ${TBFILES} ${BUILD_DIR}/defines.h
 
 irun-build: ${TBFILES} ${BUILD_DIR}/defines.h
 	$(IRUN) -64bit -elaborate $(IRUN_DEBUG) -q -sv -sysv  -nowarn CUVIHR \
-	  -xmlibdirpath $(BUILD_DIR) -xmlibdirname swerv.build \
+	  -xmlibdirpath $(BUILD_DIR) -xmlibdirname veer.build \
 	  -vlog_ext +.vh+.h $(defines) +incdir+$(BUILD_DIR) \
 	  -f ${RV_ROOT}/testbench/flist -top tb_top  ${TBFILES} \
 	  -elaborate  -snapshot ${snapshot} $(profile)
@@ -155,7 +155,7 @@ verilator: program.hex verilator-build
 
 irun: program.hex irun-build
 	$(IRUN) -64bit  +lic_queue -licqueue \
-	  -status -xmlibdirpath $(BUILD_DIR) -xmlibdirname swerv.build \
+	  -status -xmlibdirpath $(BUILD_DIR) -xmlibdirname veer.build \
 	  -snapshot ${snapshot} -r $(snapshot) $(IRUN_DEBUG_RUN) $(run_arg) $(profile)
 
 vcs: program.hex vcs-build

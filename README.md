@@ -1,9 +1,9 @@
-# EH2 SweRV RISC-V Core<sup>TM</sup> 1.4 from Western Digital
+# EH2 VeeR RISC-V Core<sup>TM</sup> 1.4 from Western Digital
 
-This repository contains the EH2 RISC-V SweRV Core<sup>TM</sup>  design RTL
+This repository contains the EH2 RISC-V VeeR Core<sup>TM</sup>  design RTL
 
 ## Overview
-SweRV EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and subset of bit manipulation instructions (Zb*) extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability. Please see the [PRM](docs/RISC-V_SweRV_EH2_PRM.pdf) for more details.
+VeeR EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and subset of bit manipulation instructions (Zb*) extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability.
 
 ## License
 
@@ -42,31 +42,31 @@ installed so that it can be used to prepare RISCV binaries to run.
 1. Run make with tools/Makefile
 
 ## Release Notes for this version
-Please see [release notes](release-notes.md) for changes and bug fixes in this version of SweRV
+Please see [release notes](release-notes.md) for changes and bug fixes in this version of VeeR
 
 ### Configurations
 
-SweRV can be configured by running the `$RV_ROOT/configs/swerv.config` script:
+VeeR can be configured by running the `$RV_ROOT/configs/veer.config` script:
 
-`% $RV_ROOT/configs/swerv.config -h` for detailed help options
+`% $RV_ROOT/configs/veer.config -h` for detailed help options
 
 For example to build with a DCCM of size 64 Kb:  
 
-`% $RV_ROOT/configs/swerv.config -dccm_size=64`  
+`% $RV_ROOT/configs/veer.config -dccm_size=64`  
 
 This will update the **default** snapshot in $PWD/snapshots/default/ with parameters for a 64K DCCM.  
 
 Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot *dccm64* and refer to it during the build.  
 
 There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be selected via 
-the `-target=name` option to swerv.config. See [configs/README.md](configs/README.md) for a description of these targets.
+the `-target=name` option to veer.config. See [configs/README.md](configs/README.md) for a description of these targets.
 
 **Building an FPGA speed optimized model:**
-Use ``-fpga_optimize=1`` option to ``swerv.config`` to build a model that removes clock gating logic from flop model so that the FPGA builds can run at higher speeds. **This is now the default option for
+Use ``-fpga_optimize=1`` option to ``veer.config`` to build a model that removes clock gating logic from flop model so that the FPGA builds can run at higher speeds. **This is now the default option for
 targets other than ``typical_pd``.**
 
 **Building a Power optimized model (ASIC flows):**
-Use ``-fpga_optimize=0`` option to ``swerv.config`` to build a model that **enables** clock gating logic into the flop model so that the ASIC flows get a better power footprint. **This is now the default option for
+Use ``-fpga_optimize=0`` option to ``veer.config`` to build a model that **enables** clock gating logic into the flop model so that the ASIC flows get a better power footprint. **This is now the default option for
 target``typical_pd``.**
 
 
@@ -80,7 +80,7 @@ This script derives the following consistent set of include files :
     ├── pd_defines.vh                           # `defines for physical design
     ├── perl_configs.pl                         # Perl %configs hash for scripting
     ├── pic_map_auto.h                          # PIC memory map based on configure size
-    └── whisper.json                            # JSON file for swerv-iss
+    └── whisper.json                            # JSON file for veer-iss
     └── link.ld                                 # default linker control file
 
 
@@ -89,11 +89,11 @@ This script derives the following consistent set of include files :
 
 While in a work directory:
 
-1. Set the RV_ROOT environment variable to the root of the SweRV directory structure.
+1. Set the RV_ROOT environment variable to the root of the VeeR directory structure.
 Example for bash shell:  
-    `export RV_ROOT=/path/to/swerv`  
+    `export RV_ROOT=/path/to/veer`  
 Example for csh or its derivatives:  
-    `setenv RV_ROOT /path/to/swerv`
+    `setenv RV_ROOT /path/to/veer`
     
 1. Create your specific configuration
 
@@ -105,7 +105,7 @@ Example for csh or its derivatives:
     
     `setenv BUILD_PATH snapshots/mybuild`
      
-    `$RV_ROOT/configs/swerv.config [configuration options..] -snapshot=mybuild`  
+    `$RV_ROOT/configs/veer.config [configuration options..] -snapshot=mybuild`  
     
     Snapshots are placed in `$BUILD_PATH` directory
 
@@ -114,7 +114,7 @@ Example for csh or its derivatives:
 
     `make -f $RV_ROOT/tools/Makefile target=default_mt`
 
-This command will build a verilator model of SweRV EH2 with AXI bus, and
+This command will build a verilator model of VeeR EH2 with AXI bus, and
 execute a short sequence of instructions that writes out "HELLO WORLD"
 to the bus.
 
@@ -125,10 +125,10 @@ The simulation produces output on the screen like:
 VerilatorTB: Start of sim
 
 ----------------------------------------
-Hello World from SweRV EH2 hart0 @WDC !!
+Hello World from VeeR EH2 hart0 @WDC !!
 ----------------------------------------
 ----------------------------------------
-Hello World from SweRV EH2 hart1 @WDC !!
+Hello World from VeeR EH2 hart1 @WDC !!
 ----------------------------------------
 TEST_PASSED
 
@@ -166,7 +166,7 @@ TEST        -  allows to run a C (<test>.c) or assembly (<test>.s) test, hello_w
 TEST_DIR    -  alternative to test source directory testbench/asm
 <snap>      -  run and build executable model of custom CPU configuration, remember to provide 'snapshot' argument 
                for runs on custom configurations.
-CONF_PARAMS -  allows to provide swerv.config command line arguments like -set=dccm_size=32 or -unset=iccm_enable..
+CONF_PARAMS -  allows to provide veer.config command line arguments like -set=dccm_size=32 or -unset=iccm_enable..
 ```
 Example:
      
@@ -212,6 +212,6 @@ The `$RV_ROOT/testbench/hex` directory contains precompiled hex files of the tes
 **Note**: The testbench has a simple synthesizable bridge that allows you to load the ICCM via load/store instructions. This is only supported for AXI4 builds.
 
 ----
-Western Digital, the Western Digital logo, G-Technology, SanDisk, Tegile, Upthere, WD, SweRV Core, SweRV ISS, 
+Western Digital, the Western Digital logo, G-Technology, SanDisk, Tegile, Upthere, WD, VeeR Core, VeeR ISS, 
 and OmniXtend are registered trademarks or trademarks of Western Digital Corporation or its affiliates in the US 
 and/or other countries. All other marks are the property of their respective owners.

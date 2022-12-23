@@ -100,6 +100,9 @@ import eh2_pkg::*;
    logic                       single_ecc_error_hi_raw_dc3, single_ecc_error_lo_raw_dc3;
    logic  [pt.DCCM_DATA_WIDTH-1:0] sec_data_hi_dc5_ff, sec_data_lo_dc5_ff;
 
+   logic [pt.DCCM_FDATA_WIDTH-1:0] dccm_wr_data_preecc_hi;
+   logic [pt.DCCM_FDATA_WIDTH-1:0] dccm_wr_data_preecc_lo;
+
    //------------------------------------------------------------------------------------------------------------
    //----------------------------------------Logic starts here---------------------------------------------------
    //------------------------------------------------------------------------------------------------------------
@@ -131,10 +134,13 @@ import eh2_pkg::*;
       assign store_ecc_data_lo_dc3[(8*i)+7:(8*i)] = store_byteen_lo_dc3[i]  ? store_data_lo_dc3[(8*i)+7:(8*i)] : ({8{addr_in_dccm_dc3}} & sec_data_lo_dc3[(8*i)+7:(8*i)]);
    end
 
-   assign dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0] = dma_dccm_spec_wen ? dma_dccm_wdata_lo[pt.DCCM_DATA_WIDTH-1:0] :
-                                                    (ld_single_ecc_error_dc5_ff ? (ld_single_ecc_error_lo_dc5_ff ? sec_data_lo_dc5_ff[pt.DCCM_DATA_WIDTH-1:0] : sec_data_hi_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]) : stbuf_data_any[pt.DCCM_DATA_WIDTH-1:0]);
-   assign dccm_wr_data_hi[pt.DCCM_DATA_WIDTH-1:0] = dma_dccm_spec_wen ? dma_dccm_wdata_hi[pt.DCCM_DATA_WIDTH-1:0] :
-                                                    (ld_single_ecc_error_dc5_ff ? (ld_single_ecc_error_hi_dc5_ff ? sec_data_hi_dc5_ff[pt.DCCM_DATA_WIDTH-1:0] : sec_data_lo_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]) : stbuf_data_any[pt.DCCM_DATA_WIDTH-1:0]);
+   assign dccm_wr_data_preecc_lo = dma_dccm_spec_wen ? dma_dccm_wdata_lo[pt.DCCM_DATA_WIDTH-1:0] :
+                                   (ld_single_ecc_error_dc5_ff ? (ld_single_ecc_error_lo_dc5_ff ? sec_data_lo_dc5_ff[pt.DCCM_DATA_WIDTH-1:0] : sec_data_hi_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]) : stbuf_data_any[pt.DCCM_DATA_WIDTH-1:0]);
+   assign dccm_wr_data_preecc_hi = dma_dccm_spec_wen ? dma_dccm_wdata_hi[pt.DCCM_DATA_WIDTH-1:0] :
+                                   (ld_single_ecc_error_dc5_ff ? (ld_single_ecc_error_hi_dc5_ff ? sec_data_hi_dc5_ff[pt.DCCM_DATA_WIDTH-1:0] : sec_data_lo_dc5_ff[pt.DCCM_DATA_WIDTH-1:0]) : stbuf_data_any[pt.DCCM_DATA_WIDTH-1:0]);
+
+   assign dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0] = dccm_wr_data_preecc_lo;
+   assign dccm_wr_data_hi[pt.DCCM_DATA_WIDTH-1:0] = dccm_wr_data_preecc_hi;
 
    assign dccm_wr_data_lo[pt.DCCM_FDATA_WIDTH-1:pt.DCCM_DATA_WIDTH] = dccm_wdata_ecc_lo_any[pt.DCCM_ECC_WIDTH-1:0];
    assign dccm_wr_data_hi[pt.DCCM_FDATA_WIDTH-1:pt.DCCM_DATA_WIDTH] = dccm_wdata_ecc_hi_any[pt.DCCM_ECC_WIDTH-1:0];
@@ -171,14 +177,14 @@ import eh2_pkg::*;
 
       rvecc_encode lsu_ecc_encode_hi (
          //Inputs
-         .din(dccm_wr_data_hi[pt.DCCM_DATA_WIDTH-1:0]),
+         .din(dccm_wr_data_preecc_hi[pt.DCCM_DATA_WIDTH-1:0]),
          //Outputs
          .ecc_out(dccm_wdata_ecc_hi_any[pt.DCCM_ECC_WIDTH-1:0]),
          .*
       );
       rvecc_encode lsu_ecc_encode_lo (
          //Inputs
-         .din(dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0]),
+         .din(dccm_wr_data_preecc_lo[pt.DCCM_DATA_WIDTH-1:0]),
          //Outputs
          .ecc_out(dccm_wdata_ecc_lo_any[pt.DCCM_ECC_WIDTH-1:0]),
          .*

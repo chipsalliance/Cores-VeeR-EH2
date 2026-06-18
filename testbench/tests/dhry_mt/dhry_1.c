@@ -484,5 +484,3 @@ register int    l;
         while (l--) *d++ = *s++;
 }
 #endif
-
-

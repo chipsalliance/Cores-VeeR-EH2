@@ -17,7 +17,7 @@
 # need to be removed for opensource
 CONF_PARAMS = -set=build_axi4
 
-TEST_CFLAGS = -g -O3 -funroll-all-loops 
+TEST_CFLAGS = -g -O3 -funroll-all-loops
 
 ABI = -mabi=ilp32 -march=rv32imac_zicsr_zifencei
 
@@ -86,7 +86,7 @@ defines += ${RV_ROOT}/design/include/eh2_def.sv
 defines += $(BUILD_DIR)/eh2_pdef.vh
 includes = -I${BUILD_DIR}
 
-# CFLAGS for verilator generated Makefiles.
+# CFLAGS for verilator generated Makefiles
 CFLAGS += "-std=c++14"
 
 # Optimization for better performance; alternative is nothing for

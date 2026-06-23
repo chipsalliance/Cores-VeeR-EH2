@@ -15,7 +15,7 @@
 #
 
 # need to be removed for opensource
-CONF_PARAMS = -set=build_axi4
+CONF_PARAMS ?= -set=build_axi4
 
 TEST_CFLAGS = -g -O3 -funroll-all-loops
 

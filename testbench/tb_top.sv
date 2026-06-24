@@ -34,8 +34,8 @@ module tb_top;
     bit          [31:0]         mem_signature_end   = 32'd0;
 `endif
 
-    logic        [31:0]         reset_vector;
-    logic        [31:0]         nmi_vector;
+    logic        [`RV_XLEN-1:0] reset_vector;
+    logic        [`RV_XLEN-1:0] nmi_vector;
     logic        [31:1]         jtag_id;
 
 // AHB
@@ -60,13 +60,13 @@ module tb_top;
     logic                       lsu_hready;
     logic                       lsu_hresp;
 
-    logic [`RV_NUM_THREADS-1:0][63:0]    trace_rv_i_insn_ip;
-    logic [`RV_NUM_THREADS-1:0][63:0]    trace_rv_i_address_ip;
-    logic [`RV_NUM_THREADS-1:0][1:0]     trace_rv_i_valid_ip;
-    logic [`RV_NUM_THREADS-1:0][1:0]     trace_rv_i_exception_ip;
-    logic [`RV_NUM_THREADS-1:0][4:0]     trace_rv_i_ecause_ip;
-    logic [`RV_NUM_THREADS-1:0][1:0]     trace_rv_i_interrupt_ip;
-    logic [`RV_NUM_THREADS-1:0][31:0]    trace_rv_i_tval_ip;
+    logic [`RV_NUM_THREADS-1:0][`RV_XLEN*2-1:0] trace_rv_i_insn_ip;
+    logic [`RV_NUM_THREADS-1:0][`RV_XLEN*2-1:0] trace_rv_i_address_ip;
+    logic [`RV_NUM_THREADS-1:0][1:0]           trace_rv_i_valid_ip;
+    logic [`RV_NUM_THREADS-1:0][1:0]           trace_rv_i_exception_ip;
+    logic [`RV_NUM_THREADS-1:0][4:0]           trace_rv_i_ecause_ip;
+    logic [`RV_NUM_THREADS-1:0][1:0]           trace_rv_i_interrupt_ip;
+    logic [`RV_NUM_THREADS-1:0][`RV_XLEN*2-1:0] trace_rv_i_tval_ip;
 
     logic                       o_debug_mode_status;
 
@@ -387,43 +387,82 @@ module tb_top;
         end
     end
 
-
-    // trace monitor
-    always @(posedge core_clk) begin
-         wb_valid[1:0]  <= '{`DEC.dec_i1_wen_wb,   `DEC.dec_i0_wen_wb};
-         wb_dest        <= '{`DEC.dec_i1_waddr_wb, `DEC.dec_i0_waddr_wb};
-         wb_data        <= '{`DEC.dec_i1_wdata_wb, `DEC.dec_i0_wdata_wb};
-         wb_tid         <= '{`DEC.dec_i1_tid_wb,   `DEC.dec_i0_tid_wb};
-         for(int t=0; t<`RV_NUM_THREADS; t++) begin
-             if (trace_rv_i_valid_ip[t] !== 0) begin
-                $fwrite(tp,"t%0d %b,%h,%h,%0h,%0h,3,%b,%h,%h,%b\n",t, trace_rv_i_valid_ip[t], trace_rv_i_address_ip[t][63:32], trace_rv_i_address_ip[t][31:0],
-                       trace_rv_i_insn_ip[t][63:32], trace_rv_i_insn_ip[t][31:0],trace_rv_i_exception_ip[t],trace_rv_i_ecause_ip[t],
-                       trace_rv_i_tval_ip[t],trace_rv_i_interrupt_ip[t]);
-                // Basic trace - no exception register updates
-                // #1 0 ee000000 b0201073 c 0b02       00000000
-                for (int i=0; i<2; i++)
-                    if (trace_rv_i_valid_ip[t][i]==1) begin
-                        bit i0;
-                        i0 = i != 0 || trace_rv_i_valid_ip[t]!=3 && wb_tid[1] == t && wb_valid[1];
-                        commit_count[t]++;
-                        $fwrite (el, "%10d : %8s %0d %h %h%13s ; %s\n",cycleCnt, $sformatf("#%0d",commit_count[t]), t,
-                                trace_rv_i_address_ip[t][31+i*32 -:32], trace_rv_i_insn_ip[t][31+i*32-:32],
-                                (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("%s=%h", abi_reg[wb_dest[i0]], wb_data[i0]) : "             ",
-                                dasm(trace_rv_i_insn_ip[t][31+i*32 -:32], trace_rv_i_address_ip[t][31+i*32-:32], wb_dest[i0] & {5{wb_valid[i0]}}, wb_data[i0], t)
-                                );
-                    end
+    if (`RV_XLEN == 32) begin
+        // trace monitor
+        always @(posedge core_clk) begin
+            wb_valid[1:0]  <= '{`DEC.dec_i1_wen_wb,   `DEC.dec_i0_wen_wb};
+            wb_dest        <= '{`DEC.dec_i1_waddr_wb, `DEC.dec_i0_waddr_wb};
+            wb_data        <= '{`DEC.dec_i1_wdata_wb, `DEC.dec_i0_wdata_wb};
+            wb_tid         <= '{`DEC.dec_i1_tid_wb,   `DEC.dec_i0_tid_wb};
+            for(int t=0; t<`RV_NUM_THREADS; t++) begin
+                if (trace_rv_i_valid_ip[t] !== 0) begin
+                    $fwrite(tp,"t%0d %b,%h,%h,%0h,%0h,3,%b,%h,%h,%b\n",t, trace_rv_i_valid_ip[t], trace_rv_i_address_ip[t][63:32], trace_rv_i_address_ip[t][31:0],
+                        trace_rv_i_insn_ip[t][63:32], trace_rv_i_insn_ip[t][31:0],trace_rv_i_exception_ip[t],trace_rv_i_ecause_ip[t],
+                        trace_rv_i_tval_ip[t],trace_rv_i_interrupt_ip[t]);
+                    // Basic trace - no exception register updates
+                    // #1 0 ee000000 b0201073 c 0b02       00000000
+                    for (int i=0; i<2; i++)
+                        if (trace_rv_i_valid_ip[t][i]==1) begin
+                            bit i0;
+                            i0 = i != 0 || trace_rv_i_valid_ip[t]!=3 && wb_tid[1] == t && wb_valid[1];
+                            commit_count[t]++;
+                            $fwrite (el, "%10d : %8s %0d %h %h%13s ; %s\n",cycleCnt, $sformatf("#%0d",commit_count[t]), t,
+                                    trace_rv_i_address_ip[t][31+i*32 -:32], trace_rv_i_insn_ip[t][31+i*32-:32],
+                                    (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("%s=%h", abi_reg[wb_dest[i0]], wb_data[i0]) : "             ",
+                                    dasm(trace_rv_i_insn_ip[t][31+i*32 -:32], trace_rv_i_address_ip[t][31+i*32-:32], wb_dest[i0] & {5{wb_valid[i0]}}, wb_data[i0], t)
+                                    );
+                        end
+                end
+                if(`DEC.dec_nonblock_load_wen[t]) begin
+                    $fwrite (el, "%10d : %10d%22s=%h ; nbL\n", cycleCnt, `DEC.lsu_nonblock_load_data_tid, abi_reg[`DEC.dec_nonblock_load_waddr[t]], `DEC.lsu_nonblock_load_data);
+                    tb_top.gpr[t][`DEC.dec_nonblock_load_waddr[t]] = `DEC.lsu_nonblock_load_data;
+                end
             end
-            if(`DEC.dec_nonblock_load_wen[t]) begin
-                $fwrite (el, "%10d : %10d%22s=%h ; nbL\n", cycleCnt, `DEC.lsu_nonblock_load_data_tid, abi_reg[`DEC.dec_nonblock_load_waddr[t]], `DEC.lsu_nonblock_load_data);
-                tb_top.gpr[t][`DEC.dec_nonblock_load_waddr[t]] = `DEC.lsu_nonblock_load_data;
+            if(`DEC.exu_div_wren) begin
+                $fwrite (el, "%10d : %10d%22s=%h ; nbD\n", cycleCnt, `DEC.div_tid_wb, abi_reg[`DEC.div_waddr_wb], `DEC.exu_div_result);
+                tb_top.gpr[`DEC.div_tid_wb][`DEC.div_waddr_wb] = `DEC.exu_div_result;
             end
         end
-        if(`DEC.exu_div_wren) begin
-            $fwrite (el, "%10d : %10d%22s=%h ; nbD\n", cycleCnt, `DEC.div_tid_wb, abi_reg[`DEC.div_waddr_wb], `DEC.exu_div_result);
-            tb_top.gpr[`DEC.div_tid_wb][`DEC.div_waddr_wb] = `DEC.exu_div_result;
+    end else if (`RV_XLEN == 64) begin
+        // trace monitor
+        always @(posedge core_clk) begin
+            wb_valid[1:0]  <= '{`DEC.dec_i1_wen_wb,   `DEC.dec_i0_wen_wb};
+            wb_dest        <= '{`DEC.dec_i1_waddr_wb, `DEC.dec_i0_waddr_wb};
+            wb_data        <= '{`DEC.dec_i1_wdata_wb, `DEC.dec_i0_wdata_wb};
+            wb_tid         <= '{`DEC.dec_i1_tid_wb,   `DEC.dec_i0_tid_wb};
+            for(int t=0; t<`RV_NUM_THREADS; t++) begin
+                if (trace_rv_i_valid_ip[t] !== 0) begin
+                    $fwrite(tp,"t%0d %b,%h,%h,%h,%h,%0h,%0h,3,%b,%h,%h,%b\n",t, trace_rv_i_valid_ip[t],
+                        trace_rv_i_address_ip[t][127:96], trace_rv_i_address_ip[t][95:64],
+                        trace_rv_i_address_ip[t][63:32],  trace_rv_i_address_ip[t][31:0],
+                        trace_rv_i_insn_ip[t][63:32], trace_rv_i_insn_ip[t][31:0],
+                        trace_rv_i_exception_ip[t], trace_rv_i_ecause_ip[t],
+                        trace_rv_i_tval_ip[t], trace_rv_i_interrupt_ip[t]);
+                    // Basic trace - no exception register updates
+                    // #1 0 ee000000 b0201073 c 0b02       00000000
+                    for (int i=0; i<2; i++)
+                        if (trace_rv_i_valid_ip[t][i]==1) begin
+                            bit i0;
+                            i0 = i != 0 || trace_rv_i_valid_ip[t]!=3 && wb_tid[1] == t && wb_valid[1];
+                            commit_count[t]++;
+                            $fwrite (el, "%10d : %8s %0d %h %h %h%13s ; %s\n",cycleCnt, $sformatf("#%0d",commit_count[t]), t,
+                                    trace_rv_i_address_ip[t][63+i*64 -:32], trace_rv_i_address_ip[t][31+i*64 -:32], trace_rv_i_insn_ip[t][31+i*32-:32],
+                                    (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("%s=%h", abi_reg[wb_dest[i0]], wb_data[i0]) : "             ",
+                                    dasm(trace_rv_i_insn_ip[t][31+i*32 -:32], trace_rv_i_address_ip[t][31+i*32-:32], wb_dest[i0] & {5{wb_valid[i0]}}, wb_data[i0], t)
+                                    );
+                        end
+                end
+                if(`DEC.dec_nonblock_load_wen[t]) begin
+                    $fwrite (el, "%10d : %10d%22s=%h ; nbL\n", cycleCnt, `DEC.lsu_nonblock_load_data_tid, abi_reg[`DEC.dec_nonblock_load_waddr[t]], `DEC.lsu_nonblock_load_data);
+                    tb_top.gpr[t][`DEC.dec_nonblock_load_waddr[t]] = `DEC.lsu_nonblock_load_data;
+                end
+            end
+            if(`DEC.exu_div_wren) begin
+                $fwrite (el, "%10d : %10d%22s=%h ; nbD\n", cycleCnt, `DEC.div_tid_wb, abi_reg[`DEC.div_waddr_wb], `DEC.exu_div_result);
+                tb_top.gpr[`DEC.div_tid_wb][`DEC.div_waddr_wb] = `DEC.exu_div_result;
+            end
         end
     end
-
 
     initial begin
         abi_reg[0] = "zero";
@@ -462,8 +501,8 @@ module tb_top;
         jtag_id[31:28] = 4'b1;
         jtag_id[27:12] = '0;
         jtag_id[11:1]  = 11'h45;
-        reset_vector = 32'h0;
-        nmi_vector   = 32'hee000000;
+        reset_vector = {`RV_XLEN{1'b0}};
+        nmi_vector   = {8'hee, {`RV_XLEN-8{1'b0}}};
         nmi_int   = 0;
 
         $readmemh("program.hex",  lmem.mem);
@@ -493,9 +532,9 @@ eh2_veer_wrapper rvtop (
     .rst_l                  ( rst_l),
     .dbg_rst_l              ( porst_l       ),
     .clk                    ( core_clk      ),
-    .rst_vec                ( reset_vector[31:1]),
+    .rst_vec                ( reset_vector[`RV_XLEN-1:1]),
     .nmi_int                ( nmi_int       ),
-    .nmi_vec                ( nmi_vector[31:1]),
+    .nmi_vec                ( nmi_vector[`RV_XLEN-1:1]),
     .jtag_id                ( jtag_id[31:1]),
 
 `ifdef RV_BUILD_AHB_LITE

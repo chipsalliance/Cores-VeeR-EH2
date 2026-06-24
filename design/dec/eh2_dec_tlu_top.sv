@@ -37,9 +37,9 @@ import eh2_pkg::*;
    input logic rst_l,
    input logic scan_mode,
 
-   input logic [31:1] rst_vec, // reset vector, from core pins
+   input logic [pt.XLEN-1:1] rst_vec, // reset vector, from core pins
    input logic        nmi_int, // nmi pin
-   input logic [31:1] nmi_vec, // nmi vector
+   input logic [pt.XLEN-1:1] nmi_vec, // nmi vector
    input logic  [pt.NUM_THREADS-1:0] i_cpu_halt_req,    // Asynchronous Halt request to CPU
    input logic  [pt.NUM_THREADS-1:0] i_cpu_run_req,     // Asynchronous Restart request to CPU
 
@@ -80,7 +80,7 @@ import eh2_pkg::*;
    input logic       dma_pmu_any_write,          // DMA write
 
 
-   input logic [31:1] lsu_fir_addr, // Fast int address
+   input logic [pt.XLEN-1:1] lsu_fir_addr, // Fast int address
    input logic [1:0]  lsu_fir_error, // Fast int lookup error
 
    input logic       iccm_dma_sb_error,      // I side dma single bit error
@@ -92,7 +92,7 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0] dec_pause_state, // Pause counter not zero
    input logic [pt.NUM_THREADS-1:0] lsu_imprecise_error_store_any,      // store bus error
    input logic [pt.NUM_THREADS-1:0] lsu_imprecise_error_load_any,      // store bus error
-   input logic [pt.NUM_THREADS-1:0][31:0]  lsu_imprecise_error_addr_any,   // LSU imprecise bus error address
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:0]  lsu_imprecise_error_addr_any,   // LSU imprecise bus error address
 
    input logic dec_i0_tid_d, // pipe0 tid at decode
 
@@ -101,7 +101,7 @@ import eh2_pkg::*;
    input logic        dec_i0_csr_wen_wb,      // csr write enable at wb
    input logic [11:0] dec_i0_csr_rdaddr_d,      // read address for csr
    input logic [11:0] dec_i0_csr_wraddr_wb,      // write address for csr
-   input logic [31:0] dec_i0_csr_wrdata_wb,   // csr write data at wb
+   input logic [pt.XLEN-1:0] dec_i0_csr_wrdata_wb,   // csr write data at wb
    input logic        dec_i0_csr_is_mcpc_e4,     // csr address is to MCPC
 
    input logic [pt.NUM_THREADS-1:0] dec_csr_stall_int_ff, // csr is mie/mstatus
@@ -110,15 +110,15 @@ import eh2_pkg::*;
    input logic dec_tlu_i0_valid_e4, // pipe 0 op at e4 is valid
    input logic dec_tlu_i1_valid_e4, // pipe 1 op at e4 is valid
 
-   input logic [pt.NUM_THREADS-1:0] [31:1] exu_npc_e4, // for NPC tracking
+   input logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] exu_npc_e4, // for NPC tracking
 
    input logic [pt.NUM_THREADS-1:0] exu_i0_flush_lower_e4,       // pipe 0 branch mp flush
    input logic [pt.NUM_THREADS-1:0] exu_i1_flush_lower_e4,       // pipe 1 branch mp flush
-   input logic [31:1] exu_i0_flush_path_e4, // pipe 0 correct path for mp, merge with lower path
-   input logic [31:1] exu_i1_flush_path_e4, // pipe 1 correct path for mp, merge with lower path
+   input logic [pt.XLEN-1:1] exu_i0_flush_path_e4, // pipe 0 correct path for mp, merge with lower path
+   input logic [pt.XLEN-1:1] exu_i1_flush_path_e4, // pipe 1 correct path for mp, merge with lower path
 
-   input logic [31:1] dec_tlu_i0_pc_e4, // for PC/NPC tracking
-   input logic [31:1] dec_tlu_i1_pc_e4, // for PC/NPC tracking
+   input logic [pt.XLEN-1:1] dec_tlu_i0_pc_e4, // for PC/NPC tracking
+   input logic [pt.XLEN-1:1] dec_tlu_i1_pc_e4, // for PC/NPC tracking
 
 
    input logic [pt.NUM_THREADS-1:0] [31:0] dec_illegal_inst, // For mtval
@@ -196,7 +196,7 @@ import eh2_pkg::*;
 
    output eh2_cache_debug_pkt_t dec_tlu_ic_diag_pkt, // packet of DICAWICS, DICAD0/1, DICAGO info for icache diagnostics
 
-   output logic [31:2] dec_tlu_meihap, // meihap for fast int
+   output logic [pt.XLEN-1:2] dec_tlu_meihap, // meihap for fast int
 
    // external MPC halt/run interface
    output logic [pt.NUM_THREADS-1:0] mpc_debug_halt_ack, // Halt ack
@@ -213,7 +213,7 @@ import eh2_pkg::*;
    output logic [pt.BHT_GHR_SIZE-1:0] dec_tlu_br1_fghr_wb, // fghr to bp
    output logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] dec_tlu_br1_index_wb, // bp index
 
-   output logic [31:0] dec_i0_csr_rddata_d,      // csr read data at d
+   output logic [pt.XLEN-1:0] dec_i0_csr_rddata_d,      // csr read data at d
    output logic dec_i0_csr_legal_d,              // csr indicates legal operation
    output logic dec_i0_csr_global_d,             // global csr
 
@@ -221,7 +221,7 @@ import eh2_pkg::*;
    output logic dec_tlu_i1_kill_writeb_wb,    // I1 is flushed, don't writeback any results to arch state
 
 
-   output logic [pt.NUM_THREADS-1:0] [31:1] dec_tlu_flush_path_wb,  // flush pc
+   output logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] dec_tlu_flush_path_wb,  // flush pc
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_lower_wb, // commit has a flush (exception, int, mispredict at e4)
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_mp_wb, // commit has a flush (mispredict at e4)
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_lower_wb1, // commit has a flush (exception, int, mispredict at e4)
@@ -234,7 +234,7 @@ import eh2_pkg::*;
    output logic [pt.NUM_THREADS-1:0] dec_tlu_presync_d,            // CSR read needs to be presync'd
    output logic [pt.NUM_THREADS-1:0] dec_tlu_postsync_d,           // CSR needs to be presync'd
    output logic [pt.NUM_THREADS-1:0] dec_tlu_i0_commit_cmt,        // goes to IFU for commit 1 instruction in the FSM
-   output logic [31:0] dec_tlu_mrac_ff,        // CSR for memory region control
+   output logic [pt.XLEN-1:0] dec_tlu_mrac_ff,        // CSR for memory region control
 
    output logic [pt.NUM_THREADS-1:0] dec_tlu_wr_pause_wb,           // CSR write to pause reg is at WB.
    output logic [pt.NUM_THREADS-1:0] dec_tlu_flush_pause_wb,        // Flush is due to pause
@@ -247,7 +247,7 @@ import eh2_pkg::*;
    output logic [pt.NUM_THREADS-1:0] dec_tlu_i1_exc_valid_wb1, // pipe 1 exception valid
    output logic [pt.NUM_THREADS-1:0] dec_tlu_int_valid_wb1, // pipe 0 int valid
    output logic [pt.NUM_THREADS-1:0] [4:0] dec_tlu_exc_cause_wb1, // exception or int cause
-   output logic [pt.NUM_THREADS-1:0] [31:0] dec_tlu_mtval_wb1, // MTVAL value
+   output logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:0] dec_tlu_mtval_wb1, // MTVAL value
 
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt0, // toggles when pipe0 perf counter 0 has an event inc
    output logic [pt.NUM_THREADS-1:0] [1:0] dec_tlu_perfcnt1, // toggles when pipe0 perf counter 1 has an event inc
@@ -299,8 +299,8 @@ import eh2_pkg::*;
    logic dec_tlu_br0_error_e4, dec_tlu_br0_start_error_e4, dec_tlu_br0_v_e4;
    logic dec_tlu_br1_error_e4, dec_tlu_br1_start_error_e4, dec_tlu_br1_v_e4;
    logic [pt.NUM_THREADS-1:0] [4:0] tlu_exc_cause_wb1;
-   logic [pt.NUM_THREADS-1:0] [31:0] tlu_mtval_wb1, csr_rddata_d;
-   logic [pt.NUM_THREADS-1:0] [31:2] dec_tlu_meihap_thr;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:0] tlu_mtval_wb1, csr_rddata_d;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:2] dec_tlu_meihap_thr;
 
    logic        wr_mcgc_wb, wr_mfdc_wb, wr_mrac_wb, wr_mfdht_wb,
                 wr_micect_wb, wr_miccmect_wb, miccmect_cout_nc,
@@ -310,8 +310,8 @@ import eh2_pkg::*;
    logic [9:0]  mcgc, mcgc_ns, mcgc_int;
    logic [11:0] mfdc_ns, mfdc_int;
    logic [18:0] mfdc;
-   logic [31:0] mrac_in, mrac;
-   logic [31:0] micect_ns, micect, miccmect_ns,
+   logic [pt.XLEN-1:0] mrac_in, mrac;
+   logic [pt.XLEN-1:0] micect_ns, micect, miccmect_ns,
                 miccmect, mdccmect_ns, mdccmect, thread_csr_data_d;
    logic [26:0] miccmect_inc, micect_inc, mdccmect_inc;
    logic        mice_ce_req, miccme_ce_req, mdccme_ce_req;
@@ -320,7 +320,7 @@ import eh2_pkg::*;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] dec_tlu_br0_addr_e4, dec_tlu_br1_addr_e4;
    logic        dec_tlu_br0_bank_e4, dec_tlu_br1_bank_e4;
    logic         lsu_single_ecc_error_wb_ns;
-   logic [31:27] csr_sat;
+   logic [pt.XLEN-1:27] csr_sat;
    logic [1:0] mhartnums;
    logic       tlu_i0_presync_d, tlu_i0_postsync_d, lsu_single_ecc_error_wb;
    logic       bp_i0_e4_en, bp_i1_e4_en;
@@ -432,8 +432,8 @@ end // else: !if(pt.NUM_THREADS > 1)
         eh2_dec_tlu_ctl #(.pt(pt)) tlu (//inputs
                                          .clk           (active_thread_l2clk[i]),
                                          .mytid               (1'(i)),
-                                         .exu_i0_flush_path_e4(exu_i0_flush_path_e4[31:1] & {31{exu_i0_flush_lower_e4[i]}}),
-                                         .exu_i1_flush_path_e4(exu_i1_flush_path_e4[31:1] & {31{exu_i1_flush_lower_e4[i]}}),
+                                         .exu_i0_flush_path_e4(exu_i0_flush_path_e4[pt.XLEN-1:1] & {(pt.XLEN-1){exu_i0_flush_lower_e4[i]}}),
+                                         .exu_i1_flush_path_e4(exu_i1_flush_path_e4[pt.XLEN-1:1] & {(pt.XLEN-1){exu_i1_flush_lower_e4[i]}}),
                                          .dec_div_active(dec_div_active & (dec_div_tid == i)),
                                          .i_cpu_run_req(i_cpu_run_req[i] & mhartstart[i]),
                                          .i_cpu_halt_req(i_cpu_halt_req[i] & mhartstart[i]),
@@ -665,7 +665,7 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MCGC (RW) Clock gating control
-   // [31:10] : Reserved, reads 0x0
+   // [XLEN-1:10] : Reserved, reads 0x0
    // [9]    : picio_clk_override
    // [8]    : misc_clk_override
    // [7]    : dec_clk_override
@@ -698,7 +698,7 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MFDC (RW) Feature Disable Control
-   // [31:19] : Reserved, reads 0x0
+   // [XLEN-1:19] : Reserved, reads 0x0
    // [18:16] : DMA QoS Prty
    // [15:12] : Reserved, reads 0x0
    // [11]   : Disable external load forwarding
@@ -746,7 +746,8 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MRAC (RW)
-   // [31:0] : Region Access Control Register, 16 regions, {side_effect, cachable} pairs
+   // [XLEN-1:32] : Reserved, reads 0x0, RV64 only
+   // [31:0]      : Region Access Control Register, 16 regions, {side_effect, cachable} pairs
    localparam MRAC          = 12'h7c0;
 
    assign wr_mrac_wb = dec_i0_csr_wen_wb_mod_thr[i0tid_wb] & (dec_i0_csr_wraddr_wb[11:0] == MRAC);
@@ -775,8 +776,9 @@ end // else: !if(pt.NUM_THREADS > 1)
    assign dec_tlu_mrac_ff[31:0] = mrac[31:0];
    // ----------------------------------------------------------------------
    // MICECT (I-Cache error counter/threshold)
-   // [31:27] : Icache parity error threshold
-   // [26:0]  : Icache parity error count
+   // [XLEN-1:32] : Reserved, reads 0x0, RV64 only
+   // [31:27]     : Icache parity error threshold
+   // [26:0]      : Icache parity error count
    localparam MICECT        = 12'h7f0;
 
    assign csr_sat[31:27] = (dec_i0_csr_wrdata_wb[31:27] > 5'd26) ? 5'd26 : dec_i0_csr_wrdata_wb[31:27];
@@ -791,8 +793,9 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MICCMECT (ICCM error counter/threshold)
-   // [31:27] : ICCM parity error threshold
-   // [26:0]  : ICCM parity error count
+   // [XLEN-1:32] : Reserved, reads 0x0, RV64 only
+   // [31:27]     : ICCM parity error threshold
+   // [26:0]      : ICCM parity error count
    localparam MICCMECT      = 12'h7f1;
 
    assign wr_miccmect_wb = dec_i0_csr_wen_wb_mod_thr[i0tid_wb] & (dec_i0_csr_wraddr_wb[11:0] == MICCMECT);
@@ -805,8 +808,9 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MDCCMECT (DCCM error counter/threshold)
-   // [31:27] : DCCM parity error threshold
-   // [26:0]  : DCCM parity error count
+   // [XLEN-1:32] : Reserved, reads 0x0, RV64 only
+   // [31:27]     : DCCM parity error threshold
+   // [26:0]      : DCCM parity error count
    localparam MDCCMECT      = 12'h7f2;
 
    assign lsu_single_ecc_error_wb_ns = lsu_single_ecc_error_incr;
@@ -823,8 +827,9 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MFDHT (Force Debug Halt Threshold)
-   // [5:1] : Halt timeout threshold (power of 2)
-   //   [0] : Halt timeout enabled
+   // [XLEN-1:6] : Reserved, reads 0x0
+   // [5:1]      : Halt timeout threshold (power of 2)
+   //   [0]      : Halt timeout enabled
    localparam MFDHT         = 12'h7ce;
 
    assign wr_mfdht_wb = dec_i0_csr_wen_wb_mod_thr[i0tid_wb] & (dec_i0_csr_wraddr_wb[11:0] == MFDHT);
@@ -836,7 +841,7 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MHARTSTART (Write 1 only)
-   // [31:2] : Reserved
+   // [XLEN-1:2] : Reserved
    // [1]    : Start thread 1
    // [0]    : Start thread 0 (Resets to 0x1)
    localparam MHARTSTART    = 12'h7fc;
@@ -853,7 +858,7 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // ----------------------------------------------------------------------
    // MNMIPDEL (Legal values: 01, 10, 11.
-   // [31:2] : Reserved
+   // [XLEN-1:2] : Reserved
    // [1]    : Delegate NMI pin to thread 1
    // [0]    : Delegate NMI pin to thread 0 (Resets to 0x1)
    localparam MNMIPDEL      = 12'h7fe;
@@ -873,34 +878,34 @@ end // else: !if(pt.NUM_THREADS > 1)
 
    // Thread mux, if required
    if (pt.NUM_THREADS > 1) begin: tlutop
-      assign thread_csr_data_d[31:0] = ( ({32{~dec_i0_tid_d}} & csr_rddata_d[0]) |
-                                         ({32{ dec_i0_tid_d}} & csr_rddata_d[1]) );
+      assign thread_csr_data_d[pt.XLEN-1:0] = ( ({pt.XLEN{~dec_i0_tid_d}} & csr_rddata_d[0]) |
+                                         ({pt.XLEN{ dec_i0_tid_d}} & csr_rddata_d[1]) );
       assign mhartnums[1:0] = 2'b10;
    end
    else begin
-      assign thread_csr_data_d[31:0] =  csr_rddata_d[dec_i0_tid_d];
+      assign thread_csr_data_d[pt.XLEN-1:0] =  csr_rddata_d[dec_i0_tid_d];
       assign mhartnums[1:0] = 2'b01;
    end
    assign dec_i0_csr_global_d = tlu_i0_csr_pkt_d.glob;
 
    // Final CSR mux
-   assign dec_i0_csr_rddata_d[31:0] = ( // global csrs
-                                     ({32{tlu_i0_csr_pkt_d.csr_misa}}       & ((pt.ATOMIC_ENABLE==0)?32'h40001104:32'h40001105)) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mvendorid}}  & 32'h00000045) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_marchid}}    & 32'h00000011) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mimpid}}     & 32'h3) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mhartnum}}   & {30'h0, mhartnums[1:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mrac}}       & mrac[31:0]) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mcgc}}       & {22'b0, mcgc[9:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mfdc}}       & {13'b0, mfdc[18:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_micect}}     & {micect[31:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_miccmect}}   & {miccmect[31:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mdccmect}}   & {mdccmect[31:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mfdht  }}    & {26'b0, mfdht[5:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mhartstart}} & {30'b0, mhartstart[1:0]}) |
-                                     ({32{tlu_i0_csr_pkt_d.csr_mnmipdel}}   & {30'b0, mnmipdel[1:0]}) |
+   assign dec_i0_csr_rddata_d[pt.XLEN-1:0] = ( // global csrs
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_misa}}       & ((pt.ATOMIC_ENABLE==0) ? (pt.XLEN)'('h40001104) : (pt.XLEN)'('h40001105))) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mvendorid}}  & {{pt.XLEN-32{1'b0}}, 32'h00000045}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_marchid}}    & {{pt.XLEN-32{1'b0}}, 32'h00000011}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mimpid}}     & {{pt.XLEN-32{1'b0}}, 32'h3}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mhartnum}}   & {{pt.XLEN-2{1'b0}}, mhartnums[1:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mrac}}       & {{pt.XLEN-32{1'b0}}, mrac[31:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mcgc}}       & {{pt.XLEN-10{1'b0}}, mcgc[9:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mfdc}}       & {{pt.XLEN-19{1'b0}}, mfdc[18:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_micect}}     & {{pt.XLEN-32{1'b0}}, micect[31:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_miccmect}}   & {{pt.XLEN-32{1'b0}}, miccmect[31:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mdccmect}}   & {{pt.XLEN-32{1'b0}}, mdccmect[31:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mfdht  }}    & {{pt.XLEN-6{1'b0}}, mfdht[5:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mhartstart}} & {{pt.XLEN-2{1'b0}}, mhartstart[1:0]}) |
+                                     ({pt.XLEN{tlu_i0_csr_pkt_d.csr_mnmipdel}}   & {{pt.XLEN-2{1'b0}}, mnmipdel[1:0]}) |
                                      // threaded csrs
-                                     ({32{~tlu_i0_csr_pkt_d.glob}} & thread_csr_data_d[31:0])
+                                     ({pt.XLEN{~tlu_i0_csr_pkt_d.glob}} & thread_csr_data_d[pt.XLEN-1:0])
                                      );
 
 endmodule

@@ -42,9 +42,9 @@ import eh2_pkg::*;
 
    input logic dec_tlu_dec_clk_override,
 
-   input logic [31:1] rst_vec, // reset vector, from core pins
+   input logic [pt.XLEN-1:1] rst_vec, // reset vector, from core pins
    input logic        nmi_int_sync, // nmi pin
-   input logic [31:1] nmi_vec, // nmi vector
+   input logic [pt.XLEN-1:1] nmi_vec, // nmi vector
    input logic  i_cpu_halt_req,    // Asynchronous Halt request to CPU
    input logic  i_cpu_run_req,     // Asynchronous Restart request to CPU
    input logic mhartstart_csr,    // Start valid
@@ -89,7 +89,7 @@ import eh2_pkg::*;
    input logic dec_tlu_br1_error_e4,
    input logic dec_tlu_br1_start_error_e4,
 
-   input logic [31:1] lsu_fir_addr, // Fast int address
+   input logic [pt.XLEN-1:1] lsu_fir_addr, // Fast int address
    input logic [1:0]  lsu_fir_error, // Fast int lookup error
 
    input logic mice_ce_req,
@@ -105,14 +105,14 @@ import eh2_pkg::*;
    input logic dec_pause_state, // Pause counter not zero
    input logic         lsu_imprecise_error_store_any,      // store bus error
    input logic         lsu_imprecise_error_load_any,      // store bus error
-   input logic [31:0]  lsu_imprecise_error_addr_any, // store bus error address
+   input logic [pt.XLEN-1:0]  lsu_imprecise_error_addr_any, // store bus error address
 
    input logic        dec_i0_csr_wen_unq_d,       // valid csr with write - for csr legal
    input logic        dec_i0_csr_any_unq_d,       // valid csr - for csr legal
    input logic        dec_i0_csr_wen_wb,      // csr write enable at wb
    input logic [11:0] dec_i0_csr_rdaddr_d,      // read address for csr
    input logic [11:0] dec_i0_csr_wraddr_wb,      // write address for csr
-   input logic [31:0] dec_i0_csr_wrdata_wb,   // csr write data at wb
+   input logic [pt.XLEN-1:0] dec_i0_csr_wrdata_wb,   // csr write data at wb
    input logic        dec_i0_csr_is_mcpc_e4,     // csr address is to MCPC
 
    input logic        dec_csr_stall_int_ff, // csr is mie/mstatus
@@ -122,18 +122,18 @@ import eh2_pkg::*;
    input logic dec_tlu_i0_valid_e4, // pipe 0 op at e4 is valid
    input logic dec_tlu_i1_valid_e4, // pipe 1 op at e4 is valid
 
-   input logic [31:1] exu_npc_e4, // for NPC tracking
+   input logic [pt.XLEN-1:1] exu_npc_e4, // for NPC tracking
    input logic exu_i0_flush_lower_e4,       // pipe 0 branch mp flush
    input logic exu_i1_flush_lower_e4,       // pipe 1 branch mp flush
-   input logic [31:1] exu_i0_flush_path_e4, // pipe 0 correct path for mp, merge with lower path
-   input logic [31:1] exu_i1_flush_path_e4, // pipe 1 correct path for mp, merge with lower path
+   input logic [pt.XLEN-1:1] exu_i0_flush_path_e4, // pipe 0 correct path for mp, merge with lower path
+   input logic [pt.XLEN-1:1] exu_i1_flush_path_e4, // pipe 1 correct path for mp, merge with lower path
 
-   input logic [31:1] dec_tlu_i0_pc_e4, // for PC/NPC tracking
-   input logic [31:1] dec_tlu_i1_pc_e4, // for PC/NPC tracking
+   input logic [pt.XLEN-1:1] dec_tlu_i0_pc_e4, // for PC/NPC tracking
+   input logic [pt.XLEN-1:1] dec_tlu_i1_pc_e4, // for PC/NPC tracking
 
    input eh2_trap_pkt_t dec_tlu_packet_e4, // exceptions known at decode
 
-   input logic [31:0] dec_illegal_inst, // For mtval
+   input logic [pt.XLEN-1:0] dec_illegal_inst, // For mtval
    input logic        dec_i0_decode_d,  // decode valid, used for clean icache diagnostics
 
    // branch info from pipe0 for errors or counter updates
@@ -164,7 +164,7 @@ import eh2_pkg::*;
    input logic timer_int, // timer interrupt pending
    input logic soft_int, // software interrupt pending
 
-   input logic [31:4]     core_id, // Core ID
+   input logic [pt.XLEN-1:4]     core_id, // Core ID
 
    input logic mpc_debug_halt_req, // Async halt request
    input logic mpc_debug_run_req, // Async run request
@@ -192,7 +192,7 @@ import eh2_pkg::*;
    output logic dec_tlu_core_empty,
 
    output logic dec_tlu_flush_extint, // fast ext int started
-   output logic [31:2] dec_tlu_meihap, // meihap for fast int
+   output logic [pt.XLEN-1:2] dec_tlu_meihap, // meihap for fast int
 
    output logic o_cpu_halt_status, // PMU interface, halted
    output logic o_cpu_halt_ack, // halt req ack
@@ -207,14 +207,14 @@ import eh2_pkg::*;
    output logic [3:0] tlu_meicurpl, // to PIC
    output logic [3:0] tlu_meipt, // to PIC
 
-   output logic [31:0] csr_rddata_d,      // csr read data at wb
+   output logic [pt.XLEN-1:0] csr_rddata_d,      // csr read data at wb
 
    output logic tlu_i0_kill_writeb_wb,    // I0 is flushed, don't writeback any results to arch state
    output logic tlu_i1_kill_writeb_wb,    // I1 is flushed, don't writeback any results to arch state
 
    output logic dec_tlu_flush_lower_wb,       // commit has a flush (exception, int, mispredict at e4)
    output logic dec_tlu_flush_mp_wb,          // flush is due to e4 mp
-   output logic [31:1] dec_tlu_flush_path_wb, // flush pc
+   output logic [pt.XLEN-1:1] dec_tlu_flush_path_wb, // flush pc
 
    output logic dec_tlu_flush_lower_wb1,
    output logic dec_tlu_fence_i_wb,           // flush is a fence_i rfnpc, flush icache
@@ -233,7 +233,7 @@ import eh2_pkg::*;
    output logic tlu_int_valid_wb1, // pipe 2 int valid
 
    output logic [4:0] tlu_exc_cause_wb1, // exception or int cause
-   output logic [31:0] tlu_mtval_wb1, // MTVAL value
+   output logic [pt.XLEN-1:0] tlu_mtval_wb1, // MTVAL value
 
    output logic [1:0] tlu_perfcnt0, // toggles when pipe0 perf counter 0 has an event inc
    output logic [1:0] tlu_perfcnt1, // toggles when pipe0 perf counter 1 has an event inc
@@ -268,53 +268,54 @@ import eh2_pkg::*;
    logic wr_mpmc_wb;
    logic [1:1] mpmc_b_ns, mpmc, mpmc_b;
    logic [1:0] mfdhs_ns, mfdhs;
-   logic [31:0] force_halt_ctr, force_halt_ctr_f;
+   logic [pt.XLEN-1:0] force_halt_ctr, force_halt_ctr_f;
    logic        force_halt;
    logic set_mie_pmu_fw_halt;
    logic wr_mcountinhibit_wb;
    logic [6:0] mcountinhibit;
    logic wr_mtsel_wb, wr_mtdata1_t0_wb, wr_mtdata1_t1_wb, wr_mtdata1_t2_wb, wr_mtdata1_t3_wb, wr_mtdata2_t0_wb, wr_mtdata2_t1_wb, wr_mtdata2_t2_wb, wr_mtdata2_t3_wb;
-   logic [31:0] mtdata2_t0, mtdata2_t1, mtdata2_t2, mtdata2_t3, mtdata2_tsel_out, mtdata1_tsel_out;
+   logic [pt.XLEN-1:0] mtdata2_t0, mtdata2_t1, mtdata2_t2, mtdata2_t3, mtdata2_tsel_out, mtdata1_tsel_out;
    logic [9:0]  mtdata1_t0_ns, mtdata1_t0, mtdata1_t1_ns, mtdata1_t1, mtdata1_t2_ns, mtdata1_t2, mtdata1_t3_ns, mtdata1_t3;
    logic [9:0] tdata_wrdata_wb;
    logic [1:0] mtsel_ns, mtsel;
    logic tlu_i0_kill_writeb_e4, tlu_i1_kill_writeb_e4;
    logic [1:0]  mstatus_ns, mstatus;
    logic mstatus_mie_ns;
-   logic [30:0] mtvec_ns, mtvec;
+   logic [pt.XLEN-2:0] mtvec_ns, mtvec;
    logic [15:2] dcsr_ns, dcsr;
    logic [5:0] mip_ns, mip;
    logic [5:0] mie_ns, mie;
-   logic [31:0] mcyclel_ns, mcyclel;
+   logic [pt.XLEN-1:0] mcyclel_ns, mcyclel;
    logic [31:0] mcycleh_ns, mcycleh;
-   logic [31:0] minstretl_ns, minstretl;
+   logic [pt.XLEN-1:0] minstretl_ns, minstretl;
    logic [31:0] minstreth_ns, minstreth;
-   logic [31:0] mscratch;
-   logic [31:0] mhpmc3, mhpmc3_ns, mhpmc4, mhpmc4_ns, mhpmc5, mhpmc5_ns, mhpmc6, mhpmc6_ns;
-   logic [31:0] mhpmc3h, mhpmc3h_ns, mhpmc4h, mhpmc4h_ns, mhpmc5h, mhpmc5h_ns, mhpmc6h, mhpmc6h_ns;
+   logic [pt.XLEN-1:0] mscratch;
+   logic [pt.XLEN-1:0] mhpmc3, mhpmc3_ns, mhpmc4, mhpmc4_ns, mhpmc5, mhpmc5_ns, mhpmc6, mhpmc6_ns;
+   logic [pt.XLEN-1:0] mhpmc3h, mhpmc3h_ns, mhpmc4h, mhpmc4h_ns, mhpmc5h, mhpmc5h_ns, mhpmc6h, mhpmc6h_ns;
    logic [9:0]  mhpme3, mhpme4, mhpme5, mhpme6;
    logic [9:2] meihap;
-   logic [31:10] meivt;
+   logic [pt.XLEN-1:10] meivt;
    logic [3:0] meicurpl_ns, meicurpl;
    logic [3:0] meicidpl_ns, meicidpl;
    logic [3:0] meipt_ns, meipt;
-   logic [31:0] mdseac;
+   logic [pt.XLEN-1:0] mdseac;
    logic mdseac_locked_ns, mdseac_locked_f, mdseac_en, nmi_lsu_detected;
    logic        wr_dicawics_wb, wr_dicad0_wb, wr_dicad0h_wb, wr_dicad1_wb;
-   logic [31:0] dicad0_ns, dicad0, dicad0h_ns, dicad0h, dicad1;
-   logic [31:1] mepc_ns, mepc;
-   logic [31:1] dpc_ns, dpc;
-   logic [31:0] mcause_ns, mcause;
+   logic [31:0] dicad0h_ns, dicad0h;
+   logic [pt.XLEN-1:0] dicad0_ns, dicad0, dicad1;
+   logic [pt.XLEN-1:1] mepc_ns, mepc;
+   logic [pt.XLEN-1:1] dpc_ns, dpc;
+   logic [pt.XLEN-1:0] mcause_ns, mcause;
    logic [3:0] mscause_ns, mscause, mscause_type, ifu_mscause;
-   logic [31:0] mtval_ns, mtval;
+   logic [pt.XLEN-1:0] mtval_ns, mtval;
    logic       mret_wb;
    logic dec_pause_state_f, tlu_wr_pause_wb_f, pause_expired_e4, pause_expired_wb;
    logic       tlu_flush_lower_e4, tlu_flush_lower_wb, tlu_flush_lower_wb1, tlu_flush_mp_e4;
-   logic [31:1] tlu_flush_path_e4, tlu_flush_path_wb;
+   logic [pt.XLEN-1:1] tlu_flush_path_e4, tlu_flush_path_wb;
    logic i0_valid_wb, i1_valid_wb;
    logic [5:1] vectored_cause;
-   logic [31:2] vectored_path;
-   logic [31:1] interrupt_path;
+   logic [pt.XLEN-1:2] vectored_path;
+   logic [pt.XLEN-1:1] interrupt_path;
    logic [16:0] dicawics_ns, dicawics;
    logic [6:0]  dicad1_ns, dicad1_raw;
 
@@ -328,14 +329,14 @@ import eh2_pkg::*;
    logic [4:0] exc_cause_e4, exc_cause_wb;
    logic [1:0] lsu_fir_error_d1;
    logic        mcyclel_cout, mcyclel_cout_f, mcyclela_cout;
-   logic [31:0] mcyclel_inc;
+   logic [pt.XLEN-1:0] mcyclel_inc;
    logic        mcycleh_cout_nc;
    logic [31:0] mcycleh_inc;
    logic        minstretl_cout, minstretl_cout_f, minstret_enable, minstretl_couta, minstretl_cout_ns;
-   logic [31:0] minstretl_inc, minstretl_read;
+   logic [pt.XLEN-1:0] minstretl_inc, minstretl_read;
    logic        minstreth_cout_nc;
    logic [31:0] minstreth_inc, minstreth_read;
-   logic [31:1] pc_e4, pc_wb, npc_e4, npc_wb;
+   logic [pt.XLEN-1:1] pc_e4, pc_wb, npc_e4, npc_wb;
    logic        mtval_capture_pc_wb, mtval_capture_inst_wb, mtval_clear_wb, mtval_capture_pc_plus2_wb;
    logic rfpc_i0_e4, rfpc_i1_e4;
    logic lsu_i0_rfnpc_dc4, lsu_i1_rfnpc_dc4;
@@ -371,7 +372,7 @@ import eh2_pkg::*;
    logic [3:0] trigger_execute, trigger_data, trigger_store;
 
    // internal timer, isolated for size reasons
-   logic [31:0] dec_timer_rddata_d;
+   logic [pt.XLEN-1:0] dec_timer_rddata_d;
    logic  dec_timer_read_d;
    logic       dec_timer_t0_pulse, dec_timer_t1_pulse;
    logic dec_tlu_pmu_fw_halted;
@@ -422,7 +423,7 @@ end
    logic mcyclel_cout_in;
    logic [3:0] lsu_error_mscause_wb;
    logic [1:0] icaf_type_wb;
-   logic [31:0] lsu_error_pkt_addr_dc4, lsu_error_pkt_addr_wb;
+   logic [pt.XLEN-1:0] lsu_error_pkt_addr_dc4, lsu_error_pkt_addr_wb;
    logic        iside_oop_rfpc;
    logic i0_problem_kills_i1_trigger;
    logic lsu_pmu_load_external_dc4, lsu_pmu_store_external_dc4;
@@ -864,9 +865,9 @@ localparam MTDATA1_LD    = 0;
    rvdff #( $bits(eh2_lsu_error_pkt_t) ) lsu_error_dc4ff (.*, .clk(lsu_e3_e4_clk), .din(lsu_error_pkt_dc3),  .dout(lsu_error_pkt_dc4));
 
 
-   assign lsu_error_pkt_addr_dc4[31:0] = lsu_error_pkt_e4.addr[31:0];
-   rvdff #(38) lsu_error_wbff (.*, .clk(lsu_e4_e5_clk), .din({lsu_error_pkt_addr_dc4[31:0], lsu_exc_valid_e4, lsu_i0_exc_dc4, lsu_error_pkt_e4.mscause[3:0]}),
-                                                       .dout({lsu_error_pkt_addr_wb[31:0], lsu_exc_valid_wb, lsu_i0_exc_wb, lsu_error_mscause_wb[3:0]}));
+   assign lsu_error_pkt_addr_dc4[pt.XLEN-1:0] = lsu_error_pkt_e4.addr[pt.XLEN-1:0];
+   rvdff #(pt.XLEN+6) lsu_error_wbff (.*, .clk(lsu_e4_e5_clk), .din({lsu_error_pkt_addr_dc4[pt.XLEN-1:0], lsu_exc_valid_e4, lsu_i0_exc_dc4, lsu_error_pkt_e4.mscause[3:0]}),
+                                                               .dout({lsu_error_pkt_addr_wb[pt.XLEN-1:0], lsu_exc_valid_wb, lsu_i0_exc_wb, lsu_error_mscause_wb[3:0]}));
 
 
    // lsu exception is valid unless it's in pipe1 and there was a rfpc_i0_e4, brmp, or an iside exception in pipe0.
@@ -1130,8 +1131,8 @@ end
    // Compute interrupt path:
    // If vectored async is set in mtvec, flush path for interrupts is MTVEC + (4 * CAUSE);
    assign vectored_cause[5:1]  = exc_cause_e4[4:0];
-   assign vectored_path[31:2]  = mtvec[30:1] + {25'b0, vectored_cause[5:1]};
-   assign interrupt_path[31:1] = take_nmi ? nmi_vec[31:1] : ((mtvec[0] == 1'b1) ? {vectored_path[31:2], 1'b0} : {mtvec[30:1], 1'b0});
+   assign vectored_path[pt.XLEN-1:2]  = mtvec[pt.XLEN-2:1] + {{pt.XLEN-7{1'b0}}, vectored_cause[5:1]};
+   assign interrupt_path[pt.XLEN-1:1] = take_nmi ? nmi_vec[pt.XLEN-1:1] : ((mtvec[0] == 1'b1) ? {vectored_path[pt.XLEN-1:2], 1'b0} : {mtvec[30:1], 1'b0});
 
    assign sel_npc_e4 = lsu_i0_rfnpc_dc4 | (lsu_i1_rfnpc_dc4 & tlu_i1_commit_cmt) | fence_i_e4 | iccm_repair_state_rfnpc | (i_cpu_run_req_d1 & ~interrupt_valid) | (rfpc_i0_e4 & ~tlu_i0_valid_e4);
    assign sel_npc_wb = (i_cpu_run_req_d1 & pmu_fw_tlu_halted_f) | pause_expired_e4;
@@ -1152,30 +1153,30 @@ end
 
    assign tlu_flush_lower_e4 = interrupt_valid | mret_e4 | synchronous_flush_e4 | take_halt | take_reset | take_ext_int_start;
 
-   assign tlu_flush_path_e4[31:1] = take_reset ? rst_vec[31:1] :
+   assign tlu_flush_path_e4[pt.XLEN-1:1] = take_reset ? rst_vec[pt.XLEN-1:1] :
 
-                                     (({31{sel_fir_addr}} & lsu_fir_addr[31:1]) |
-                                      ({31{~take_nmi & i0_mp_e4}} & exu_i0_flush_path_e4[31:1]) |
-                                      ({31{~take_nmi & ~i0_mp_e4 & i1_mp_e4 & ~rfpc_i0_e4 & ~lsu_i0_exc_dc4}} & exu_i1_flush_path_e4[31:1]) |
-                                      ({31{~take_nmi & sel_npc_e4}} & npc_e4[31:1]) |
-                                      ({31{~take_nmi & rfpc_i0_e4 & tlu_i0_valid_e4 & ~sel_npc_e4}} & dec_tlu_i0_pc_e4[31:1]) |
-                                      ({31{~take_nmi & rfpc_i1_e4}} & dec_tlu_i1_pc_e4[31:1]) |
-                                      ({31{interrupt_valid & ~sel_fir_addr}} & interrupt_path[31:1]) |
-                                      ({31{(i0_exception_valid_e4 | lsu_exc_valid_e4 |
+                                     (({(pt.XLEN-1){sel_fir_addr}} & lsu_fir_addr[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & i0_mp_e4}} & exu_i0_flush_path_e4[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & ~i0_mp_e4 & i1_mp_e4 & ~rfpc_i0_e4 & ~lsu_i0_exc_dc4}} & exu_i1_flush_path_e4[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & sel_npc_e4}} & npc_e4[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & rfpc_i0_e4 & tlu_i0_valid_e4 & ~sel_npc_e4}} & dec_tlu_i0_pc_e4[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & rfpc_i1_e4}} & dec_tlu_i1_pc_e4[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){interrupt_valid & ~sel_fir_addr}} & interrupt_path[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){(i0_exception_valid_e4 | lsu_exc_valid_e4 |
                                             (trigger_hit_e4 & ~trigger_hit_dmode_e4)) & ~interrupt_valid & ~sel_fir_addr}} & {mtvec[30:1],1'b0}) |
-                                      ({31{~take_nmi & mret_e4 & ~wr_mepc_wb}} & mepc[31:1]) |
-                                      ({31{~take_nmi & debug_resume_req_f}} & dpc[31:1]) |
-                                      ({31{~take_nmi & sel_npc_wb}} & npc_wb[31:1]) |
-                                      ({31{~take_nmi & mret_e4 & wr_mepc_wb}} & dec_i0_csr_wrdata_wb[31:1]) );
+                                      ({(pt.XLEN-1){~take_nmi & mret_e4 & ~wr_mepc_wb}} & mepc[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & debug_resume_req_f}} & dpc[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & sel_npc_wb}} & npc_wb[pt.XLEN-1:1]) |
+                                      ({(pt.XLEN-1){~take_nmi & mret_e4 & wr_mepc_wb}} & dec_i0_csr_wrdata_wb[pt.XLEN-1:1]) );
 
    assign tlu_flush_mp_e4 = ~take_nmi & (i0_mp_e4 | (i1_mp_e4 & ~rfpc_i0_e4 & ~lsu_i0_exc_dc4));
 
-   rvdffe #(31)  flush_lower_ff (.*, .clk(free_l2clk), .en(tlu_flush_lower_e4),
-                                 .din({tlu_flush_path_e4[31:1]}),
-                                 .dout({tlu_flush_path_wb[31:1]}));
+   rvdffe #(pt.XLEN-1)  flush_lower_ff (.*, .clk(free_l2clk), .en(tlu_flush_lower_e4),
+                                 .din({tlu_flush_path_e4[pt.XLEN-1:1]}),
+                                 .dout({tlu_flush_path_wb[pt.XLEN-1:1]}));
 
    assign dec_tlu_flush_lower_wb = tlu_flush_lower_wb ;
-   assign dec_tlu_flush_path_wb[31:1] = tlu_flush_path_wb[31:1];
+   assign dec_tlu_flush_path_wb[pt.XLEN-1:1] = tlu_flush_path_wb[pt.XLEN-1:1];
 
    assign dec_tlu_flush_lower_wb1 = tlu_flush_lower_wb1 ;
 
@@ -1201,9 +1202,9 @@ end
 
    // ----------------------------------------------------------------------
    // MISA (RO)
-   //  [31:30] XLEN - implementation width, 2'b01 - 32 bits
+   //  [XLEN-1:XLEN-2] XLEN - implementation width, 2'd1 - 32 bits, 2'd2 - 64 bits
    //  [12]    M    - integer mul/div
-   //  [8]     I    - RV32I
+   //  [8]     I    - RV32I/64I
    //  [2]     C    - Compressed extension
    //  [0]     A    - Atomic extension
    localparam MISA          = 12'h301;
@@ -1243,14 +1244,14 @@ end
 
    // ----------------------------------------------------------------------
    // MTVEC (RW)
-   // [31:2] BASE : Trap vector base address
+   // [XLEN-1:2] BASE : Trap vector base address
    // [1] - Reserved, not implemented, reads zero
    // [0]  MODE : 0 = Direct, 1 = Asyncs are vectored to BASE + (4 * CAUSE)
    localparam MTVEC         = 12'h305;
 
    assign wr_mtvec_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTVEC);
-   assign mtvec_ns[30:0] = {dec_i0_csr_wrdata_wb[31:2], dec_i0_csr_wrdata_wb[0]} ;
-   rvdffe #(31)  mtvec_ff (.*, .en(wr_mtvec_wb), .din(mtvec_ns[30:0]), .dout(mtvec[30:0]));
+   assign mtvec_ns[pt.XLEN-2:0] = {dec_i0_csr_wrdata_wb[pt.XLEN-1:2], dec_i0_csr_wrdata_wb[0]} ;
+   rvdffe #(pt.XLEN-1)  mtvec_ff (.*, .en(wr_mtvec_wb), .din(mtvec_ns[pt.XLEN-2:0]), .dout(mtvec[pt.XLEN-2:0]));
 
    // ----------------------------------------------------------------------
    // MIP (RW)
@@ -1283,29 +1284,29 @@ end
 
 
    // ----------------------------------------------------------------------
-   // MCYCLEL (RW)
-   // [31:0] : Lower Cycle count
+   // MCYCLE (RW)
+   // [XLEN-1:0] : Cycle count (lower 32-bits for RV32)
 
-   localparam MCYCLEL       = 12'hb00;
+   localparam MCYCLE       = 12'hb00;
 
    assign kill_ebreak_count_wb = ebreak_to_debug_mode_wb & dcsr[DCSR_STOPC];
 
-   assign wr_mcyclel_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCYCLEL);
+   assign wr_mcyclel_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCYCLE);
 
    assign mcyclel_cout_in = ~(kill_ebreak_count_wb | (dec_tlu_dbg_halted & dcsr[DCSR_STOPC]) |
                               dec_tlu_pmu_fw_halted | mcountinhibit[0] | ~mhartstart_csr);
 
    // split for power
    assign {mcyclela_cout, mcyclel_inc[7:0]}  = mcyclel[7:0] +  {7'b0, 1'b1};
-   assign {mcyclel_cout,  mcyclel_inc[31:8]} = mcyclel[31:8] + {23'b0, mcyclela_cout};
+   assign {mcyclel_cout,  mcyclel_inc[pt.XLEN-1:8]} = mcyclel[pt.XLEN-1:8] + {23'b0, mcyclela_cout};
 
-   assign mcyclel_ns[31:0] = wr_mcyclel_wb ? dec_i0_csr_wrdata_wb[31:0] : mcyclel_inc[31:0];
+   assign mcyclel_ns[pt.XLEN-1:0] = wr_mcyclel_wb ? dec_i0_csr_wrdata_wb[pt.XLEN-1:0] : mcyclel_inc[pt.XLEN-1:0];
 
-   rvdffe #(24) mcyclel_bff      (.*, .clk(free_l2clk), .en(wr_mcyclel_wb | (mcyclela_cout & mcyclel_cout_in)),    .din(mcyclel_ns[31:8]), .dout(mcyclel[31:8]));
+   rvdffe #(pt.XLEN-8) mcyclel_bff      (.*, .clk(free_l2clk), .en(wr_mcyclel_wb | (mcyclela_cout & mcyclel_cout_in)),    .din(mcyclel_ns[pt.XLEN-1:8]), .dout(mcyclel[pt.XLEN-1:8]));
    rvdffe #(8)  mcyclel_aff      (.*, .clk(free_l2clk), .en(wr_mcyclel_wb | mcyclel_cout_in),  .din(mcyclel_ns[7:0]),  .dout(mcyclel[7:0]));
 
    // ----------------------------------------------------------------------
-   // MCYCLEH (RW)
+   // MCYCLEH (RW) (RV32 only)
    // [63:32] : Higher Cycle count
    // Chained with mcyclel. Note: mcyclel overflow due to a mcycleh write gets ignored.
 
@@ -1319,37 +1320,37 @@ end
    rvdffe #(32)  mcycleh_ff (.*, .clk(free_l2clk), .en(wr_mcycleh_wb | mcyclel_cout_f), .din(mcycleh_ns[31:0]), .dout(mcycleh[31:0]));
 
    // ----------------------------------------------------------------------
-   // MINSTRETL (RW)
-   // [31:0] : Lower Instruction retired count
+   // MINSTRET (RW)
+   // [XLEN-1:0] : Instruction retired count (lower 32 bits for RV32)
    // From the spec "Some CSRs, such as the instructions retired counter, instret, may be modified as side effects
    // of instruction execution. In these cases, if a CSR access instruction reads a CSR, it reads the
    // value prior to the execution of the instruction. If a CSR access instruction writes a CSR, the
    // update occurs after the execution of the instruction. In particular, a value written to instret by
    // one instruction will be the value read by the following instruction (i.e., the increment of instret
    // caused by the first instruction retiring happens before the write of the new value)."
-   localparam MINSTRETL     = 12'hb02;
+   localparam MINSTRET     = 12'hb02;
 
    assign i0_valid_no_ebreak_ecall_wb = i0_valid_wb & ~(ebreak_wb | ecall_wb | ebreak_to_debug_mode_wb) & ~mcountinhibit[2];
 
-   assign wr_minstretl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MINSTRETL);
+   assign wr_minstretl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MINSTRET);
 
    assign {minstretl_couta, minstretl_inc[7:0]} = minstretl[7:0] + {7'b0,i0_valid_no_ebreak_ecall_wb} + {7'b0,i1_valid_wb & ~mcountinhibit[2]};
-   assign {minstretl_cout, minstretl_inc[31:8]} = minstretl[31:8] + {23'b0, minstretl_couta};
+   assign {minstretl_cout, minstretl_inc[pt.XLEN-1:8]} = minstretl[pt.XLEN-1:8] + {pt.XLEN-9'b0, minstretl_couta};
 
    assign minstret_enable = (i0_valid_no_ebreak_ecall_wb | i1_valid_wb);
 
    assign minstretl_cout_ns = minstretl_cout & ~wr_minstreth_wb & ~dec_tlu_dbg_halted;
 
-   assign minstretl_ns[31:0] = wr_minstretl_wb ? dec_i0_csr_wrdata_wb[31:0] : minstretl_inc[31:0];
-   rvdffe #(24)  minstretl_bff (.*, .en(wr_minstretl_wb | (minstretl_couta & minstret_enable)),
-                                .din(minstretl_ns[31:8]), .dout(minstretl[31:8]));
+   assign minstretl_ns[pt.XLEN-1:0] = wr_minstretl_wb ? dec_i0_csr_wrdata_wb[pt.XLEN-1:0] : minstretl_inc[pt.XLEN-1:0];
+   rvdffe #(pt.XLEN-8)  minstretl_bff (.*, .en(wr_minstretl_wb | (minstretl_couta & minstret_enable)),
+                                .din(minstretl_ns[pt.XLEN-1:8]), .dout(minstretl[pt.XLEN-1:8]));
    rvdffe #(8)   minstretl_aff (.*, .en(minstret_enable | wr_minstretl_wb),
                                 .din(minstretl_ns[7:0]),  .dout(minstretl[7:0]));
 
 
-   assign minstretl_read[31:0] = minstretl[31:0];
+   assign minstretl_read[pt.XLEN-1:0] = minstretl[pt.XLEN-1:0];
    // ----------------------------------------------------------------------
-   // MINSTRETH (RW)
+   // MINSTRETH (RW) (RV32 only)
    // [63:32] : Higher Instret count
    // Chained with minstretl. Note: minstretl overflow due to a minstreth write gets ignored.
 
@@ -1365,16 +1366,16 @@ end
 
    // ----------------------------------------------------------------------
    // MSCRATCH (RW)
-   // [31:0] : Scratch register
+   // [XLEN-1:0] : Scratch register
    localparam MSCRATCH      = 12'h340;
 
    assign wr_mscratch_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MSCRATCH);
 
-   rvdffe #(32)  mscratch_ff (.*, .en(wr_mscratch_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mscratch[31:0]));
+   rvdffe #(pt.XLEN)  mscratch_ff (.*, .en(wr_mscratch_wb), .din(dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mscratch[pt.XLEN-1:0]));
 
    // ----------------------------------------------------------------------
    // MEPC (RW)
-   // [31:1] : Exception PC
+   // [XLEN-1:1] : Exception PC
    localparam MEPC          = 12'h341;
 
    // NPC
@@ -1385,38 +1386,38 @@ end
    assign sel_hold_npc_e4 = ~sel_exu_npc_e4 & ~sel_flush_npc_e4 & ~sel_i0_npc_e4;
 
 
-   assign npc_e4[31:1] = ( ({31{sel_exu_npc_e4}} & exu_npc_e4[31:1]) |
-                           ({31{sel_i0_npc_e4}} & dec_tlu_i1_pc_e4[31:1]) |
-                           ({31{~mpc_reset_run_req & reset_allowed}} & rst_vec[31:1]) | // init to reset vector for mpc halt on reset case
-                           ({31{(sel_flush_npc_e4)}} & tlu_flush_path_wb[31:1]) |
-                           ({31{(sel_hold_npc_e4)}} & npc_wb[31:1]) );
+   assign npc_e4[pt.XLEN-1:1] = ( ({(pt.XLEN-1){sel_exu_npc_e4}} & exu_npc_e4[pt.XLEN-1:1]) |
+                           ({(pt.XLEN-1){sel_i0_npc_e4}} & dec_tlu_i1_pc_e4[pt.XLEN-1:1]) |
+                           ({(pt.XLEN-1){~mpc_reset_run_req & reset_allowed}} & rst_vec[pt.XLEN-1:1]) | // init to reset vector for mpc halt on reset case
+                           ({(pt.XLEN-1){(sel_flush_npc_e4)}} & tlu_flush_path_wb[pt.XLEN-1:1]) |
+                           ({(pt.XLEN-1){(sel_hold_npc_e4)}} & npc_wb[pt.XLEN-1:1]) );
 
-   rvdffpcie #(31)  npwbc_ff (.*, .en(sel_exu_npc_e4 | sel_flush_npc_e4 | reset_allowed), .din(npc_e4[31:1]), .dout(npc_wb[31:1]));
+   rvdffpcie #(pt.XLEN-1)  npwbc_ff (.*, .en(sel_exu_npc_e4 | sel_flush_npc_e4 | reset_allowed), .din(npc_e4[pt.XLEN-1:1]), .dout(npc_wb[pt.XLEN-1:1]));
 
    // PC has to be captured for exceptions and interrupts. For MRET, we could execute it and then take an
    // interrupt before the next instruction.
    assign pc0_valid_e4 = ~dec_tlu_dbg_halted & tlu_i0_valid_e4;
    assign pc1_valid_e4 = ~dec_tlu_dbg_halted & tlu_i1_valid_e4 & ~lsu_i0_exc_dc4 & ~rfpc_i0_e4 & ~inst_acc_e4 & ~i0_trigger_hit_e4;
 
-   assign pc_e4[31:1] = ( ({31{ pc0_valid_e4 & ~pc1_valid_e4}} & dec_tlu_i0_pc_e4[31:1]) |
-                          ({31{ pc1_valid_e4}} & dec_tlu_i1_pc_e4[31:1]) |
-                          ({31{~pc0_valid_e4 & ~pc1_valid_e4}} & pc_wb[31:1]));
+   assign pc_e4[pt.XLEN-1:1] = ( ({(pt.XLEN-1){ pc0_valid_e4 & ~pc1_valid_e4}} & dec_tlu_i0_pc_e4[pt.XLEN-1:1]) |
+                          ({(pt.XLEN-1){ pc1_valid_e4}} & dec_tlu_i1_pc_e4[pt.XLEN-1:1]) |
+                          ({(pt.XLEN-1){~pc0_valid_e4 & ~pc1_valid_e4}} & pc_wb[pt.XLEN-1:1]));
 
-   rvdffpcie #(31)  pwbc_ff (.*, .en(pc0_valid_e4 | pc1_valid_e4), .din(pc_e4[31:1]), .dout(pc_wb[31:1]));
+   rvdffpcie #(pt.XLEN-1)  pwbc_ff (.*, .en(pc0_valid_e4 | pc1_valid_e4), .din(pc_e4[pt.XLEN-1:1]), .dout(pc_wb[pt.XLEN-1:1]));
 
    assign wr_mepc_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEPC);
 
-   assign mepc_ns[31:1] = ( ({31{i0_exception_valid_wb | lsu_exc_valid_wb | mepc_trigger_hit_sel_pc_wb}} & pc_wb[31:1]) |
-                            ({31{interrupt_valid_wb}} & npc_wb[31:1]) |
-                            ({31{wr_mepc_wb & ~exc_or_int_valid_wb}} & dec_i0_csr_wrdata_wb[31:1]) |
-                            ({31{~wr_mepc_wb & ~exc_or_int_valid_wb}} & mepc[31:1]) );
+   assign mepc_ns[pt.XLEN-1:1] = ( ({(pt.XLEN-1){i0_exception_valid_wb | lsu_exc_valid_wb | mepc_trigger_hit_sel_pc_wb}} & pc_wb[pt.XLEN-1:1]) |
+                            ({(pt.XLEN-1){interrupt_valid_wb}} & npc_wb[pt.XLEN-1:1]) |
+                            ({(pt.XLEN-1){wr_mepc_wb & ~exc_or_int_valid_wb}} & dec_i0_csr_wrdata_wb[pt.XLEN-1:1]) |
+                            ({(pt.XLEN-1){~wr_mepc_wb & ~exc_or_int_valid_wb}} & mepc[pt.XLEN-1:1]) );
 
 
-   rvdffe #(31)  mepc_ff (.*, .en(i0_exception_valid_wb | lsu_exc_valid_wb | mepc_trigger_hit_sel_pc_wb | interrupt_valid_wb | wr_mepc_wb), .din(mepc_ns[31:1]), .dout(mepc[31:1]));
+   rvdffe #(pt.XLEN-1)  mepc_ff (.*, .en(i0_exception_valid_wb | lsu_exc_valid_wb | mepc_trigger_hit_sel_pc_wb | interrupt_valid_wb | wr_mepc_wb), .din(mepc_ns[pt.XLEN-1:1]), .dout(mepc[pt.XLEN-1:1]));
 
    // ----------------------------------------------------------------------
    // MCAUSE (RW)
-   // [31:0] : Exception Cause
+   // [XLEN-1:0] : Exception Cause
    localparam MCAUSE        = 12'h342;
 
    assign wr_mcause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCAUSE);
@@ -1427,14 +1428,14 @@ end
 
    assign mcause_fir_error_type[1:0] = {&lsu_fir_error_d1[1:0], lsu_fir_error_d1[1] & ~lsu_fir_error_d1[0]};
 
-   assign mcause_ns[31:0] = ( ({32{mcause_sel_nmi_store}} & {32'hf000_0000}) |
-                              ({32{mcause_sel_nmi_load}} & {32'hf000_0001}) |
-                              ({32{mcause_sel_nmi_ext}} & {28'hf000_100, 2'b0, mcause_fir_error_type[1:0]}) |
-                              ({32{exc_or_int_valid_wb & ~take_nmi_wb}} & {interrupt_valid_wb, 26'b0, exc_cause_wb[4:0]}) |
-                              ({32{wr_mcause_wb & ~exc_or_int_valid_wb}} & dec_i0_csr_wrdata_wb[31:0]) |
-                              ({32{~wr_mcause_wb & ~exc_or_int_valid_wb}} & mcause[31:0]) );
+   assign mcause_ns[pt.XLEN-1:0] = ( ({pt.XLEN{mcause_sel_nmi_store}} & {(pt.XLEN)'('hf000_0000)}) |
+                              ({pt.XLEN{mcause_sel_nmi_load}} & {(pt.XLEN)'('hf000_0001)}) |
+                              ({pt.XLEN{mcause_sel_nmi_ext}} & {(pt.XLEN-4)'('hf000_100), 2'b0, mcause_fir_error_type[1:0]}) |
+                              ({pt.XLEN{exc_or_int_valid_wb & ~take_nmi_wb}} & {interrupt_valid_wb, 26'b0, exc_cause_wb[4:0]}) |
+                              ({pt.XLEN{wr_mcause_wb & ~exc_or_int_valid_wb}} & dec_i0_csr_wrdata_wb[pt.XLEN-1:0]) |
+                              ({pt.XLEN{~wr_mcause_wb & ~exc_or_int_valid_wb}} & mcause[pt.XLEN-1:0]) );
 
-   rvdffe #(32)  mcause_ff (.*, .en(exc_or_int_valid_wb | wr_mcause_wb), .din(mcause_ns[31:0]), .dout(mcause[31:0]));
+   rvdffe #(pt.XLEN)  mcause_ff (.*, .en(exc_or_int_valid_wb | wr_mcause_wb), .din(mcause_ns[pt.XLEN-1:0]), .dout(mcause[pt.XLEN-1:0]));
    // ----------------------------------------------------------------------
    // MSCAUSE (RW)
    // [2:0] : Secondary exception Cause
@@ -1461,7 +1462,7 @@ end
 
    // ----------------------------------------------------------------------
    // MTVAL (RW)
-   // [31:0] : Exception address if relevant
+   // [XLEN-1:0] : Exception address if relevant
    localparam MTVAL         = 12'h343;
 
    assign wr_mtval_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTVAL);
@@ -1472,25 +1473,25 @@ end
    assign mtval_clear_wb = exc_or_int_valid_wb & ~mtval_capture_pc_wb & ~mtval_capture_inst_wb & ~mtval_capture_lsu_wb & ~mepc_trigger_hit_sel_pc_wb;
 
 
-   assign mtval_ns[31:0] = (({32{mtval_capture_pc_wb}} & {pc_wb[31:1], 1'b0}) |
-                            ({32{mtval_capture_pc_plus2_wb}} & {pc_wb[31:1] + 31'b1, 1'b0}) |
-                            ({32{mtval_capture_inst_wb}} & dec_illegal_inst[31:0]) |
-                            ({32{mtval_capture_lsu_wb}} & lsu_error_pkt_addr_wb[31:0]) |
-                            ({32{wr_mtval_wb & ~interrupt_valid_wb}} & dec_i0_csr_wrdata_wb[31:0]) |
-                            ({32{~take_nmi_wb & ~wr_mtval_wb & ~mtval_capture_pc_wb & ~mtval_capture_inst_wb & ~mtval_clear_wb & ~mtval_capture_lsu_wb}} & mtval[31:0]) );
+   assign mtval_ns[pt.XLEN-1:0] = (({pt.XLEN{mtval_capture_pc_wb}} & {pc_wb[pt.XLEN-1:1], 1'b0}) |
+                            ({pt.XLEN{mtval_capture_pc_plus2_wb}} & {pc_wb[pt.XLEN-1:1] + (pt.XLEN-1)'('b1), 1'b0}) |
+                            ({pt.XLEN{mtval_capture_inst_wb}} & dec_illegal_inst[pt.XLEN-1:0]) |
+                            ({pt.XLEN{mtval_capture_lsu_wb}} & lsu_error_pkt_addr_wb[pt.XLEN-1:0]) |
+                            ({pt.XLEN{wr_mtval_wb & ~interrupt_valid_wb}} & dec_i0_csr_wrdata_wb[pt.XLEN-1:0]) |
+                            ({pt.XLEN{~take_nmi_wb & ~wr_mtval_wb & ~mtval_capture_pc_wb & ~mtval_capture_inst_wb & ~mtval_clear_wb & ~mtval_capture_lsu_wb}} & mtval[pt.XLEN-1:0]) );
 
 
-   rvdffe #(32)  mtval_ff (.*, .en(tlu_flush_lower_wb | wr_mtval_wb), .din(mtval_ns[31:0]), .dout(mtval[31:0]));
+   rvdffe #(pt.XLEN)  mtval_ff (.*, .en(tlu_flush_lower_wb | wr_mtval_wb), .din(mtval_ns[pt.XLEN-1:0]), .dout(mtval[pt.XLEN-1:0]));
 
    // ----------------------------------------------------------------------
    // MCPC (RW) Pause counter
-   // [31:0] : Reads 0x0, decs in the wb register in decode_ctl
+   // [XLEN-1:0] : Reads 0x0, decs in the wb register in decode_ctl
 
    localparam MCPC          = 12'h7c2;
    assign tlu_wr_pause_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MCPC) & ~interrupt_valid_wb & ~ext_int_freeze_d1;
    // ----------------------------------------------------------------------
    // MDEAU (WAR0)
-   // [31:0] : Dbus Error Address Unlock register
+   // [XLEN-1:0] : Dbus Error Address Unlock register
    //
    localparam MDEAU         = 12'hbc0;
 
@@ -1499,7 +1500,7 @@ end
 
    // ----------------------------------------------------------------------
    // MDSEAC (R)
-   // [31:0] : Dbus Store Error Address Capture register
+   // [XLEN-1:0] : Dbus Store Error Address Capture register
    //
    localparam MDSEAC        = 12'hfc0;
 
@@ -1508,7 +1509,7 @@ end
 
    assign mdseac_en = (lsu_imprecise_error_store_any | lsu_imprecise_error_load_any) & ~nmi_int_detected_f & ~mdseac_locked_f;
 
-   rvdffe #(32)  mdseac_ff (.*, .en(mdseac_en), .din(lsu_imprecise_error_addr_any[31:0]), .dout(mdseac[31:0]));
+   rvdffe #(pt.XLEN)  mdseac_ff (.*, .en(mdseac_en), .din(lsu_imprecise_error_addr_any[pt.XLEN-1:0]), .dout(mdseac[pt.XLEN-1:0]));
 
    // ----------------------------------------------------------------------
    // MPMC (R0W1)
@@ -1528,17 +1529,17 @@ end
 
    // ----------------------------------------------------------------------
    // MEIVT (External Interrupt Vector Table (R/W))
-   // [31:10]: Base address (R/W)
+   // [XLEN-1:10]: Base address (R/W)
    // [9:0]  : Reserved, reads 0x0
    localparam MEIVT         = 12'hbc8;
 
    assign wr_meivt_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MEIVT);
 
-   rvdffe #(22)  meivt_ff (.*, .en(wr_meivt_wb), .din(dec_i0_csr_wrdata_wb[31:10]), .dout(meivt[31:10]));
+   rvdffe #(pt.XLEN-10)  meivt_ff (.*, .en(wr_meivt_wb), .din(dec_i0_csr_wrdata_wb[pt.XLEN-1:10]), .dout(meivt[pt.XLEN-1:10]));
 
    // ----------------------------------------------------------------------
    // MEIHAP (External Interrupt Handler Access Pointer (R))
-   // [31:10]: Base address (R/W)
+   // [XLEN-1:10]: Base address (R/W)
    // [9:2]  : ClaimID (R)
    // [1:0]  : Reserved, 0x0
    localparam MEIHAP        = 12'hfc8;
@@ -1546,11 +1547,11 @@ end
    assign wr_meihap_wb = wr_meicpct_wb;
 
    rvdffe #(8)  meihap_ff (.*, .clk(free_l2clk), .en(wr_meihap_wb), .din(pic_claimid[7:0]), .dout(meihap[9:2]));
-   assign dec_tlu_meihap[31:2] = {meivt[31:10], meihap[9:2]};
+   assign dec_tlu_meihap[pt.XLEN-1:2] = {meivt[pt.XLEN-1:10], meihap[9:2]};
 
    // ----------------------------------------------------------------------
    // MEICURPL (R/W)
-   // [31:4] : Reserved (read 0x0)
+   // [XLEN-1:4] : Reserved (read 0x0)
    // [3:0]  : CURRPRI - Priority level of current interrupt service routine (R/W)
    localparam MEICURPL      = 12'hbcc;
 
@@ -1565,7 +1566,7 @@ end
 
    // ----------------------------------------------------------------------
    // MEICIDPL (R/W)
-   // [31:4] : Reserved (read 0x0)
+   // [XLEN-1:4] : Reserved (read 0x0)
    // [3:0]  : External Interrupt Claim ID's Priority Level Register
    localparam MEICIDPL      = 12'hbcb;
 
@@ -1576,7 +1577,7 @@ end
 
    // ----------------------------------------------------------------------
    // MEICPCT (Capture CLAIMID in MEIHAP and PL in MEICIDPL
-   // [31:1] : Reserved (read 0x0)
+   // [XLEN-1:1] : Reserved (read 0x0)
    // [0]    : Capture (W1, Read 0)
    localparam MEICPCT       = 12'hbca;
 
@@ -1584,7 +1585,7 @@ end
 
    // ----------------------------------------------------------------------
    // MEIPT (External Interrupt Priority Threshold)
-   // [31:4] : Reserved (read 0x0)
+   // [XLEN-1:4] : Reserved (read 0x0)
    // [3:0]  : PRITHRESH
    localparam MEIPT         = 12'hbc9;
 
@@ -1596,7 +1597,7 @@ end
    assign tlu_meipt[3:0] = meipt[3:0];
    // ----------------------------------------------------------------------
    // DCSR (R/W) (Only accessible in debug mode)
-   // [31:28] : xdebugver (hard coded to 0x4) RO
+   // [XLEN-1:28] : xdebugver (hard coded to 0x4) RO
    // [27:16] : 0x0, reserved
    // [15]    : ebreakm
    // [14]    : 0x0, reserved
@@ -1644,23 +1645,23 @@ end
 
    // ----------------------------------------------------------------------
    // DPC (R/W) (Only accessible in debug mode)
-   // [31:0] : Debug PC
+   // [XLEN-1:0] : Debug PC
    localparam DPC           = 12'h7b1;
 
    assign wr_dpc_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DPC);
    assign dpc_capture_npc = dbg_tlu_halted & ~dbg_tlu_halted_f & ~request_debug_mode_done_f;
    assign dpc_capture_pc = request_debug_mode_wb;
 
-   assign dpc_ns[31:1] = ( ({31{~dpc_capture_pc & ~dpc_capture_npc & wr_dpc_wb}} & dec_i0_csr_wrdata_wb[31:1]) |
-                           ({31{dpc_capture_pc}} & pc_wb[31:1]) |
-                           ({31{~dpc_capture_pc & dpc_capture_npc}} & npc_wb[31:1]) );
+   assign dpc_ns[pt.XLEN-1:1] = ( ({(pt.XLEN-1){~dpc_capture_pc & ~dpc_capture_npc & wr_dpc_wb}} & dec_i0_csr_wrdata_wb[pt.XLEN-1:1]) |
+                           ({(pt.XLEN-1){dpc_capture_pc}} & pc_wb[pt.XLEN-1:1]) |
+                           ({(pt.XLEN-1){~dpc_capture_pc & dpc_capture_npc}} & npc_wb[pt.XLEN-1:1]) );
 
-   rvdffe #(31)  dpc_ff (.*, .en(wr_dpc_wb | dpc_capture_pc | dpc_capture_npc), .din(dpc_ns[31:1]), .dout(dpc[31:1]));
+   rvdffe #(pt.XLEN-1)  dpc_ff (.*, .en(wr_dpc_wb | dpc_capture_pc | dpc_capture_npc), .din(dpc_ns[pt.XLEN-1:1]), .dout(dpc[pt.XLEN-1:1]));
 
 
     // ----------------------------------------------------------------------
    // DICAWICS (R/W) (Only accessible in debug mode)
-   // [31:25] : Reserved
+   // [XLEN-1:25] : Reserved
    // [24]    : Array select, 0 is data, 1 is tag
    // [23:22] : Reserved
    // [21:20] : Way select
@@ -1678,27 +1679,27 @@ end
    // DICAD0 (R/W) (Only accessible in debug mode)
    //
    // If dicawics[array] is 0
-   // [31:0]  : inst data
+   // [XLEN-1:0]  : instr data
    //
    // If dicawics[array] is 1
-   // [31:16] : Tag
-   // [15:7]  : Reserved
+   // [XLEN-1:11] : Tag
+   // [10:7]  : Reserved
    // [6:4]   : LRU
    // [3:1]   : Reserved
    // [0]     : Valid
    localparam DICAD0        = 12'h7c9;
 
-   assign dicad0_ns[31:0] = wr_dicad0_wb ? dec_i0_csr_wrdata_wb[31:0] : ifu_ic_debug_rd_data[31:0];
+   assign dicad0_ns[pt.XLEN-1:0] = wr_dicad0_wb ? dec_i0_csr_wrdata_wb[pt.XLEN-1:0] : ifu_ic_debug_rd_data[pt.XLEN-1:0];
 
    assign wr_dicad0_wb = allow_dbg_halt_csr_write & dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == DICAD0);
 
-   rvdffe #(32)  dicad0_ff (.*, .en(wr_dicad0_wb | ifu_ic_debug_rd_data_valid), .din(dicad0_ns[31:0]), .dout(dicad0[31:0]));
+   rvdffe #(pt.XLEN)  dicad0_ff (.*, .en(wr_dicad0_wb | ifu_ic_debug_rd_data_valid), .din(dicad0_ns[pt.XLEN-1:0]), .dout(dicad0[pt.XLEN-1:0]));
 
    // ----------------------------------------------------------------------
-   // DICAD0H (R/W) (Only accessible in debug mode)
+   // DICAD0H (R/W) (Only accessible in debug mode) (RV32 only)
    //
    // If dicawics[array] is 0
-   // [63:32]  : inst data
+   // [63:32]  : instr data
    //
    localparam DICAD0H       = 12'h7cc;
 
@@ -1722,7 +1723,7 @@ if (pt.ICACHE_ECC == 1) begin
 
    rvdffe #(.WIDTH(7), .OVERRIDE(1))  dicad1_ff (.*, .clk(free_l2clk), .en(wr_dicad1_wb | ifu_ic_debug_rd_data_valid), .din(dicad1_ns[6:0]), .dout(dicad1_raw[6:0]));
 
-   assign dicad1[31:0] = {25'b0, dicad1_raw[6:0]};
+   assign dicad1[pt.XLEN-1:0] = {(pt.XLEN-7)'('b0), dicad1_raw[6:0]};
 end
 else begin
    // ----------------------------------------------------------------------
@@ -1736,18 +1737,25 @@ else begin
 
    rvdffs #(4)  dicad1_ff (.*, .clk(active_clk), .en(wr_dicad1_wb | ifu_ic_debug_rd_data_valid), .din(dicad1_ns[3:0]), .dout(dicad1_raw[3:0]));
 
-   assign dicad1[31:0] = {28'b0, dicad1_raw[3:0]};
+   assign dicad1[pt.XLEN-1:0] = {(pt.XLEN-4)'('b0), dicad1_raw[3:0]};
 end
    // ----------------------------------------------------------------------
    // DICAGO (R/W) (Only accessible in debug mode)
    // [0]     : Go
    localparam DICAGO        = 12'h7cb;
 
+   logic [pt.XLEN-1:0] dicad0_int;
+   if (pt.XLEN == 32) begin
+      assign dicad0_int = {dicad0h[31:0], dicad0[31:0]};
+   end else if (pt.XLEN == 64) begin
+      assign dicad0_int = dicad0[63:0];
+   end
+
 if (pt.ICACHE_ECC == 1) begin
-   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {      dicad1[6:0], dicad0h[31:0], dicad0[31:0]};
+   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {      dicad1[6:0], dicad0_int[pt.XLEN-1:0]};
 end
 else begin
-   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {3'b0, dicad1[3:0], dicad0h[31:0], dicad0[31:0]};
+   assign dec_tlu_ic_diag_pkt.icache_wrdata[70:0] = {3'b0, dicad1[3:0], dicad0_int[pt.XLEN-1:0]};
 end
    assign dec_tlu_ic_diag_pkt.icache_dicawics[16:0] = dicawics[16:0];
 
@@ -1769,10 +1777,11 @@ end
 
    // ----------------------------------------------------------------------
    // MTDATA1 (R/W)
-   // [31:0] : Trigger Data 1
+   // [XLEN-1:0] : Trigger Data 1
    localparam MTDATA1       = 12'h7a1;
 
    // for triggers 0, 1, 2 and 3 aka Match Control
+   // [63:32] : Reserved, reads 0x0 (RV64 only)
    // [31:28] : type, hard coded to 0x2
    // [27]    : dmode
    // [26:21] : hard coded to 0x1f
@@ -1849,10 +1858,10 @@ end
    rvdffe #(10)  mtdata1_t2_ff (.*, .en((trigger_enabled[2] | wr_mtdata1_t2_wb)), .din(mtdata1_t2_ns[9:0]), .dout(mtdata1_t2[9:0]));
    rvdffe #(10)  mtdata1_t3_ff (.*, .en((trigger_enabled[3] | wr_mtdata1_t3_wb)), .din(mtdata1_t3_ns[9:0]), .dout(mtdata1_t3[9:0]));
 
-   assign mtdata1_tsel_out[31:0] = ( ({32{(mtsel[1:0] == 2'b00)}} & {4'h2, mtdata1_t0[9], 6'b011111, mtdata1_t0[8:7], 6'b0, mtdata1_t0[6:5], 3'b0, mtdata1_t0[4:3], 3'b0, mtdata1_t0[2:0]}) |
-                                     ({32{(mtsel[1:0] == 2'b01)}} & {4'h2, mtdata1_t1[9], 6'b011111, mtdata1_t1[8:7], 6'b0, mtdata1_t1[6:5], 3'b0, mtdata1_t1[4:3], 3'b0, mtdata1_t1[2:0]}) |
-                                     ({32{(mtsel[1:0] == 2'b10)}} & {4'h2, mtdata1_t2[9], 6'b011111, mtdata1_t2[8:7], 6'b0, mtdata1_t2[6:5], 3'b0, mtdata1_t2[4:3], 3'b0, mtdata1_t2[2:0]}) |
-                                     ({32{(mtsel[1:0] == 2'b11)}} & {4'h2, mtdata1_t3[9], 6'b011111, mtdata1_t3[8:7], 6'b0, mtdata1_t3[6:5], 3'b0, mtdata1_t3[4:3], 3'b0, mtdata1_t3[2:0]}));
+   assign mtdata1_tsel_out[pt.XLEN-1:0] = ( ({pt.XLEN{(mtsel[1:0] == 2'b00)}} & {{pt.XLEN-32{1'b0}}, 4'h2, mtdata1_t0[9], 6'b011111, mtdata1_t0[8:7], 6'b0, mtdata1_t0[6:5], 3'b0, mtdata1_t0[4:3], 3'b0, mtdata1_t0[2:0]}) |
+                                            ({pt.XLEN{(mtsel[1:0] == 2'b01)}} & {{pt.XLEN-32{1'b0}}, 4'h2, mtdata1_t1[9], 6'b011111, mtdata1_t1[8:7], 6'b0, mtdata1_t1[6:5], 3'b0, mtdata1_t1[4:3], 3'b0, mtdata1_t1[2:0]}) |
+                                            ({pt.XLEN{(mtsel[1:0] == 2'b10)}} & {{pt.XLEN-32{1'b0}}, 4'h2, mtdata1_t2[9], 6'b011111, mtdata1_t2[8:7], 6'b0, mtdata1_t2[6:5], 3'b0, mtdata1_t2[4:3], 3'b0, mtdata1_t2[2:0]}) |
+                                            ({pt.XLEN{(mtsel[1:0] == 2'b11)}} & {{pt.XLEN-32{1'b0}}, 4'h2, mtdata1_t3[9], 6'b011111, mtdata1_t3[8:7], 6'b0, mtdata1_t3[6:5], 3'b0, mtdata1_t3[4:3], 3'b0, mtdata1_t3[2:0]}));
 
    assign tlu_trigger_pkt_any[0].select = mtdata1_t0[MTDATA1_SEL];
    assign tlu_trigger_pkt_any[0].match = mtdata1_t0[MTDATA1_MATCH];
@@ -1888,7 +1897,7 @@ end
 
    // ----------------------------------------------------------------------
    // MTDATA2 (R/W)
-   // [31:0] : Trigger Data 2
+   // [XLEN-1:0] : Trigger Data 2
    localparam MTDATA2       = 12'h7a2;
 
    // If the DMODE bit is set, tdata2 can only be updated in debug_mode
@@ -1897,20 +1906,20 @@ end
    assign wr_mtdata2_t2_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA2) & (mtsel[1:0] == 2'b10) & (~mtdata1_t2[MTDATA1_DMODE] | dbg_tlu_halted_f);
    assign wr_mtdata2_t3_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MTDATA2) & (mtsel[1:0] == 2'b11) & (~mtdata1_t3[MTDATA1_DMODE] | dbg_tlu_halted_f);
 
-   rvdffe #(32)  mtdata2_t0_ff (.*, .en(wr_mtdata2_t0_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mtdata2_t0[31:0]));
-   rvdffe #(32)  mtdata2_t1_ff (.*, .en(wr_mtdata2_t1_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mtdata2_t1[31:0]));
-   rvdffe #(32)  mtdata2_t2_ff (.*, .en(wr_mtdata2_t2_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mtdata2_t2[31:0]));
-   rvdffe #(32)  mtdata2_t3_ff (.*, .en(wr_mtdata2_t3_wb), .din(dec_i0_csr_wrdata_wb[31:0]), .dout(mtdata2_t3[31:0]));
+   rvdffe #(pt.XLEN)  mtdata2_t0_ff (.*, .en(wr_mtdata2_t0_wb), .din(dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mtdata2_t0[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN)  mtdata2_t1_ff (.*, .en(wr_mtdata2_t1_wb), .din(dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mtdata2_t1[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN)  mtdata2_t2_ff (.*, .en(wr_mtdata2_t2_wb), .din(dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mtdata2_t2[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN)  mtdata2_t3_ff (.*, .en(wr_mtdata2_t3_wb), .din(dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mtdata2_t3[pt.XLEN-1:0]));
 
-   assign mtdata2_tsel_out[31:0] = ( ({32{(mtsel[1:0] == 2'b00)}} & mtdata2_t0[31:0]) |
-                                     ({32{(mtsel[1:0] == 2'b01)}} & mtdata2_t1[31:0]) |
-                                     ({32{(mtsel[1:0] == 2'b10)}} & mtdata2_t2[31:0]) |
-                                     ({32{(mtsel[1:0] == 2'b11)}} & mtdata2_t3[31:0]));
+   assign mtdata2_tsel_out[pt.XLEN-1:0] = ( ({pt.XLEN{(mtsel[1:0] == 2'b00)}} & mtdata2_t0[pt.XLEN-1:0]) |
+                                            ({pt.XLEN{(mtsel[1:0] == 2'b01)}} & mtdata2_t1[pt.XLEN-1:0]) |
+                                            ({pt.XLEN{(mtsel[1:0] == 2'b10)}} & mtdata2_t2[pt.XLEN-1:0]) |
+                                            ({pt.XLEN{(mtsel[1:0] == 2'b11)}} & mtdata2_t3[pt.XLEN-1:0]));
 
-   assign tlu_trigger_pkt_any[0].tdata2[31:0] = mtdata2_t0[31:0];
-   assign tlu_trigger_pkt_any[1].tdata2[31:0] = mtdata2_t1[31:0];
-   assign tlu_trigger_pkt_any[2].tdata2[31:0] = mtdata2_t2[31:0];
-   assign tlu_trigger_pkt_any[3].tdata2[31:0] = mtdata2_t3[31:0];
+   assign tlu_trigger_pkt_any[0].tdata2[pt.XLEN-1:0] = mtdata2_t0[pt.XLEN-1:0];
+   assign tlu_trigger_pkt_any[1].tdata2[pt.XLEN-1:0] = mtdata2_t1[pt.XLEN-1:0];
+   assign tlu_trigger_pkt_any[2].tdata2[pt.XLEN-1:0] = mtdata2_t2[pt.XLEN-1:0];
+   assign tlu_trigger_pkt_any[3].tdata2[pt.XLEN-1:0] = mtdata2_t3[pt.XLEN-1:0];
 
 
    //----------------------------------------------------------------------
@@ -2103,7 +2112,7 @@ end
    assign tlu_perfcnt3[1:0] = mhpmc_inc_wb[3][1:0] & ~{2{perfcnt_halted & ~perfcnt_during_sleep[3]}};
 
    // ----------------------------------------------------------------------
-   // MHPMC3H(RW), MHPMC3(RW)
+   // MHPMC3H(RW) (RV32 only), MHPMC3(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 3
    localparam MHPMC3        = 12'hB03;
    localparam MHPMC3H       = 12'hB83;
@@ -2111,17 +2120,22 @@ end
    assign mhpmc3_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC3);
    assign mhpmc3_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[0]) & (|(mhpmc_inc_wb[0][1:0]));
    assign mhpmc3_wr_en  = mhpmc3_wr_en0 | mhpmc3_wr_en1;
-   assign mhpmc3_incr[63:0] = {mhpmc3h[31:0],mhpmc3[31:0]} + {63'b0,mhpmc_inc_wb[0][1]} + {63'b0,mhpmc_inc_wb[0][0]};
-   assign mhpmc3_ns[31:0] = mhpmc3_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc3_incr[31:0];
-   rvdffe #(32)  mhpmc3_ff (.*, .clk(free_l2clk), .en(mhpmc3_wr_en), .din(mhpmc3_ns[31:0]), .dout(mhpmc3[31:0]));
+   assign mhpmc3_ns[pt.XLEN-1:0] = mhpmc3_wr_en0 ? dec_i0_csr_wrdata_wb[pt.XLEN-1:0] : mhpmc3_incr[pt.XLEN-1:0];
+   rvdffe #(pt.XLEN)  mhpmc3_ff (.*, .clk(free_l2clk), .en(mhpmc3_wr_en), .din(mhpmc3_ns[pt.XLEN-1:0]), .dout(mhpmc3[pt.XLEN-1:0]));
 
-   assign mhpmc3h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC3H);
-   assign mhpmc3h_wr_en  = mhpmc3h_wr_en0 | mhpmc3_wr_en1;
-   assign mhpmc3h_ns[31:0] = mhpmc3h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc3_incr[63:32];
-   rvdffe #(32)  mhpmc3h_ff (.*, .clk(free_l2clk), .en(mhpmc3h_wr_en), .din(mhpmc3h_ns[31:0]), .dout(mhpmc3h[31:0]));
+   if (pt.XLEN == 32) begin : mhpmc3h_reg
+      assign mhpmc3_incr[63:0] = {mhpmc3h[31:0],mhpmc3[31:0]} + {63'b0,mhpmc_inc_wb[0][1]} + {63'b0,mhpmc_inc_wb[0][0]};
+
+      assign mhpmc3h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC3H);
+      assign mhpmc3h_wr_en  = mhpmc3h_wr_en0 | mhpmc3_wr_en1;
+      assign mhpmc3h_ns[31:0] = mhpmc3h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc3_incr[63:32];
+      rvdffe #(32)  mhpmc3h_ff (.*, .clk(free_l2clk), .en(mhpmc3h_wr_en), .din(mhpmc3h_ns[31:0]), .dout(mhpmc3h[31:0]));
+   end else if (pt.XLEN == 64) begin : mhpmc3_reg
+      assign mhpmc3_incr[63:0] = mhpmc3[63:0] + {63'b0,mhpmc_inc_wb[0][1]} + {63'b0,mhpmc_inc_wb[0][0]};
+   end
 
    // ----------------------------------------------------------------------
-   // MHPMC4H(RW), MHPMC4(RW)
+   // MHPMC4H(RW) (RV32 only), MHPMC4(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 4
    localparam MHPMC4        = 12'hB04;
    localparam MHPMC4H       = 12'hB84;
@@ -2129,17 +2143,22 @@ end
    assign mhpmc4_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC4);
    assign mhpmc4_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[1]) & (|(mhpmc_inc_wb[1][1:0]));
    assign mhpmc4_wr_en  = mhpmc4_wr_en0 | mhpmc4_wr_en1;
-   assign mhpmc4_incr[63:0] = {mhpmc4h[31:0],mhpmc4[31:0]} + {63'b0,mhpmc_inc_wb[1][1]} + {63'b0,mhpmc_inc_wb[1][0]};
    assign mhpmc4_ns[31:0] = mhpmc4_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc4_incr[31:0];
-   rvdffe #(32)  mhpmc4_ff (.*, .clk(free_l2clk), .en(mhpmc4_wr_en), .din(mhpmc4_ns[31:0]), .dout(mhpmc4[31:0]));
+   rvdffe #(pt.XLEN)  mhpmc4_ff (.*, .clk(free_l2clk), .en(mhpmc4_wr_en), .din(mhpmc4_ns[31:0]), .dout(mhpmc4[31:0]));
 
-   assign mhpmc4h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC4H);
-   assign mhpmc4h_wr_en  = mhpmc4h_wr_en0 | mhpmc4_wr_en1;
-   assign mhpmc4h_ns[31:0] = mhpmc4h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc4_incr[63:32];
-   rvdffe #(32)  mhpmc4h_ff (.*, .clk(free_l2clk), .en(mhpmc4h_wr_en), .din(mhpmc4h_ns[31:0]), .dout(mhpmc4h[31:0]));
+   if (pt.XLEN == 32) begin : mhpmc4h_reg
+      assign mhpmc4_incr[63:0] = {mhpmc4h[31:0],mhpmc4[31:0]} + {63'b0,mhpmc_inc_wb[1][1]} + {63'b0,mhpmc_inc_wb[1][0]};
+
+      assign mhpmc4h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC4H);
+      assign mhpmc4h_wr_en  = mhpmc4h_wr_en0 | mhpmc4_wr_en1;
+      assign mhpmc4h_ns[31:0] = mhpmc4h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc4_incr[63:32];
+      rvdffe #(32)  mhpmc4h_ff (.*, .clk(free_l2clk), .en(mhpmc4h_wr_en), .din(mhpmc4h_ns[31:0]), .dout(mhpmc4h[31:0]));
+   end else if (pt.XLEN == 64) begin : mhpmc4_reg
+      assign mhpmc4_incr[63:0] = mhpmc4[63:0] + {63'b0,mhpmc_inc_wb[1][1]} + {63'b0,mhpmc_inc_wb[1][0]};
+   end
 
    // ----------------------------------------------------------------------
-   // MHPMC5H(RW), MHPMC5(RW)
+   // MHPMC5H(RW) (RV32 only), MHPMC5(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 5
    localparam MHPMC5        = 12'hB05;
    localparam MHPMC5H       = 12'hB85;
@@ -2147,17 +2166,22 @@ end
    assign mhpmc5_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC5);
    assign mhpmc5_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[2]) & (|(mhpmc_inc_wb[2][1:0]));
    assign mhpmc5_wr_en  = mhpmc5_wr_en0 | mhpmc5_wr_en1;
-   assign mhpmc5_incr[63:0] = {mhpmc5h[31:0],mhpmc5[31:0]} + {63'b0,mhpmc_inc_wb[2][1]} + {63'b0,mhpmc_inc_wb[2][0]};
    assign mhpmc5_ns[31:0] = mhpmc5_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc5_incr[31:0];
-   rvdffe #(32)  mhpmc5_ff (.*, .clk(free_l2clk), .en(mhpmc5_wr_en), .din(mhpmc5_ns[31:0]), .dout(mhpmc5[31:0]));
+   rvdffe #(pt.XLEN)  mhpmc5_ff (.*, .clk(free_l2clk), .en(mhpmc5_wr_en), .din(mhpmc5_ns[31:0]), .dout(mhpmc5[31:0]));
 
-   assign mhpmc5h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC5H);
-   assign mhpmc5h_wr_en  = mhpmc5h_wr_en0 | mhpmc5_wr_en1;
-   assign mhpmc5h_ns[31:0] = mhpmc5h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc5_incr[63:32];
-   rvdffe #(32)  mhpmc5h_ff (.*, .clk(free_l2clk), .en(mhpmc5h_wr_en), .din(mhpmc5h_ns[31:0]), .dout(mhpmc5h[31:0]));
+   if (pt.XLEN == 32) begin : mhpmc5h_reg
+      assign mhpmc5_incr[63:0] = {mhpmc5h[31:0],mhpmc5[31:0]} + {63'b0,mhpmc_inc_wb[2][1]} + {63'b0,mhpmc_inc_wb[2][0]};
+
+      assign mhpmc5h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC5H);
+      assign mhpmc5h_wr_en  = mhpmc5h_wr_en0 | mhpmc5_wr_en1;
+      assign mhpmc5h_ns[31:0] = mhpmc5h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc5_incr[63:32];
+      rvdffe #(32)  mhpmc5h_ff (.*, .clk(free_l2clk), .en(mhpmc5h_wr_en), .din(mhpmc5h_ns[31:0]), .dout(mhpmc5h[31:0]));
+   end else if (pt.XLEN == 64) begin : mhpmc5_reg
+      assign mhpmc5_incr[63:0] = mhpmc5[63:0] + {63'b0,mhpmc_inc_wb[2][1]} + {63'b0,mhpmc_inc_wb[2][0]};
+   end
 
    // ----------------------------------------------------------------------
-   // MHPMC6H(RW), MHPMC6(RW)
+   // MHPMC6H(RW) (RV32 only), MHPMC6(RW)
    // [63:32][31:0] : Hardware Performance Monitor Counter 6
    localparam MHPMC6        = 12'hB06;
    localparam MHPMC6H       = 12'hB86;
@@ -2165,14 +2189,19 @@ end
    assign mhpmc6_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC6);
    assign mhpmc6_wr_en1 = (~perfcnt_halted | perfcnt_during_sleep[3]) & (|(mhpmc_inc_wb[3][1:0]));
    assign mhpmc6_wr_en  = mhpmc6_wr_en0 | mhpmc6_wr_en1;
-   assign mhpmc6_incr[63:0] = {mhpmc6h[31:0],mhpmc6[31:0]} + {63'b0,mhpmc_inc_wb[3][1]} + {63'b0,mhpmc_inc_wb[3][0]};
    assign mhpmc6_ns[31:0] = mhpmc6_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc6_incr[31:0];
-   rvdffe #(32)  mhpmc6_ff (.*, .clk(free_l2clk), .en(mhpmc6_wr_en), .din(mhpmc6_ns[31:0]), .dout(mhpmc6[31:0]));
+   rvdffe #(pt.XLEN)  mhpmc6_ff (.*, .clk(free_l2clk), .en(mhpmc6_wr_en), .din(mhpmc6_ns[31:0]), .dout(mhpmc6[31:0]));
 
-   assign mhpmc6h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC6H);
-   assign mhpmc6h_wr_en  = mhpmc6h_wr_en0 | mhpmc6_wr_en1;
-   assign mhpmc6h_ns[31:0] = mhpmc6h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc6_incr[63:32];
-   rvdffe #(32)  mhpmc6h_ff (.*, .clk(free_l2clk), .en(mhpmc6h_wr_en), .din(mhpmc6h_ns[31:0]), .dout(mhpmc6h[31:0]));
+   if (pt.XLEN == 32) begin : mhpmc6h_reg
+      assign mhpmc6_incr[63:0] = {mhpmc6h[31:0],mhpmc6[31:0]} + {63'b0,mhpmc_inc_wb[3][1]} + {63'b0,mhpmc_inc_wb[3][0]};
+
+      assign mhpmc6h_wr_en0 = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MHPMC6H);
+      assign mhpmc6h_wr_en  = mhpmc6h_wr_en0 | mhpmc6_wr_en1;
+      assign mhpmc6h_ns[31:0] = mhpmc6h_wr_en0 ? dec_i0_csr_wrdata_wb[31:0] : mhpmc6_incr[63:32];
+      rvdffe #(32)  mhpmc6h_ff (.*, .clk(free_l2clk), .en(mhpmc6h_wr_en), .din(mhpmc6h_ns[31:0]), .dout(mhpmc6h[31:0]));
+   end else if (pt.XLEN == 64) begin : mhpmc6_reg
+      assign mhpmc6_incr[63:0] = mhpmc6[63:0] + {63'b0,mhpmc_inc_wb[3][1]} + {63'b0,mhpmc_inc_wb[3][0]};
+   end
 
    // ----------------------------------------------------------------------
    // MHPME3(RW)
@@ -2245,12 +2274,12 @@ end
    assign mfdhs_ns[1:0] = wr_mfdhs_wb ? dec_i0_csr_wrdata_wb[1:0] : ((dbg_tlu_halted & ~dbg_tlu_halted_f) ? {~lsu_idle_any_f, ~ifu_miss_state_idle_f} : mfdhs[1:0]);
 
 
-   assign force_halt_ctr[31:0] = debug_halt_req_f ? (force_halt_ctr_f[31:0] + 32'b1) : (dbg_tlu_halted_f ? 32'b0 : force_halt_ctr_f[31:0]);
+   assign force_halt_ctr[pt.XLEN-1:0] = debug_halt_req_f ? (force_halt_ctr_f[pt.XLEN-1:0] + 32'b1) : (dbg_tlu_halted_f ? (pt.XLEN-1)'('b0) : force_halt_ctr_f[pt.XLEN-1:0]);
 
 
-   rvdfflie #(.WIDTH(32),.LEFT(20))  forcehaltctr_ff (.*, .en(mfdht[0]), .din(force_halt_ctr[31:0]), .dout(force_halt_ctr_f[31:0]));
+   rvdfflie #(.WIDTH(pt.XLEN),.LEFT(pt.XLEN-12))  forcehaltctr_ff (.*, .en(mfdht[0]), .din(force_halt_ctr[pt.XLEN-1:0]), .dout(force_halt_ctr_f[pt.XLEN-1:0]));
 
-   assign force_halt = mfdht[0] & |(force_halt_ctr_f[31:0] & (32'hffffffff << mfdht[5:1]));
+   assign force_halt = mfdht[0] & |(force_halt_ctr_f[pt.XLEN-1:0] & ({pt.XLEN{1'b1}} << mfdht[5:1]));
 
    //----------------------------------------------------------------------
    // Performance Monitor Counters section ends
@@ -2285,7 +2314,7 @@ end
    assign tlu_exc_cause_wb1[4:0] =  tlu_int_valid_wb2 ? tlu_exc_cause_wb2[4:0] : tlu_exc_cause_wb1_raw[4:0];
    assign tlu_int_valid_wb1 = tlu_int_valid_wb2;
 
-   assign tlu_mtval_wb1  = mtval[31:0];
+   assign tlu_mtval_wb1  = mtval[pt.XLEN-1:0];
 
    // end trace
    //--------------------------------------------------------------------------------
@@ -2299,52 +2328,94 @@ end
    assign csr_rd = tlu_i0_csr_pkt_d;
 
 //   for( genvar i=0; i<2 ; i++) begin: CSR_rd_mux
-   assign csr_rddata_d[31:0] = (  ({32{csr_rd.csr_mhartid}}   & {core_id[31:4], 3'b0, mytid}) |
-                                  ({32{csr_rd.csr_mstatus}}   & {19'b0, 2'b11, 3'b0, mstatus[1], 3'b0, mstatus[0], 3'b0}) |
-                                  ({32{csr_rd.csr_mtvec}}     & {mtvec[30:1], 1'b0, mtvec[0]}) |
-                                  ({32{csr_rd.csr_mip}}       & {1'b0, mip[5:3], 16'b0, mip[2], 3'b0, mip[1], 3'b0, mip[0], 3'b0}) |
-                                  ({32{csr_rd.csr_mie}}       & {1'b0, mie[5:3], 16'b0, mie[2], 3'b0, mie[1], 3'b0, mie[0], 3'b0}) |
-                                  ({32{csr_rd.csr_mcyclel}}   & mcyclel[31:0]) |
-                                  ({32{csr_rd.csr_mcycleh}}   & mcycleh_inc[31:0]) |
-                                  ({32{csr_rd.csr_minstretl}} & minstretl_read[31:0]) |
-                                  ({32{csr_rd.csr_minstreth}} & minstreth_read[31:0]) |
-                                  ({32{csr_rd.csr_mscratch}}  & mscratch[31:0]) |
-                                  ({32{csr_rd.csr_mepc}}      & {mepc[31:1], 1'b0}) |
-                                  ({32{csr_rd.csr_mcause}}    & mcause[31:0]) |
-                                  ({32{csr_rd.csr_mscause}}   & {28'b0, mscause[3:0]}) |
-                                  ({32{csr_rd.csr_mtval}}     & mtval[31:0]) |
-                                  ({32{csr_rd.csr_mdseac}}    & mdseac[31:0]) |
-                                  ({32{csr_rd.csr_meivt}}     & {meivt[31:10], 10'b0}) |
-                                  ({32{csr_rd.csr_meihap}}    & {meivt[31:10], meihap[9:2], 2'b0}) |
-                                  ({32{csr_rd.csr_meicurpl}}  & {28'b0, meicurpl[3:0]}) |
-                                  ({32{csr_rd.csr_meicidpl}}  & {28'b0, meicidpl[3:0]}) |
-                                  ({32{csr_rd.csr_meipt}}     & {28'b0, meipt[3:0]}) |
-                                  ({32{csr_rd.csr_dcsr}}      & {16'h4000, dcsr[15:2], 2'b11}) |
-                                  ({32{csr_rd.csr_dpc}}       & {dpc[31:1], 1'b0}) |
-                                  ({32{csr_rd.csr_mtsel}}     & {30'b0, mtsel[1:0]}) |
-                                  ({32{csr_rd.csr_mtdata1}}   & {mtdata1_tsel_out[31:0]}) |
-                                  ({32{csr_rd.csr_mtdata2}}   & {mtdata2_tsel_out[31:0]}) |
-                                  ({32{csr_rd.csr_mhpmc3}}    & mhpmc3[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc4}}    & mhpmc4[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc5}}    & mhpmc5[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc6}}    & mhpmc6[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc3h}}   & mhpmc3h[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc4h}}   & mhpmc4h[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc5h}}   & mhpmc5h[31:0]) |
-                                  ({32{csr_rd.csr_mhpmc6h}}   & mhpmc6h[31:0]) |
-                                  ({32{csr_rd.csr_mhpme3}}    & {22'b0,mhpme3[9:0]}) |
-                                  ({32{csr_rd.csr_mhpme4}}    & {22'b0,mhpme4[9:0]}) |
-                                  ({32{csr_rd.csr_mhpme5}}    & {22'b0,mhpme5[9:0]}) |
-                                  ({32{csr_rd.csr_mhpme6}}    & {22'b0,mhpme6[9:0]}) |
-                                  ({32{csr_rd.csr_mcountinhibit}} & {25'b0, mcountinhibit[6:0]}) |
-                                  ({32{csr_rd.csr_mpmc}}      & {30'b0, mpmc[1], 1'b0}) |
-                                  ({32{csr_rd.csr_dicad0}}    & dicad0[31:0]) |
-                                  ({32{csr_rd.csr_dicad0h}}   & dicad0h[31:0]) |
-                                  ({32{csr_rd.csr_dicad1}}    & dicad1[31:0]) |
-                                  ({32{csr_rd.csr_dicawics}}  & {7'b0, dicawics[16], 2'b0, dicawics[15:14], 3'b0, dicawics[13:0], 3'b0}) |
-                                  ({32{csr_rd.csr_mfdhs}}     & {30'b0, mfdhs[1:0]}) |
-                                  ({32{dec_timer_read_d}} & dec_timer_rddata_d[31:0])
-                                  );
+   if (pt.XLEN == 32) begin
+      assign csr_rddata_d[31:0] = ( ({32{csr_rd.csr_mhartid}}   & {core_id[31:4], 3'b0, mytid}) |
+                                    ({32{csr_rd.csr_mstatus}}   & {19'b0, 2'b11, 3'b0, mstatus[1], 3'b0, mstatus[0], 3'b0}) |
+                                    ({32{csr_rd.csr_mtvec}}     & {mtvec[30:1], 1'b0, mtvec[0]}) |
+                                    ({32{csr_rd.csr_mip}}       & {1'b0, mip[5:3], 16'b0, mip[2], 3'b0, mip[1], 3'b0, mip[0], 3'b0}) |
+                                    ({32{csr_rd.csr_mie}}       & {1'b0, mie[5:3], 16'b0, mie[2], 3'b0, mie[1], 3'b0, mie[0], 3'b0}) |
+                                    ({32{csr_rd.csr_mcyclel}}   & mcyclel[31:0]) |
+                                    ({32{csr_rd.csr_mcycleh}}   & mcycleh_inc[31:0]) |
+                                    ({32{csr_rd.csr_minstretl}} & minstretl_read[31:0]) |
+                                    ({32{csr_rd.csr_minstreth}} & minstreth_read[31:0]) |
+                                    ({32{csr_rd.csr_mscratch}}  & mscratch[31:0]) |
+                                    ({32{csr_rd.csr_mepc}}      & {mepc[31:1], 1'b0}) |
+                                    ({32{csr_rd.csr_mcause}}    & mcause[31:0]) |
+                                    ({32{csr_rd.csr_mscause}}   & {28'b0, mscause[3:0]}) |
+                                    ({32{csr_rd.csr_mtval}}     & mtval[31:0]) |
+                                    ({32{csr_rd.csr_mdseac}}    & mdseac[31:0]) |
+                                    ({32{csr_rd.csr_meivt}}     & {meivt[31:10], 10'b0}) |
+                                    ({32{csr_rd.csr_meihap}}    & {meivt[31:10], meihap[9:2], 2'b0}) |
+                                    ({32{csr_rd.csr_meicurpl}}  & {28'b0, meicurpl[3:0]}) |
+                                    ({32{csr_rd.csr_meicidpl}}  & {28'b0, meicidpl[3:0]}) |
+                                    ({32{csr_rd.csr_meipt}}     & {28'b0, meipt[3:0]}) |
+                                    ({32{csr_rd.csr_dcsr}}      & {16'h4000, dcsr[15:2], 2'b11}) |
+                                    ({32{csr_rd.csr_dpc}}       & {dpc[31:1], 1'b0}) |
+                                    ({32{csr_rd.csr_mtsel}}     & {30'b0, mtsel[1:0]}) |
+                                    ({32{csr_rd.csr_mtdata1}}   & {mtdata1_tsel_out[31:0]}) |
+                                    ({32{csr_rd.csr_mtdata2}}   & {mtdata2_tsel_out[31:0]}) |
+                                    ({32{csr_rd.csr_mhpmc3}}    & mhpmc3[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc4}}    & mhpmc4[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc5}}    & mhpmc5[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc6}}    & mhpmc6[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc3h}}   & mhpmc3h[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc4h}}   & mhpmc4h[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc5h}}   & mhpmc5h[31:0]) |
+                                    ({32{csr_rd.csr_mhpmc6h}}   & mhpmc6h[31:0]) |
+                                    ({32{csr_rd.csr_mhpme3}}    & {22'b0,mhpme3[9:0]}) |
+                                    ({32{csr_rd.csr_mhpme4}}    & {22'b0,mhpme4[9:0]}) |
+                                    ({32{csr_rd.csr_mhpme5}}    & {22'b0,mhpme5[9:0]}) |
+                                    ({32{csr_rd.csr_mhpme6}}    & {22'b0,mhpme6[9:0]}) |
+                                    ({32{csr_rd.csr_mcountinhibit}} & {25'b0, mcountinhibit[6:0]}) |
+                                    ({32{csr_rd.csr_mpmc}}      & {30'b0, mpmc[1], 1'b0}) |
+                                    ({32{csr_rd.csr_dicad0}}    & dicad0[31:0]) |
+                                    ({32{csr_rd.csr_dicad0h}}   & dicad0h[31:0]) |
+                                    ({32{csr_rd.csr_dicad1}}    & dicad1[31:0]) |
+                                    ({32{csr_rd.csr_dicawics}}  & {7'b0, dicawics[16], 2'b0, dicawics[15:14], 3'b0, dicawics[13:0], 3'b0}) |
+                                    ({32{csr_rd.csr_mfdhs}}     & {30'b0, mfdhs[1:0]}) |
+                                    ({32{dec_timer_read_d}} & dec_timer_rddata_d[31:0])
+                                    );
+   end else if (pt.XLEN == 64) begin
+      assign csr_rddata_d[63:0] = ( ({64{csr_rd.csr_mhartid}}   & {32'b0, core_id[31:4], 3'b0, mytid}) |
+                                    ({64{csr_rd.csr_mstatus}}   & {32'b0, 19'b0, 2'b11, 3'b0, mstatus[1], 3'b0, mstatus[0], 3'b0}) |
+                                    ({64{csr_rd.csr_mtvec}}     & {mtvec[62:1], 1'b0, mtvec[0]}) |
+                                    ({64{csr_rd.csr_mip}}       & {32'b0, 1'b0, mip[5:3], 16'b0, mip[2], 3'b0, mip[1], 3'b0, mip[0], 3'b0}) |
+                                    ({64{csr_rd.csr_mie}}       & {32'b0, 1'b0, mie[5:3], 16'b0, mie[2], 3'b0, mie[1], 3'b0, mie[0], 3'b0}) |
+                                    ({64{csr_rd.csr_mcyclel}}   & mcyclel[63:0]) |
+                                    ({64{csr_rd.csr_minstretl}} & minstretl_read[63:0]) |
+                                    ({64{csr_rd.csr_mscratch}}  & mscratch[63:0]) |
+                                    ({64{csr_rd.csr_mepc}}      & {mepc[63:1], 1'b0}) |
+                                    ({64{csr_rd.csr_mcause}}    & mcause[63:0]) |
+                                    ({64{csr_rd.csr_mscause}}   & {32'b0, 28'b0, mscause[3:0]}) |
+                                    ({64{csr_rd.csr_mtval}}     & mtval[63:0]) |
+                                    ({64{csr_rd.csr_mdseac}}    & mdseac[63:0]) |
+                                    ({64{csr_rd.csr_meivt}}     & {meivt[63:10], 10'b0}) |
+                                    ({64{csr_rd.csr_meihap}}    & {meivt[63:10], meihap[9:2], 2'b0}) |
+                                    ({64{csr_rd.csr_meicurpl}}  & {32'b0, 28'b0, meicurpl[3:0]}) |
+                                    ({64{csr_rd.csr_meicidpl}}  & {32'b0, 28'b0, meicidpl[3:0]}) |
+                                    ({64{csr_rd.csr_meipt}}     & {32'b0, 28'b0, meipt[3:0]}) |
+                                    ({64{csr_rd.csr_dcsr}}      & {16'h4000, 32'b0, dcsr[15:2], 2'b11}) |
+                                    ({64{csr_rd.csr_dpc}}       & {dpc[63:1], 1'b0}) |
+                                    ({64{csr_rd.csr_mtsel}}     & {32'b0, 30'b0, mtsel[1:0]}) |
+                                    ({64{csr_rd.csr_mtdata1}}   & {mtdata1_tsel_out[63:0]}) |
+                                    ({64{csr_rd.csr_mtdata2}}   & {mtdata2_tsel_out[63:0]}) |
+                                    ({64{csr_rd.csr_mhpmc3}}    & mhpmc3[63:0]) |
+                                    ({64{csr_rd.csr_mhpmc4}}    & mhpmc4[63:0]) |
+                                    ({64{csr_rd.csr_mhpmc5}}    & mhpmc5[63:0]) |
+                                    ({64{csr_rd.csr_mhpmc6}}    & mhpmc6[63:0]) |
+                                    ({64{csr_rd.csr_mhpme3}}    & {32'b0, 22'b0,mhpme3[9:0]}) |
+                                    ({64{csr_rd.csr_mhpme4}}    & {32'b0, 22'b0,mhpme4[9:0]}) |
+                                    ({64{csr_rd.csr_mhpme5}}    & {32'b0, 22'b0,mhpme5[9:0]}) |
+                                    ({64{csr_rd.csr_mhpme6}}    & {32'b0, 22'b0,mhpme6[9:0]}) |
+                                    ({64{csr_rd.csr_mcountinhibit}} & {32'b0, 25'b0, mcountinhibit[6:0]}) |
+                                    ({64{csr_rd.csr_mpmc}}      & {32'b0, 30'b0, mpmc[1], 1'b0}) |
+                                    ({64{csr_rd.csr_dicad0}}    & dicad0[63:0]) |
+                                    ({64{csr_rd.csr_dicad1}}    & dicad1[63:0]) |
+                                    ({64{csr_rd.csr_dicawics}}  & {32'b0, 7'b0, dicawics[16], 2'b0, dicawics[15:14], 3'b0, dicawics[13:0], 3'b0}) |
+                                    ({64{csr_rd.csr_mfdhs}}     & {32'b0, 30'b0, mfdhs[1:0]}) |
+                                    ({64{dec_timer_read_d}} & dec_timer_rddata_d[63:0])
+                                    );
+   end
 //   end // block: CSR_rd_mux
 
 endmodule // eh2_dec_tlu_ctl
@@ -2362,7 +2433,7 @@ import eh2_pkg::*;
    input logic        dec_i0_csr_wen_wb_mod,      // csr write enable at wb
 
    input logic [11:0] dec_i0_csr_wraddr_wb,      // write address for csr
-   input logic [31:0] dec_i0_csr_wrdata_wb,   // csr write data at wb
+   input logic [pt.XLEN-1:0] dec_i0_csr_wrdata_wb,   // csr write data at wb
 
    input eh2_csr_tlu_pkt_t csr_rd, // csr decodes
 
@@ -2370,7 +2441,7 @@ import eh2_pkg::*;
    input logic dec_tlu_pmu_fw_halted, // pmu/fw halted
    input logic internal_dbg_halt_timers, // debug halted
 
-   output logic [31:0] dec_timer_rddata_d, // timer CSR read data
+   output logic [pt.XLEN-1:0] dec_timer_rddata_d, // timer CSR read data
    output logic   dec_timer_read_d, // timer CSR address match
    output logic        dec_timer_t0_pulse, // timer0 int
    output logic        dec_timer_t1_pulse, // timer1 int
@@ -2381,7 +2452,7 @@ import eh2_pkg::*;
    localparam MITCTL_ENABLE_HALTED      = 1;
    localparam MITCTL_ENABLE_PAUSED      = 2;
 
-   logic [31:0] mitcnt0_ns, mitcnt0, mitcnt1_ns, mitcnt1, mitb0, mitb1, mitb0_b, mitb1_b, mitcnt0_inc, mitcnt1_inc;
+   logic [pt.XLEN-1:0] mitcnt0_ns, mitcnt0, mitcnt1_ns, mitcnt1, mitb0, mitb1, mitb0_b, mitb1_b, mitcnt0_inc, mitcnt1_inc;
    logic [2:0] mitctl0_ns, mitctl0;
    logic [3:0] mitctl1_ns, mitctl1;
    logic wr_mitcnt0_wb, wr_mitcnt1_wb, wr_mitb0_wb, wr_mitb1_wb, wr_mitctl0_wb, wr_mitctl1_wb;
@@ -2398,14 +2469,14 @@ import eh2_pkg::*;
 
    if(pt.TIMER_LEGAL_EN) begin : internal_timers
 
-   assign mit0_match_ns = (mitcnt0[31:0] >= mitb0[31:0]);
-   assign mit1_match_ns = (mitcnt1[31:0] >= mitb1[31:0]);
+   assign mit0_match_ns = (mitcnt0[pt.XLEN-1:0] >= mitb0[pt.XLEN-1:0]);
+   assign mit1_match_ns = (mitcnt1[pt.XLEN-1:0] >= mitb1[pt.XLEN-1:0]);
 
    assign dec_timer_t0_pulse = mit0_match_ns;
    assign dec_timer_t1_pulse = mit1_match_ns;
    // ----------------------------------------------------------------------
    // MITCNT0 (RW)
-   // [31:0] : Internal Timer Counter 0
+   // [XLEN-1:0] : Internal Timer Counter 0
 
    localparam MITCNT0       = 12'h7d2;
 
@@ -2414,16 +2485,16 @@ import eh2_pkg::*;
    assign mitcnt0_inc_ok = mitctl0[MITCTL_ENABLE] & (~dec_pause_state | mitctl0[MITCTL_ENABLE_PAUSED]) & (~dec_tlu_pmu_fw_halted | mitctl0[MITCTL_ENABLE_HALTED]) & ~internal_dbg_halt_timers;
 
    assign {mitcnt0_inc_cout, mitcnt0_inc[7:0]} = mitcnt0[7:0] + {7'b0, 1'b1};
-   assign mitcnt0_inc[31:8] = mitcnt0[31:8] + {23'b0, mitcnt0_inc_cout};
+   assign mitcnt0_inc[pt.XLEN-1:8] = mitcnt0[pt.XLEN-1:8] + {{pt.XLEN-32{1'b0}}, 23'b0, mitcnt0_inc_cout};
 
-   assign mitcnt0_ns[31:0] = wr_mitcnt0_wb ? dec_i0_csr_wrdata_wb[31:0] : mit0_match_ns ? 'b0 : mitcnt0_inc[31:0];
+   assign mitcnt0_ns[pt.XLEN-1:0] = wr_mitcnt0_wb ? dec_i0_csr_wrdata_wb[pt.XLEN-1:0] : mit0_match_ns ? 'b0 : mitcnt0_inc[pt.XLEN-1:0];
 
-   rvdffe #(24) mitcnt0_ffb      (.*, .clk(free_l2clk), .en(wr_mitcnt0_wb | (mitcnt0_inc_ok & mitcnt0_inc_cout) | mit0_match_ns), .din(mitcnt0_ns[31:8]), .dout(mitcnt0[31:8]));
-   rvdffe #(8)  mitcnt0_ffa      (.*, .clk(free_l2clk), .en(wr_mitcnt0_wb | mitcnt0_inc_ok | mit0_match_ns),                       .din(mitcnt0_ns[7:0]), .dout(mitcnt0[7:0]));
+   rvdffe #(pt.XLEN-8) mitcnt0_ffb (.*, .clk(free_l2clk), .en(wr_mitcnt0_wb | (mitcnt0_inc_ok & mitcnt0_inc_cout) | mit0_match_ns), .din(mitcnt0_ns[pt.XLEN-1:8]), .dout(mitcnt0[pt.XLEN-1:8]));
+   rvdffe #(8)  mitcnt0_ffa        (.*, .clk(free_l2clk), .en(wr_mitcnt0_wb | mitcnt0_inc_ok | mit0_match_ns),                      .din(mitcnt0_ns[7:0]),         .dout(mitcnt0[7:0]));
 
    // ----------------------------------------------------------------------
    // MITCNT1 (RW)
-   // [31:0] : Internal Timer Counter 0
+   // [XLEN-1:0] : Internal Timer Counter 0
 
    localparam MITCNT1       = 12'h7d5;
 
@@ -2437,38 +2508,38 @@ import eh2_pkg::*;
 
    // only inc MITCNT1 if not cascaded with 0, or if 0 overflows
    assign {mitcnt1_inc_cout, mitcnt1_inc[7:0]} = mitcnt1[7:0] + {7'b0, 1'b1};
-   assign mitcnt1_inc[31:8] = mitcnt1[31:8] + {23'b0, mitcnt1_inc_cout};
+   assign mitcnt1_inc[pt.XLEN-1:8] = mitcnt1[pt.XLEN-1:8] + {32'b0, 23'b0, mitcnt1_inc_cout};
 
-   assign mitcnt1_ns[31:0]  = wr_mitcnt1_wb ? dec_i0_csr_wrdata_wb[31:0] : mit1_match_ns ? 'b0 : mitcnt1_inc[31:0];
+   assign mitcnt1_ns[pt.XLEN-1:0]  = wr_mitcnt1_wb ? dec_i0_csr_wrdata_wb[pt.XLEN-1:0] : mit1_match_ns ? 'b0 : mitcnt1_inc[pt.XLEN-1:0];
 
-   rvdffe #(24) mitcnt1_ffb      (.*, .clk(free_l2clk), .en(wr_mitcnt1_wb | (mitcnt1_inc_ok & mitcnt1_inc_cout) | mit1_match_ns), .din(mitcnt1_ns[31:8]), .dout(mitcnt1[31:8]));
-   rvdffe #(8)  mitcnt1_ffa      (.*, .clk(free_l2clk), .en(wr_mitcnt1_wb | mitcnt1_inc_ok | mit1_match_ns),                       .din(mitcnt1_ns[7:0]), .dout(mitcnt1[7:0]));
+   rvdffe #(pt.XLEN-8) mitcnt1_ffb (.*, .clk(free_l2clk), .en(wr_mitcnt1_wb | (mitcnt1_inc_ok & mitcnt1_inc_cout) | mit1_match_ns), .din(mitcnt1_ns[pt.XLEN-1:8]), .dout(mitcnt1[pt.XLEN-1:8]));
+   rvdffe #(8)  mitcnt1_ffa        (.*, .clk(free_l2clk), .en(wr_mitcnt1_wb | mitcnt1_inc_ok | mit1_match_ns),                      .din(mitcnt1_ns[7:0]),         .dout(mitcnt1[7:0]));
 
    // ----------------------------------------------------------------------
    // MITB0 (RW)
-   // [31:0] : Internal Timer Bound 0
+   // [XLEN-1:0] : Internal Timer Bound 0
 
    localparam MITB0         = 12'h7d3;
 
    assign wr_mitb0_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITB0);
 
-   rvdffe #(32) mitb0_ff      (.*, .en(wr_mitb0_wb), .din(~dec_i0_csr_wrdata_wb[31:0]), .dout(mitb0_b[31:0]));
-   assign mitb0[31:0] = ~mitb0_b[31:0];
+   rvdffe #(pt.XLEN) mitb0_ff      (.*, .en(wr_mitb0_wb), .din(~dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mitb0_b[pt.XLEN-1:0]));
+   assign mitb0[pt.XLEN-1:0] = ~mitb0_b[pt.XLEN-1:0];
 
    // ----------------------------------------------------------------------
    // MITB1 (RW)
-   // [31:0] : Internal Timer Bound 1
+   // [XLEN-1:0] : Internal Timer Bound 1
 
    localparam MITB1         = 12'h7d6;
 
    assign wr_mitb1_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MITB1);
 
-   rvdffe #(32) mitb1_ff      (.*, .en(wr_mitb1_wb), .din(~dec_i0_csr_wrdata_wb[31:0]), .dout(mitb1_b[31:0]));
-   assign mitb1[31:0] = ~mitb1_b[31:0];
+   rvdffe #(pt.XLEN) mitb1_ff      (.*, .en(wr_mitb1_wb), .din(~dec_i0_csr_wrdata_wb[pt.XLEN-1:0]), .dout(mitb1_b[pt.XLEN-1:0]));
+   assign mitb1[pt.XLEN-1:0] = ~mitb1_b[pt.XLEN-1:0];
 
    // ----------------------------------------------------------------------
    // MITCTL0 (RW) Internal Timer Ctl 0
-   // [31:3] : Reserved, reads 0x0
+   // [XLEN-1:3] : Reserved, reads 0x0
    // [2]    : Enable while PAUSEd
    // [1]    : Enable while HALTed
    // [0]    : Enable (resets to 0x1)
@@ -2484,7 +2555,7 @@ import eh2_pkg::*;
 
    // ----------------------------------------------------------------------
    // MITCTL1 (RW) Internal Timer Ctl 1
-   // [31:4] : Reserved, reads 0x0
+   // [XLEN-1:4] : Reserved, reads 0x0
    // [3]    : Cascade
    // [2]    : Enable while PAUSEd
    // [1]    : Enable while HALTed
@@ -2506,16 +2577,16 @@ import eh2_pkg::*;
                              csr_rd.csr_mitctl0 |
                              csr_rd.csr_mitctl1;
 
-   assign dec_timer_rddata_d[31:0] = ( ({32{csr_rd.csr_mitcnt0}}      & mitcnt0[31:0]) |
-                                       ({32{csr_rd.csr_mitcnt1}}      & mitcnt1[31:0]) |
-                                       ({32{csr_rd.csr_mitb0}}        & mitb0[31:0]) |
-                                       ({32{csr_rd.csr_mitb1}}        & mitb1[31:0]) |
-                                       ({32{csr_rd.csr_mitctl0}}      & {29'b0, mitctl0[2:0]}) |
-                                       ({32{csr_rd.csr_mitctl1}}      & {28'b0, mitctl1[3:0]})
-                                       );
+   assign dec_timer_rddata_d[pt.XLEN-1:0] = ( ({pt.XLEN{csr_rd.csr_mitcnt0}}      & mitcnt0[pt.XLEN-1:0]) |
+                                              ({pt.XLEN{csr_rd.csr_mitcnt1}}      & mitcnt1[pt.XLEN-1:0]) |
+                                              ({pt.XLEN{csr_rd.csr_mitb0}}        & mitb0[pt.XLEN-1:0]) |
+                                              ({pt.XLEN{csr_rd.csr_mitb1}}        & mitb1[pt.XLEN-1:0]) |
+                                              ({pt.XLEN{csr_rd.csr_mitctl0}}      & {(pt.XLEN-3)'('b0), mitctl0[2:0]}) |
+                                              ({pt.XLEN{csr_rd.csr_mitctl1}}      & {(pt.XLEN-4)'('b0), mitctl1[3:0]})
+                                              );
    end // block: internal_timers
    else begin
-      assign dec_timer_rddata_d[31:0] = 32'b0;
+      assign dec_timer_rddata_d[pt.XLEN-1:0] = (pt.XLEN)'('b0);
       assign dec_timer_read_d = 1'b0;
       assign dec_timer_t0_pulse = 1'b0;
       assign dec_timer_t1_pulse = 1'b0;

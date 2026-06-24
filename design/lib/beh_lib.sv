@@ -281,21 +281,21 @@ module rvdffpcie #( parameter WIDTH=31 )
 
 
 `ifndef RV_PHYSICAL
-   if (WIDTH == 31) begin: genblock
+   if (WIDTH inside {31, 63}) begin: genblock
 `endif
 
 `ifdef RV_FPGA_OPTIMIZE
       rvdffs #(WIDTH) dff ( .* );
 `else
 
-      rvdfflie #(.WIDTH(WIDTH), .LEFT(19)) dff (.*);
+      rvdfflie #(.WIDTH(WIDTH), .LEFT(WIDTH - 12)) dff (.*);
 
 `endif
 
 `ifndef RV_PHYSICAL
    end
    else
-      $error("%m: rvdffpc width must be 31");
+      $error("%m: rvdffpc width must be 31 or 63");
 `endif
 endmodule
 
@@ -1272,4 +1272,3 @@ module rvoclkhdr
 `endif
 
 endmodule
-

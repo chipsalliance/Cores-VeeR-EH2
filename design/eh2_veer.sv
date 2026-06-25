@@ -28,21 +28,21 @@ import eh2_pkg::*;
    input logic                  clk,
    input logic                  rst_l,
    input logic                  dbg_rst_l,  // DM reset
-   input logic [31:1]           rst_vec,
+   input logic [pt.XLEN-1:1]    rst_vec,
    input logic                  nmi_int,
-   input logic [31:1]           nmi_vec,
+   input logic [pt.XLEN-1:1]    nmi_vec,
 
    output logic                 core_rst_l,   // This is "rst_l | dbg_rst_l"
    output logic                 active_l2clk,
    output logic                 free_l2clk,
 
-   output logic [pt.NUM_THREADS-1:0] [63:0] trace_rv_i_insn_ip,
-   output logic [pt.NUM_THREADS-1:0] [63:0] trace_rv_i_address_ip,
+   output logic [pt.NUM_THREADS-1:0] [(pt.XLEN*2)-1:0] trace_rv_i_insn_ip,
+   output logic [pt.NUM_THREADS-1:0] [(pt.XLEN*2)-1:0] trace_rv_i_address_ip,
    output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_valid_ip,
    output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_exception_ip,
    output logic [pt.NUM_THREADS-1:0] [4:0]  trace_rv_i_ecause_ip,
    output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_interrupt_ip,
-   output logic [pt.NUM_THREADS-1:0] [31:0] trace_rv_i_tval_ip,
+   output logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:0] trace_rv_i_tval_ip,
 
    output logic                 dccm_clk_override,
    output logic                 icm_clk_override,
@@ -1483,4 +1483,3 @@ import eh2_pkg::*;
 
 
 endmodule // eh2_veer
-

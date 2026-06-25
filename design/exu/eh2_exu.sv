@@ -40,16 +40,16 @@ import eh2_pkg::*;
    input logic                                   dec_i0_branch_e2,             // I0 Branch at E2-stage.  Used for clock gating
    input logic                                   dec_i0_branch_e3,             // I0 Branch at E3-stage.  Used for clock gating
 
-   input logic                                   dec_i1_branch_d,              // I0 Branch at  D-stage.  Used for clock gating
-   input logic                                   dec_i1_branch_e1,             // I0 Branch at E1-stage.  Used for clock gating
-   input logic                                   dec_i1_branch_e2,             // I0 Branch at E2-stage.  Used for clock gating
-   input logic                                   dec_i1_branch_e3,             // I0 Branch at E3-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_d,              // I1 Branch at  D-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_e1,             // I1 Branch at E1-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_e2,             // I1 Branch at E2-stage.  Used for clock gating
+   input logic                                   dec_i1_branch_e3,             // I1 Branch at E3-stage.  Used for clock gating
 
    input logic                                   dec_i0_pc4_e4,                // I0 PC4 to PMU
    input logic                                   dec_i1_pc4_e4,                // I1 PC4 to PMU
 
    input logic                                   dec_extint_stall,             // External interrupt mux select
-   input logic                      [31:2]       dec_tlu_meihap,               // External interrupt mux data
+   input logic                     [pt.XLEN-1:2] dec_tlu_meihap,               // External interrupt mux data
 
    input logic [4:1]                             dec_i0_data_en,               // Slot I0 clock enable {e1, e2, e3    }, one cycle pulse
    input logic [4:1]                             dec_i0_ctl_en,                // Slot I0 clock enable {e1, e2, e3, e4}, two cycle pulse
@@ -60,7 +60,7 @@ import eh2_pkg::*;
 
    input logic [31:0]                            dbg_cmd_wrdata,               // Debug data   to primary I0 RS1
 
-   input logic [31:0]                            lsu_result_dc3,               // Load result
+   input logic [pt.XLEN-1:0]                     lsu_result_dc3,               // Load result
 
    input eh2_predict_pkt_t                      i0_predict_p_d,               // DEC branch predict packet
    input eh2_predict_pkt_t                      i1_predict_p_d,               // DEC branch predict packet
@@ -77,26 +77,26 @@ import eh2_pkg::*;
    input logic                                   dec_i0_rs2_bypass_en_e2,      // DEC bypass bus select for E2 stage
    input logic                                   dec_i1_rs1_bypass_en_e2,      // DEC bypass bus select for E2 stage
    input logic                                   dec_i1_rs2_bypass_en_e2,      // DEC bypass bus select for E2 stage
-   input logic [31:0]                            i0_rs1_bypass_data_e2,        // DEC bypass bus
-   input logic [31:0]                            i0_rs2_bypass_data_e2,        // DEC bypass bus
-   input logic [31:0]                            i1_rs1_bypass_data_e2,        // DEC bypass bus
-   input logic [31:0]                            i1_rs2_bypass_data_e2,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i0_rs1_bypass_data_e2,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i0_rs2_bypass_data_e2,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i1_rs1_bypass_data_e2,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i1_rs2_bypass_data_e2,        // DEC bypass bus
 
    input logic                                   dec_i0_rs1_bypass_en_e3,      // DEC bypass bus select for E3 stage
    input logic                                   dec_i0_rs2_bypass_en_e3,      // DEC bypass bus select for E3 stage
    input logic                                   dec_i1_rs1_bypass_en_e3,      // DEC bypass bus select for E3 stage
    input logic                                   dec_i1_rs2_bypass_en_e3,      // DEC bypass bus select for E3 stage
-   input logic [31:0]                            i0_rs1_bypass_data_e3,        // DEC bypass bus
-   input logic [31:0]                            i0_rs2_bypass_data_e3,        // DEC bypass bus
-   input logic [31:0]                            i1_rs1_bypass_data_e3,        // DEC bypass bus
-   input logic [31:0]                            i1_rs2_bypass_data_e3,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i0_rs1_bypass_data_e3,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i0_rs2_bypass_data_e3,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i1_rs1_bypass_data_e3,        // DEC bypass bus
+   input logic [pt.XLEN-1:0]                     i1_rs2_bypass_data_e3,        // DEC bypass bus
 
    input logic                                   dec_i0_sec_decode_e3,         // Secondary ALU valid
    input logic                                   dec_i1_sec_decode_e3,         // Secondary ALU valid
-   input logic [31:1]                            dec_i0_pc_e3,                 // Secondary ALU PC
-   input logic [31:1]                            dec_i1_pc_e3,                 // Secondary ALU PC
+   input logic [pt.XLEN-1:1]                     dec_i0_pc_e3,                 // Secondary ALU PC
+   input logic [pt.XLEN-1:1]                     dec_i1_pc_e3,                 // Secondary ALU PC
 
-   input logic [pt.NUM_THREADS-1:0][31:1]        pred_correct_npc_e2,          // npc e2 if the prediction is correct
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] pred_correct_npc_e2,          // npc e2 if the prediction is correct
 
    input logic                                   dec_i1_valid_e1,              // I1 valid E1
 
@@ -106,18 +106,18 @@ import eh2_pkg::*;
    input logic                                   dec_i0_div_d,                 // Select for Divide GPR value
    input logic                                   dec_div_cancel,               // Cancel divide operation due to write-after-write
 
-   input logic [31:0]                            gpr_i0_rs1_d,                 // DEC data gpr
-   input logic [31:0]                            gpr_i0_rs2_d,                 // DEC data gpr
-   input logic [31:0]                            dec_i0_immed_d,               // DEC data immediate
+   input logic [pt.XLEN-1:0]                     gpr_i0_rs1_d,                 // DEC data gpr
+   input logic [pt.XLEN-1:0]                     gpr_i0_rs2_d,                 // DEC data gpr
+   input logic [pt.XLEN-1:0]                     dec_i0_immed_d,               // DEC data immediate
 
-   input logic [31:0]                            gpr_i1_rs1_d,                 // DEC data gpr
-   input logic [31:0]                            gpr_i1_rs2_d,                 // DEC data gpr
-   input logic [31:0]                            dec_i1_immed_d,               // DEC data immediate
+   input logic [pt.XLEN-1:0]                     gpr_i1_rs1_d,                 // DEC data gpr
+   input logic [pt.XLEN-1:0]                     gpr_i1_rs2_d,                 // DEC data gpr
+   input logic [pt.XLEN-1:0]                     dec_i1_immed_d,               // DEC data immediate
 
-   input logic [31:0]                            i0_rs1_bypass_data_d,         // DEC bypass data
-   input logic [31:0]                            i0_rs2_bypass_data_d,         // DEC bypass data
-   input logic [31:0]                            i1_rs1_bypass_data_d,         // DEC bypass data
-   input logic [31:0]                            i1_rs2_bypass_data_d,         // DEC bypass data
+   input logic [pt.XLEN-1:0]                     i0_rs1_bypass_data_d,         // DEC bypass data
+   input logic [pt.XLEN-1:0]                     i0_rs2_bypass_data_d,         // DEC bypass data
+   input logic [pt.XLEN-1:0]                     i1_rs1_bypass_data_d,         // DEC bypass data
+   input logic [pt.XLEN-1:0]                     i1_rs2_bypass_data_d,         // DEC bypass data
 
    input logic [pt.BTB_TOFFSET_SIZE:1]           dec_i0_br_immed_d,            // Branch immediate
    input logic [pt.BTB_TOFFSET_SIZE:1]           dec_i1_br_immed_d,            // Branch immediate
@@ -139,8 +139,8 @@ import eh2_pkg::*;
    input logic                                   dec_i0_select_pc_d,           // PC select to RS1
    input logic                                   dec_i1_select_pc_d,           // PC select to RS1
 
-   input logic [31:1]                            dec_i0_pc_d,                  // I0 Instruction PC
-   input logic [31:1]                            dec_i1_pc_d,                  // I1 Instruction PC
+   input logic [pt.XLEN-1:1]                     dec_i0_pc_d,           // I0 Instruction PC
+   input logic [pt.XLEN-1:1]                     dec_i1_pc_d,           // I1 Instruction PC
 
    input logic                                   dec_i0_rs1_bypass_en_d,       // DEC bypass select
    input logic                                   dec_i0_rs2_bypass_en_d,       // DEC bypass select
@@ -148,51 +148,51 @@ import eh2_pkg::*;
    input logic                                   dec_i1_rs2_bypass_en_d,       // DEC bypass select
 
    input logic [pt.NUM_THREADS-1:0]              dec_tlu_flush_lower_wb,       // Flush divide and secondary ALUs
-   input logic [pt.NUM_THREADS-1:0] [31:1]       dec_tlu_flush_path_wb,        // Redirect target
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] dec_tlu_flush_path_wb,        // Redirect target
 
    input logic                                   dec_tlu_i0_valid_e4,          // Valid for GHR
    input logic                                   dec_tlu_i1_valid_e4,          // Valid for GHR
 
 
 
-   output logic [31:0]                           exu_i0_result_e1,             // Primary ALU result to DEC
-   output logic [31:0]                           exu_i1_result_e1,             // Primary ALU result to DEC
-   output logic [31:1]                           exu_i0_pc_e1,                 // Primary PC  result to DEC
-   output logic [31:1]                           exu_i1_pc_e1,                 // Primary PC  result to DEC
+   output logic [pt.XLEN-1:0]                    exu_i0_result_e1,             // Primary ALU result to DEC
+   output logic [pt.XLEN-1:0]                    exu_i1_result_e1,             // Primary ALU result to DEC
+   output logic [pt.XLEN-1:1]                    exu_i0_pc_e1,                 // Primary PC  result to DEC
+   output logic [pt.XLEN-1:1]                    exu_i1_pc_e1,                 // Primary PC  result to DEC
 
-   output logic [31:0]                           exu_i0_result_e4,             // Secondary ALU result
-   output logic [31:0]                           exu_i1_result_e4,             // Secondary ALU result
+   output logic [pt.XLEN-1:0]                    exu_i0_result_e4,             // Secondary ALU result
+   output logic [pt.XLEN-1:0]                    exu_i1_result_e4,             // Secondary ALU result
 
-   output logic [31:0]                           exu_lsu_rs1_d,                // LSU operand
-   output logic [31:0]                           exu_lsu_rs2_d,                // LSU operand
+   output logic [pt.XLEN-1:0]                    exu_lsu_rs1_d,                // LSU operand
+   output logic [pt.XLEN-1:0]                    exu_lsu_rs2_d,                // LSU operand
 
-   output logic [31:0]                           exu_i0_csr_rs1_e1,            // RS1 source for a CSR instruction
+   output logic [pt.XLEN-1:0]                    exu_i0_csr_rs1_e1,            // RS1 source for a CSR instruction
 
    output logic [pt.NUM_THREADS-1:0]             exu_flush_final,              // Pipe is being flushed this cycle
    output logic [pt.NUM_THREADS-1:0]             exu_i0_flush_final,           // I0 flush to DEC
    output logic [pt.NUM_THREADS-1:0]             exu_i1_flush_final,           // I1 flush to DEC
 
 
-   output logic [pt.NUM_THREADS-1:0][31:1]       exu_flush_path_final,         // Target for the oldest flush source
+   output logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_flush_path_final,        // Target for the oldest flush source
 
    output logic [pt.NUM_THREADS-1:0]             exu_flush_final_early,        // Pipe is being flushed this cycle
-   output logic [pt.NUM_THREADS-1:0][31:1]       exu_flush_path_final_early,   // Target for the oldest flush source
+   output logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_flush_path_final_early,  // Target for the oldest flush source
 
-   output logic [31:0]                           exu_mul_result_e3,            // Multiply result
+   output logic [pt.XLEN-1:0]                    exu_mul_result_e3,            // Multiply result
 
-   output logic [31:0]                           exu_div_result,               // Divide result
+   output logic [pt.XLEN-1:0]                    exu_div_result,               // Divide result
    output logic                                  exu_div_wren,                 // Divide write enable to GPR
-   output logic [pt.NUM_THREADS-1:0] [31:1]      exu_npc_e4,                   // Divide NPC
+   output logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_npc_e4,                  // Divide NPC
 
    output logic [pt.NUM_THREADS-1:0]             exu_i0_flush_lower_e4,        // to TLU - lower branch flush
    output logic [pt.NUM_THREADS-1:0]             exu_i1_flush_lower_e4,        // to TLU - lower branch flush
 
-   output logic [31:1]                           exu_i0_flush_path_e4,         // to TLU - lower branch flush path
-   output logic [31:1]                           exu_i1_flush_path_e4,         // to TLU - lower branch flush path
+   output logic [pt.XLEN-1:1]                    exu_i0_flush_path_e4,         // to TLU - lower branch flush path
+   output logic [pt.XLEN-1:1]                    exu_i1_flush_path_e4,         // to TLU - lower branch flush path
 
 
 
-   output eh2_predict_pkt_t [pt.NUM_THREADS-1:0]                    exu_mp_pkt,      // to IFU_DP - final mispredict
+   output eh2_predict_pkt_t [pt.NUM_THREADS-1:0]                     exu_mp_pkt,      // to IFU_DP - final mispredict
    output logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           exu_mp_eghr,     // to IFU_DP - for bht write
    output logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]           exu_mp_fghr,     // to IFU_DP - fghr repair value
    output logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] exu_mp_index,    // to IFU_DP - misprecict index
@@ -235,40 +235,40 @@ import eh2_pkg::*;
    );
 
 
-   logic [31:0]                      i0_rs1_d,i0_rs2_d,i1_rs1_d,i1_rs2_d;
+   logic [pt.XLEN-1:0]               i0_rs1_d,i0_rs2_d,i1_rs1_d,i1_rs2_d;
 
    logic [pt.NUM_THREADS-1:0]        i0_flush_upper_e1, i1_flush_upper_e1;
 
-   logic [31:1]                      i0_flush_path_e1;
-   logic [31:1]                      i1_flush_path_e1;
+   logic [pt.XLEN-1:1]               i0_flush_path_e1;
+   logic [pt.XLEN-1:1]               i1_flush_path_e1;
 
-   logic [31:0]                      i0_rs1_final_d;
+   logic [pt.XLEN-1:0]               i0_rs1_final_d;
 
-   logic [31:0]                      mul_rs1_d, mul_rs2_d;
+   logic [pt.XLEN-1:0]               mul_rs1_d, mul_rs2_d;
 
-   logic [31:0]                      div_rs1_d, div_rs2_d;
+   logic [pt.XLEN-1:0]               div_rs1_d, div_rs2_d;
 
    logic                             i1_valid_e2;
 
-   logic [31:0]                      i0_rs1_e1, i0_rs2_e1;
-   logic [31:0]                      i0_rs1_e2, i0_rs2_e2;
-   logic [31:0]                      i0_rs1_e3, i0_rs2_e3;
+   logic [pt.XLEN-1:0]               i0_rs1_e1, i0_rs2_e1;
+   logic [pt.XLEN-1:0]               i0_rs1_e2, i0_rs2_e2;
+   logic [pt.XLEN-1:0]               i0_rs1_e3, i0_rs2_e3;
    logic [pt.BTB_TOFFSET_SIZE:1]     i0_br_immed_e1, i0_br_immed_e2, i0_br_immed_e3;
 
-   logic [31:0]                      i1_rs1_e1, i1_rs2_e1;
-   logic [31:0]                      i1_rs1_e2, i1_rs2_e2;
-   logic [31:0]                      i1_rs1_e3, i1_rs2_e3;
+   logic [pt.XLEN-1:0]               i1_rs1_e1, i1_rs2_e1;
+   logic [pt.XLEN-1:0]               i1_rs1_e2, i1_rs2_e2;
+   logic [pt.XLEN-1:0]               i1_rs1_e3, i1_rs2_e3;
 
    logic [pt.BTB_TOFFSET_SIZE:1]     i1_br_immed_e1, i1_br_immed_e2, i1_br_immed_e3;
 
-   logic [31:0]                      i0_rs1_e2_final, i0_rs2_e2_final;
-   logic [31:0]                      i1_rs1_e2_final, i1_rs2_e2_final;
-   logic [31:0]                      i0_rs1_e3_final, i0_rs2_e3_final;
-   logic [31:0]                      i1_rs1_e3_final, i1_rs2_e3_final;
-   logic [31:1]                      i0_alu_pc_unused, i1_alu_pc_unused;
+   logic [pt.XLEN-1:0]               i0_rs1_e2_final, i0_rs2_e2_final;
+   logic [pt.XLEN-1:0]               i1_rs1_e2_final, i1_rs2_e2_final;
+   logic [pt.XLEN-1:0]               i0_rs1_e3_final, i0_rs2_e3_final;
+   logic [pt.XLEN-1:0]               i1_rs1_e3_final, i1_rs2_e3_final;
+   logic [pt.XLEN-1:1]               i0_alu_pc_unused, i1_alu_pc_unused;
    logic [pt.NUM_THREADS-1:0]        i0_flush_upper_e2, i1_flush_upper_e2;
    logic                             i1_valid_e3, i1_valid_e4;
-   logic [pt.NUM_THREADS-1:0] [31:1] pred_correct_npc_e3, pred_correct_npc_e4;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] pred_correct_npc_e3, pred_correct_npc_e4;
    logic [pt.NUM_THREADS-1:0]        i0_flush_upper_e3;
    logic [pt.NUM_THREADS-1:0]        i0_flush_upper_e4;
    logic                             i1_pred_correct_upper_e1, i0_pred_correct_upper_e1;
@@ -280,10 +280,10 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]        i1_valid_e4_eff;
    logic                             i1_sec_decode_e4, i0_sec_decode_e4;
    logic                             i1_pred_correct_e4_eff, i0_pred_correct_e4_eff;
-   logic [31:1]                      i1_flush_path_e4_eff, i0_flush_path_e4_eff;
-   logic [31:1]                      i1_flush_path_upper_e2, i0_flush_path_upper_e2;
-   logic [31:1]                      i1_flush_path_upper_e3, i0_flush_path_upper_e3;
-   logic [31:1]                      i1_flush_path_upper_e4, i0_flush_path_upper_e4;
+   logic [pt.XLEN-1:1]               i1_flush_path_e4_eff, i0_flush_path_e4_eff;
+   logic [pt.XLEN-1:1]               i1_flush_path_upper_e2, i0_flush_path_upper_e2;
+   logic [pt.XLEN-1:1]               i1_flush_path_upper_e3, i0_flush_path_upper_e3;
+   logic [pt.XLEN-1:1]               i1_flush_path_upper_e4, i0_flush_path_upper_e4;
 
    eh2_alu_pkt_t                    i0_ap_e1, i0_ap_e2, i0_ap_e3, i0_ap_e4;
    eh2_alu_pkt_t                    i1_ap_e1, i1_ap_e2, i1_ap_e3, i1_ap_e4;
@@ -316,64 +316,64 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]                        fp_enable, fp_enable_ff;
    logic [pt.NUM_THREADS-1:0] [pt.BHT_GHR_SIZE-1:0]  after_flush_eghr;
    logic [pt.NUM_THREADS-1:0] [PREDPIPESIZE-1:0]     final_predpipe_mp, final_predpipe_mp_ff;
-   eh2_predict_pkt_t [pt.NUM_THREADS-1:0]           final_predict_mp;
-   logic [pt.NUM_THREADS-1:0] [31:1]                 flush_path_e2;
+   eh2_predict_pkt_t [pt.NUM_THREADS-1:0]            final_predict_mp;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1]          flush_path_e2;
 
 
 
 
-   assign i0_rs1_d[31:0]       = ({32{~dec_i0_rs1_bypass_en_d}} & ((dec_debug_wdata_rs1_d) ? dbg_cmd_wrdata[31:0] : gpr_i0_rs1_d[31:0])) |
-                                 ({32{~dec_i0_rs1_bypass_en_d   & dec_i0_select_pc_d}} & { dec_i0_pc_d[31:1], 1'b0}) |    // for jal's
-                                 ({32{ dec_i0_rs1_bypass_en_d}} & i0_rs1_bypass_data_d[31:0]);
+   assign i0_rs1_d[pt.XLEN-1:0] = ({pt.XLEN{~dec_i0_rs1_bypass_en_d}} & ((dec_debug_wdata_rs1_d) ? {{pt.XLEN-32{1'b0}}, dbg_cmd_wrdata[31:0]} : gpr_i0_rs1_d[pt.XLEN-1:0])) |
+                                  ({pt.XLEN{~dec_i0_rs1_bypass_en_d   & dec_i0_select_pc_d}} & { dec_i0_pc_d[pt.XLEN-1:1], 1'b0}) |    // for jal's
+                                  ({pt.XLEN{ dec_i0_rs1_bypass_en_d}} & i0_rs1_bypass_data_d[pt.XLEN-1:0]);
 
 
-   assign i0_rs1_final_d[31:0] =  {32{~dec_i0_csr_ren_d}}       & i0_rs1_d[31:0];
+   assign i0_rs1_final_d[pt.XLEN-1:0] = {pt.XLEN{~dec_i0_csr_ren_d}} & i0_rs1_d[pt.XLEN-1:0];
 
-   assign i0_rs2_d[31:0]       = ({32{~dec_i0_rs2_bypass_en_d}} & gpr_i0_rs2_d[31:0]        ) |
-                                 ({32{~dec_i0_rs2_bypass_en_d}} & dec_i0_immed_d[31:0]      ) |
-                                 ({32{ dec_i0_rs2_bypass_en_d}} & i0_rs2_bypass_data_d[31:0]);
+   assign i0_rs2_d[pt.XLEN-1:0] = ({pt.XLEN{~dec_i0_rs2_bypass_en_d}} & gpr_i0_rs2_d[pt.XLEN-1:0]               ) |
+                                  ({pt.XLEN{~dec_i0_rs2_bypass_en_d}} & {{pt.XLEN{1'b0}}, dec_i0_immed_d[31:0]} ) |
+                                  ({pt.XLEN{ dec_i0_rs2_bypass_en_d}} & i0_rs2_bypass_data_d[pt.XLEN-1:0]);
 
-   assign i1_rs1_d[31:0]       = ({32{~dec_i1_rs1_bypass_en_d}} & gpr_i1_rs1_d[31:0]) |
-                                 ({32{~dec_i1_rs1_bypass_en_d   & dec_i1_select_pc_d}} & { dec_i1_pc_d[31:1], 1'b0}) |  // pc orthogonal with rs1
-                                 ({32{ dec_i1_rs1_bypass_en_d}} & i1_rs1_bypass_data_d[31:0]);
-
-
-   assign i1_rs2_d[31:0]       = ({32{~dec_i1_rs2_bypass_en_d}} & gpr_i1_rs2_d[31:0]        ) |
-                                 ({32{~dec_i1_rs2_bypass_en_d}} & dec_i1_immed_d[31:0]      ) |
-                                 ({32{ dec_i1_rs2_bypass_en_d}} & i1_rs2_bypass_data_d[31:0]);
+   assign i1_rs1_d[pt.XLEN-1:0] = ({pt.XLEN{~dec_i1_rs1_bypass_en_d}} & gpr_i1_rs1_d[pt.XLEN-1:0]                              ) |
+                                  ({pt.XLEN{~dec_i1_rs1_bypass_en_d   & dec_i1_select_pc_d}} & {dec_i1_pc_d[pt.XLEN-1:1], 1'b0}) |  // pc orthogonal with rs1
+                                  ({pt.XLEN{ dec_i1_rs1_bypass_en_d}} & i1_rs1_bypass_data_d[pt.XLEN-1:0]);
 
 
-   assign exu_lsu_rs1_d[31:0]  = ({32{ ~dec_i0_rs1_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & gpr_i0_rs1_d[31:0]        ) |
-                                 ({32{ ~dec_i1_rs1_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & gpr_i1_rs1_d[31:0]        ) |
-                                 ({32{  dec_i0_rs1_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & i0_rs1_bypass_data_d[31:0]) |
-                                 ({32{  dec_i1_rs1_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & i1_rs1_bypass_data_d[31:0]) |
-                                 ({32{                                            dec_extint_stall               }} & {dec_tlu_meihap[31:2],2'b0});
-
-   assign exu_lsu_rs2_d[31:0]  = ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & gpr_i0_rs2_d[31:0]        ) |
-                                 ({32{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & gpr_i1_rs2_d[31:0]        ) |
-                                 ({32{  dec_i0_rs2_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & i0_rs2_bypass_data_d[31:0]) |
-                                 ({32{  dec_i1_rs2_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & i1_rs2_bypass_data_d[31:0]);
+   assign i1_rs2_d[pt.XLEN-1:0]  = ({pt.XLEN{~dec_i1_rs2_bypass_en_d}} & gpr_i1_rs2_d[pt.XLEN-1:0]               ) |
+                                   ({pt.XLEN{~dec_i1_rs2_bypass_en_d}} & {{pt.XLEN{1'b0}}, dec_i1_immed_d[31:0]} ) |
+                                   ({pt.XLEN{ dec_i1_rs2_bypass_en_d}} & i1_rs2_bypass_data_d[pt.XLEN-1:0]);
 
 
-   assign mul_rs1_d[31:0]      = ({32{ ~dec_i0_rs1_bypass_en_d &  dec_i0_mul_d               }} & gpr_i0_rs1_d[31:0]        ) |
-                                 ({32{ ~dec_i1_rs1_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & gpr_i1_rs1_d[31:0]        ) |
-                                 ({32{  dec_i0_rs1_bypass_en_d &  dec_i0_mul_d               }} & i0_rs1_bypass_data_d[31:0]) |
-                                 ({32{  dec_i1_rs1_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs1_bypass_data_d[31:0]);
+   assign exu_lsu_rs1_d[pt.XLEN-1:0] = ({pt.XLEN{ ~dec_i0_rs1_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & gpr_i0_rs1_d[pt.XLEN-1:0]        ) |
+                                       ({pt.XLEN{ ~dec_i1_rs1_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & gpr_i1_rs1_d[pt.XLEN-1:0]        ) |
+                                       ({pt.XLEN{  dec_i0_rs1_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & i0_rs1_bypass_data_d[pt.XLEN-1:0]) |
+                                       ({pt.XLEN{  dec_i1_rs1_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & i1_rs1_bypass_data_d[pt.XLEN-1:0]) |
+                                       ({pt.XLEN{                                            dec_extint_stall               }} & {dec_tlu_meihap[pt.XLEN-1:2],2'b0});
 
-   assign mul_rs2_d[31:0]      = ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & {27'b0,dec_i0_immed_d[4:0]}) |
-                                 ({32{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & {27'b0,dec_i1_immed_d[4:0]}) |
-                                 ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & gpr_i0_rs2_d[31:0]         ) |
-                                 ({32{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & gpr_i1_rs2_d[31:0]         ) |
-                                 ({32{  dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & i0_rs2_bypass_data_d[31:0] ) |
-                                 ({32{  dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs2_bypass_data_d[31:0] );
-
+   assign exu_lsu_rs2_d[pt.XLEN-1:0] = ({pt.XLEN{ ~dec_i0_rs2_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & gpr_i0_rs2_d[pt.XLEN-1:0]        ) |
+                                       ({pt.XLEN{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & gpr_i1_rs2_d[pt.XLEN-1:0]        ) |
+                                       ({pt.XLEN{  dec_i0_rs2_bypass_en_d &  dec_i0_lsu_d & ~dec_extint_stall               }} & i0_rs2_bypass_data_d[pt.XLEN-1:0]) |
+                                       ({pt.XLEN{  dec_i1_rs2_bypass_en_d & ~dec_i0_lsu_d & ~dec_extint_stall & dec_i1_lsu_d}} & i1_rs2_bypass_data_d[pt.XLEN-1:0]);
 
 
-   assign div_rs1_d[31:0]      = ({32{ ~dec_i0_rs1_bypass_en_d &  dec_i0_div_d               }} & gpr_i0_rs1_d[31:0]) |
-                                 ({32{  dec_i0_rs1_bypass_en_d &  dec_i0_div_d               }} & i0_rs1_bypass_data_d[31:0]);
+   assign mul_rs1_d[pt.XLEN-1:0] = ({pt.XLEN{ ~dec_i0_rs1_bypass_en_d &  dec_i0_mul_d               }} & gpr_i0_rs1_d[pt.XLEN-1:0]        ) |
+                                   ({pt.XLEN{ ~dec_i1_rs1_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & gpr_i1_rs1_d[pt.XLEN-1:0]        ) |
+                                   ({pt.XLEN{  dec_i0_rs1_bypass_en_d &  dec_i0_mul_d               }} & i0_rs1_bypass_data_d[pt.XLEN-1:0]) |
+                                   ({pt.XLEN{  dec_i1_rs1_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs1_bypass_data_d[pt.XLEN-1:0]);
 
-   assign div_rs2_d[31:0]      = ({32{ ~dec_i0_rs2_bypass_en_d &  dec_i0_div_d               }} & gpr_i0_rs2_d[31:0]) |
-                                 ({32{  dec_i0_rs2_bypass_en_d &  dec_i0_div_d               }} & i0_rs2_bypass_data_d[31:0]);
+   assign mul_rs2_d[pt.XLEN-1:0] = ({pt.XLEN{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & {{pt.XLEN-5{1'b0}}, dec_i0_immed_d[4:0]}) |
+                                   ({pt.XLEN{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & {{pt.XLEN-5{1'b0}}, dec_i1_immed_d[4:0]}) |
+                                   ({pt.XLEN{ ~dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & gpr_i0_rs2_d[pt.XLEN-1:0]               ) |
+                                   ({pt.XLEN{ ~dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & gpr_i1_rs2_d[pt.XLEN-1:0]               ) |
+                                   ({pt.XLEN{  dec_i0_rs2_bypass_en_d &  dec_i0_mul_d               }} & i0_rs2_bypass_data_d[pt.XLEN-1:0]       ) |
+                                   ({pt.XLEN{  dec_i1_rs2_bypass_en_d & ~dec_i0_mul_d & dec_i1_mul_d}} & i1_rs2_bypass_data_d[pt.XLEN-1:0]       );
+
+
+
+   assign div_rs1_d[pt.XLEN-1:0] = ({pt.XLEN{ ~dec_i0_rs1_bypass_en_d & dec_i0_div_d}} & gpr_i0_rs1_d[pt.XLEN-1:0]) |
+                                   ({pt.XLEN{  dec_i0_rs1_bypass_en_d & dec_i0_div_d}} & i0_rs1_bypass_data_d[pt.XLEN-1:0]);
+
+   assign div_rs2_d[pt.XLEN-1:0] = ({pt.XLEN{ ~dec_i0_rs2_bypass_en_d & dec_i0_div_d}} & gpr_i0_rs2_d[pt.XLEN-1:0]) |
+                                   ({pt.XLEN{  dec_i0_rs2_bypass_en_d & dec_i0_div_d}} & i0_rs2_bypass_data_d[pt.XLEN-1:0]);
 
 
 
@@ -386,24 +386,24 @@ import eh2_pkg::*;
 
 
 
-   rvdffe #(32) i0_csr_rs1_ff (.*, .clk(clk), .en(i0_e1_data_en & dec_i0_csr_ren_d), .din(i0_rs1_d[31:0]), .dout(exu_i0_csr_rs1_e1[31:0]));
+   rvdffe #(pt.XLEN) i0_csr_rs1_ff (.*, .clk(clk), .en(i0_e1_data_en & dec_i0_csr_ren_d), .din(i0_rs1_d[pt.XLEN-1:0]), .dout(exu_i0_csr_rs1_e1[pt.XLEN-1:0]));
 
 
    eh2_exu_mul_ctl #(.pt(pt)) mul_e1    (.*,
                           .clk_override  ( clk_override                             ),   // I
                           .mp            ( mul_p                                    ),   // I
-                          .a             ( mul_rs1_d[31:0]                          ),   // I
-                          .b             ( mul_rs2_d[31:0]                          ),   // I
-                          .out           ( exu_mul_result_e3[31:0]                  ));  // O
+                          .a             ( mul_rs1_d[pt.XLEN-1:0]                   ),   // I
+                          .b             ( mul_rs2_d[pt.XLEN-1:0]                   ),   // I
+                          .out           ( exu_mul_result_e3[pt.XLEN-1:0]           ));  // O
 
 
    eh2_exu_div_ctl #(.pt(pt)) div_e1    (.*,
                           .cancel        ( dec_div_cancel                           ),   // I
                           .dp            ( div_p                                    ),   // I
-                          .dividend      ( div_rs1_d[31:0]                          ),   // I
-                          .divisor       ( div_rs2_d[31:0]                          ),   // I
+                          .dividend      ( div_rs1_d[pt.XLEN-1:0]                   ),   // I
+                          .divisor       ( div_rs2_d[pt.XLEN-1:0]                   ),   // I
                           .finish_dly    ( exu_div_wren                             ),   // O
-                          .out           ( exu_div_result[31:0]                     ));  // O
+                          .out           ( exu_div_result[pt.XLEN-1:0]              ));  // O
 
 
    always_comb begin
@@ -427,17 +427,17 @@ import eh2_pkg::*;
                           .predict_p     ( i0_predict_newp_d                        ),   // I
                           .valid         ( dec_i0_alu_decode_d                      ),   // I
                           .flush         ( exu_flush_final                          ),   // I
-                          .a             ( i0_rs1_final_d[31:0]                     ),   // I
-                          .b             ( i0_rs2_d[31:0]                           ),   // I
-                          .pc            ( dec_i0_pc_d[31:1]                        ),   // I
+                          .a             ( i0_rs1_final_d[pt.XLEN-1:0]              ),   // I
+                          .b             ( i0_rs2_d[pt.XLEN-1:0]                    ),   // I
+                          .pc            ( dec_i0_pc_d[pt.XLEN-1:1]                 ),   // I
                           .brimm         ( dec_i0_br_immed_d[pt.BTB_TOFFSET_SIZE:1] ),   // I
                           .ap_in_tid     ( i0_ap.tid                                ),   // I
                           .ap            ( i0_ap_e1                                 ),   // I
-                          .out           ( exu_i0_result_e1[31:0]                   ),   // O
+                          .out           ( exu_i0_result_e1[pt.XLEN-1:0]            ),   // O
                           .flush_upper   ( i0_flush_upper_e1                        ),   // O
-                          .flush_path    ( i0_flush_path_e1[31:1]                   ),   // O
+                          .flush_path    ( i0_flush_path_e1[pt.XLEN-1:1]            ),   // O
                           .predict_p_ff  ( i0_predict_p_e1                          ),   // O
-                          .pc_ff         ( exu_i0_pc_e1[31:1]                       ),   // O
+                          .pc_ff         ( exu_i0_pc_e1[pt.XLEN-1:1]                ),   // O
                           .pred_correct  ( i0_pred_correct_upper_e1                 ));  // O
 
 
@@ -448,17 +448,17 @@ import eh2_pkg::*;
                           .predict_p     ( i1_predict_newp_d                        ),   // I
                           .valid         ( dec_i1_alu_decode_d                      ),   // I
                           .flush         ( exu_flush_final                          ),   // I
-                          .a             ( i1_rs1_d[31:0]                           ),   // I
-                          .b             ( i1_rs2_d[31:0]                           ),   // I
-                          .pc            ( dec_i1_pc_d[31:1]                        ),   // I
+                          .a             ( i1_rs1_d[pt.XLEN-1:0]                    ),   // I
+                          .b             ( i1_rs2_d[pt.XLEN-1:0]                    ),   // I
+                          .pc            ( dec_i1_pc_d[pt.XLEN-1:1]                 ),   // I
                           .brimm         ( dec_i1_br_immed_d[pt.BTB_TOFFSET_SIZE:1] ),   // I
                           .ap_in_tid     ( i1_ap.tid                                ),   // I
                           .ap            ( i1_ap_e1                                 ),   // I
-                          .out           ( exu_i1_result_e1[31:0]                   ),   // O
+                          .out           ( exu_i1_result_e1[pt.XLEN-1:0]            ),   // O
                           .flush_upper   ( i1_flush_upper_e1                        ),   // O
-                          .flush_path    ( i1_flush_path_e1[31:1]                   ),   // O
+                          .flush_path    ( i1_flush_path_e1[pt.XLEN-1:1]            ),   // O
                           .predict_p_ff  ( i1_predict_p_e1                          ),   // O
-                          .pc_ff         ( exu_i1_pc_e1[31:1]                       ),   // O
+                          .pc_ff         ( exu_i1_pc_e1[pt.XLEN-1:1]                ),   // O
                           .pred_correct  ( i1_pred_correct_upper_e1                 ));  // O
 
 
@@ -508,51 +508,51 @@ import eh2_pkg::*;
 
 
 
-   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i0_src_e1_ff (.*, .clk(clk),
+   rvdffe #((2*pt.XLEN)+pt.BTB_TOFFSET_SIZE) i0_src_e1_ff (.*, .clk(clk),
                             .en  (i0_e1_data_en & dec_i0_secondary_d),
-                            .din ({i0_rs1_d [31:0], i0_rs2_d [31:0], dec_i0_br_immed_d [pt.BTB_TOFFSET_SIZE:1]}),
-                            .dout({i0_rs1_e1[31:0], i0_rs2_e1[31:0],     i0_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}));
+                            .din ({i0_rs1_d [pt.XLEN-1:0], i0_rs2_d [pt.XLEN-1:0], dec_i0_br_immed_d [pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i0_rs1_e1[pt.XLEN-1:0], i0_rs2_e1[pt.XLEN-1:0],     i0_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}));
 
-   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i0_src_e2_ff (.*, .clk(clk),
+   rvdffe #((2*pt.XLEN)+pt.BTB_TOFFSET_SIZE) i0_src_e2_ff (.*, .clk(clk),
                             .en  (i0_e2_data_en & dec_i0_secondary_e1),
-                            .din( {i0_rs1_e1[31:0], i0_rs2_e1[31:0], i0_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}),
-                            .dout({i0_rs1_e2[31:0], i0_rs2_e2[31:0], i0_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}));
+                            .din( {i0_rs1_e1[pt.XLEN-1:0], i0_rs2_e1[pt.XLEN-1:0], i0_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i0_rs1_e2[pt.XLEN-1:0], i0_rs2_e2[pt.XLEN-1:0], i0_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}));
 
-   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i0_src_e3_ff (.*, .clk(clk),
+   rvdffe #((2*pt.XLEN)+pt.BTB_TOFFSET_SIZE) i0_src_e3_ff (.*, .clk(clk),
                             .en  (i0_e3_data_en & dec_i0_secondary_e2),
-                            .din( {i0_rs1_e2_final[31:0], i0_rs2_e2_final[31:0], i0_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}),
-                            .dout({i0_rs1_e3[31:0],       i0_rs2_e3[31:0],       i0_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]}));
+                            .din( {i0_rs1_e2_final[pt.XLEN-1:0], i0_rs2_e2_final[pt.XLEN-1:0], i0_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i0_rs1_e3[pt.XLEN-1:0],       i0_rs2_e3[pt.XLEN-1:0],       i0_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]}));
 
 
 
-   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i1_src_e1_ff (.*, .clk(clk),
+   rvdffe #((2*pt.XLEN)+pt.BTB_TOFFSET_SIZE) i1_src_e1_ff (.*, .clk(clk),
                             .en  (i1_e1_data_en & dec_i1_secondary_d),
-                            .din ({i1_rs1_d [31:0], i1_rs2_d [31:0], dec_i1_br_immed_d [pt.BTB_TOFFSET_SIZE:1]}),
-                            .dout({i1_rs1_e1[31:0], i1_rs2_e1[31:0],     i1_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}));
+                            .din ({i1_rs1_d [pt.XLEN-1:0], i1_rs2_d [pt.XLEN-1:0], dec_i1_br_immed_d [pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i1_rs1_e1[pt.XLEN-1:0], i1_rs2_e1[pt.XLEN-1:0],     i1_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}));
 
-   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i1_src_e2_ff (.*, .clk(clk),
+   rvdffe #((2*pt.XLEN)+pt.BTB_TOFFSET_SIZE) i1_src_e2_ff (.*, .clk(clk),
                             .en  (i1_e2_data_en & dec_i1_secondary_e1),
-                            .din ({i1_rs1_e1[31:0], i1_rs2_e1[31:0], i1_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}),
-                            .dout({i1_rs1_e2[31:0], i1_rs2_e2[31:0], i1_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}));
+                            .din ({i1_rs1_e1[pt.XLEN-1:0], i1_rs2_e1[pt.XLEN-1:0], i1_br_immed_e1[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i1_rs1_e2[pt.XLEN-1:0], i1_rs2_e2[pt.XLEN-1:0], i1_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}));
 
-   rvdffe #(64+pt.BTB_TOFFSET_SIZE) i1_src_e3_ff (.*, .clk(clk),
+   rvdffe #((2*pt.XLEN)+pt.BTB_TOFFSET_SIZE) i1_src_e3_ff (.*, .clk(clk),
                             .en  (i1_e3_data_en & dec_i1_secondary_e2),
-                            .din ({i1_rs1_e2_final[31:0], i1_rs2_e2_final[31:0], i1_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}),
-                            .dout({i1_rs1_e3[31:0],       i1_rs2_e3[31:0],       i1_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]}));
+                            .din ({i1_rs1_e2_final[pt.XLEN-1:0], i1_rs2_e2_final[pt.XLEN-1:0], i1_br_immed_e2[pt.BTB_TOFFSET_SIZE:1]}),
+                            .dout({i1_rs1_e3[pt.XLEN-1:0],       i1_rs2_e3[pt.XLEN-1:0],       i1_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]}));
 
 
 
 
-   assign i0_rs1_e2_final[31:0] = (dec_i0_rs1_bypass_en_e2) ? i0_rs1_bypass_data_e2[31:0] : i0_rs1_e2[31:0];
-   assign i0_rs2_e2_final[31:0] = (dec_i0_rs2_bypass_en_e2) ? i0_rs2_bypass_data_e2[31:0] : i0_rs2_e2[31:0];
-   assign i1_rs1_e2_final[31:0] = (dec_i1_rs1_bypass_en_e2) ? i1_rs1_bypass_data_e2[31:0] : i1_rs1_e2[31:0];
-   assign i1_rs2_e2_final[31:0] = (dec_i1_rs2_bypass_en_e2) ? i1_rs2_bypass_data_e2[31:0] : i1_rs2_e2[31:0];
+   assign i0_rs1_e2_final[pt.XLEN-1:0] = (dec_i0_rs1_bypass_en_e2) ? i0_rs1_bypass_data_e2[pt.XLEN-1:0] : i0_rs1_e2[pt.XLEN-1:0];
+   assign i0_rs2_e2_final[pt.XLEN-1:0] = (dec_i0_rs2_bypass_en_e2) ? i0_rs2_bypass_data_e2[pt.XLEN-1:0] : i0_rs2_e2[pt.XLEN-1:0];
+   assign i1_rs1_e2_final[pt.XLEN-1:0] = (dec_i1_rs1_bypass_en_e2) ? i1_rs1_bypass_data_e2[pt.XLEN-1:0] : i1_rs1_e2[pt.XLEN-1:0];
+   assign i1_rs2_e2_final[pt.XLEN-1:0] = (dec_i1_rs2_bypass_en_e2) ? i1_rs2_bypass_data_e2[pt.XLEN-1:0] : i1_rs2_e2[pt.XLEN-1:0];
 
 
-   assign i0_rs1_e3_final[31:0] = (dec_i0_rs1_bypass_en_e3) ? i0_rs1_bypass_data_e3[31:0] : i0_rs1_e3[31:0];
-   assign i0_rs2_e3_final[31:0] = (dec_i0_rs2_bypass_en_e3) ? i0_rs2_bypass_data_e3[31:0] : i0_rs2_e3[31:0];
-   assign i1_rs1_e3_final[31:0] = (dec_i1_rs1_bypass_en_e3) ? i1_rs1_bypass_data_e3[31:0] : i1_rs1_e3[31:0];
-   assign i1_rs2_e3_final[31:0] = (dec_i1_rs2_bypass_en_e3) ? i1_rs2_bypass_data_e3[31:0] : i1_rs2_e3[31:0];
+   assign i0_rs1_e3_final[pt.XLEN-1:0] = (dec_i0_rs1_bypass_en_e3) ? i0_rs1_bypass_data_e3[pt.XLEN-1:0] : i0_rs1_e3[pt.XLEN-1:0];
+   assign i0_rs2_e3_final[pt.XLEN-1:0] = (dec_i0_rs2_bypass_en_e3) ? i0_rs2_bypass_data_e3[pt.XLEN-1:0] : i0_rs2_e3[pt.XLEN-1:0];
+   assign i1_rs1_e3_final[pt.XLEN-1:0] = (dec_i1_rs1_bypass_en_e3) ? i1_rs1_bypass_data_e3[pt.XLEN-1:0] : i1_rs1_e3[pt.XLEN-1:0];
+   assign i1_rs2_e3_final[pt.XLEN-1:0] = (dec_i1_rs2_bypass_en_e3) ? i1_rs2_bypass_data_e3[pt.XLEN-1:0] : i1_rs2_e3[pt.XLEN-1:0];
 
 
 
@@ -570,17 +570,17 @@ import eh2_pkg::*;
                           .predict_p     ( i0_pp_e4_in                              ),   // I
                           .valid         ( dec_i0_sec_decode_e3                     ),   // I
                           .flush         ( dec_tlu_flush_lower_wb                   ),   // I
-                          .a             ( i0_rs1_e3_final[31:0]                    ),   // I
-                          .b             ( i0_rs2_e3_final[31:0]                    ),   // I
-                          .pc            ( dec_i0_pc_e3[31:1]                       ),   // I
+                          .a             ( i0_rs1_e3_final[pt.XLEN-1:0]             ),   // I
+                          .b             ( i0_rs2_e3_final[pt.XLEN-1:0]             ),   // I
+                          .pc            ( dec_i0_pc_e3[pt.XLEN-1:1]                ),   // I
                           .brimm         ( i0_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]    ),   // I
                           .ap_in_tid     ( i0_ap_e3.tid                             ),   // I
                           .ap            ( i0_ap_e4                                 ),   // I
-                          .out           ( exu_i0_result_e4[31:0]                   ),   // O
+                          .out           ( exu_i0_result_e4[pt.XLEN-1:0]            ),   // O
                           .flush_upper   ( exu_i0_flush_lower_e4                    ),   // O
-                          .flush_path    ( exu_i0_flush_path_e4[31:1]               ),   // O
+                          .flush_path    ( exu_i0_flush_path_e4[pt.XLEN-1:1]        ),   // O
                           .predict_p_ff  ( i0_predict_p_e4                          ),   // O
-                          .pc_ff         ( i0_alu_pc_unused[31:1]                   ),   // O
+                          .pc_ff         ( i0_alu_pc_unused[pt.XLEN-1:1]            ),   // O
                           .pred_correct  ( i0_pred_correct_lower_e4                 ));  // O
 
 
@@ -591,17 +591,17 @@ import eh2_pkg::*;
                           .predict_p     ( i1_pp_e4_in                              ),   // I
                           .valid         ( dec_i1_sec_decode_e3                     ),   // I
                           .flush         ( dec_tlu_flush_lower_wb                   ),   // I
-                          .a             ( i1_rs1_e3_final[31:0]                    ),   // I
-                          .b             ( i1_rs2_e3_final[31:0]                    ),   // I
-                          .pc            ( dec_i1_pc_e3[31:1]                       ),   // I
+                          .a             ( i1_rs1_e3_final[pt.XLEN-1:0]             ),   // I
+                          .b             ( i1_rs2_e3_final[pt.XLEN-1:0]             ),   // I
+                          .pc            ( dec_i1_pc_e3[pt.XLEN-1:1]                ),   // I
                           .brimm         ( i1_br_immed_e3[pt.BTB_TOFFSET_SIZE:1]    ),   // I
                           .ap_in_tid     ( i1_ap_e3.tid                             ),   // I
                           .ap            ( i1_ap_e4                                 ),   // I
-                          .out           ( exu_i1_result_e4[31:0]                   ),   // O
+                          .out           ( exu_i1_result_e4[pt.XLEN-1:0]            ),   // O
                           .flush_upper   ( exu_i1_flush_lower_e4                    ),   // O
-                          .flush_path    ( exu_i1_flush_path_e4[31:1]               ),   // O
+                          .flush_path    ( exu_i1_flush_path_e4[pt.XLEN-1:1]        ),   // O
                           .predict_p_ff  ( i1_predict_p_e4                          ),   // O
-                          .pc_ff         ( i1_alu_pc_unused[31:1]                   ),   // O
+                          .pc_ff         ( i1_alu_pc_unused[pt.XLEN-1:1]            ),   // O
                           .pred_correct  ( i1_pred_correct_lower_e4                 ));  // O
 
 
@@ -690,11 +690,11 @@ import eh2_pkg::*;
 
 
 
-      assign flush_path_e2[i][31:1]           = (i0_flush_upper_e2[i])       ?  i0_flush_path_upper_e2[31:1]    :  i1_flush_path_upper_e2[31:1];
+      assign flush_path_e2[i][pt.XLEN-1:1]        = (i0_flush_upper_e2[i]) ? i0_flush_path_upper_e2[pt.XLEN-1:1] : i1_flush_path_upper_e2[pt.XLEN-1:1];
 
       // quiet this bus when there are no flushes
-      assign exu_flush_path_final[i][31:1]    = (dec_tlu_flush_lower_wb[i])                     ?  dec_tlu_flush_path_wb[i][31:1]  :
-                                                ((i0_flush_upper_e2[i] | i1_flush_upper_e2[i])  ?  flush_path_e2[i][31:1]          : '0);
+      assign exu_flush_path_final[i][pt.XLEN-1:1] = (dec_tlu_flush_lower_wb[i])                    ? dec_tlu_flush_path_wb[i][pt.XLEN-1:1] :
+                                                    ((i0_flush_upper_e2[i] | i1_flush_upper_e2[i]) ? flush_path_e2[i][pt.XLEN-1:1]         : '0);
 
 
 
@@ -709,28 +709,28 @@ import eh2_pkg::*;
                                                                              i0_flush_upper_e2[i], i1_flush_upper_e2[i], i0_flush_upper_e3[i]             , i0_flush_upper_e4[i] }));
 
 
-      logic [pt.NUM_THREADS-1:0] [31:1] flush_path_e1, flush_path_e4, flush_path_wb;
+      logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] flush_path_e1, flush_path_e4, flush_path_wb;
       if(pt.BTB_USE_SRAM) begin
-         assign flush_path_e1[i][31:1]           = (i0_flush_upper_e1[i])       ?  i0_flush_path_e1[31:1]     :  i1_flush_path_e1[31:1];
-         assign flush_path_e4[i][31:1]           = (exu_i0_flush_lower_e4[i])         ?  exu_i0_flush_path_e4[31:1] :  exu_i1_flush_path_e4[31:1];
+         assign flush_path_e1[i][pt.XLEN-1:1] = (i0_flush_upper_e1[i]    ) ? i0_flush_path_e1[pt.XLEN-1:1]     : i1_flush_path_e1[pt.XLEN-1:1];
+         assign flush_path_e4[i][pt.XLEN-1:1] = (exu_i0_flush_lower_e4[i]) ? exu_i0_flush_path_e4[pt.XLEN-1:1] : exu_i1_flush_path_e4[pt.XLEN-1:1];
 
          // SRAM BTB arch moves flushes to BF stage, but only mispredicts. TLU flushes are still a cycle later
-         assign exu_flush_path_final_early[i][31:1]    =  (exu_i0_flush_lower_e4[i] | exu_i1_flush_lower_e4[i])     ?  flush_path_e4[i][31:1]  :
-                                                         ((i0_flush_upper_e1[i] | i1_flush_upper_e1[i]) ?  flush_path_e1[i][31:1]   : '0);
-         assign exu_flush_final_early[i]            =    exu_i0_flush_lower_e4[i] | exu_i1_flush_lower_e4[i] | i0_flush_upper_e1[i]  | i1_flush_upper_e1[i];
+         assign exu_flush_path_final_early[i][pt.XLEN-1:1] = (exu_i0_flush_lower_e4[i] | exu_i1_flush_lower_e4[i]) ? flush_path_e4[i][pt.XLEN-1:1] :
+                                                             ((i0_flush_upper_e1[i]    | i1_flush_upper_e1[i]    ) ? flush_path_e1[i][pt.XLEN-1:1] : '0);
+         assign exu_flush_final_early[i]                   = exu_i0_flush_lower_e4[i] | exu_i1_flush_lower_e4[i] | i0_flush_upper_e1[i] | i1_flush_upper_e1[i];
       end
       else begin
-         assign exu_flush_path_final_early[i][31:1] =    '0;
-         assign exu_flush_final_early[i]            =    '0;
+         assign exu_flush_path_final_early[i][pt.XLEN-1:1] = '0;
+         assign exu_flush_final_early[i]                   = '0;
       end
 
 
-   rvdffpcie #(31) i_pred_correct_npc_e3 (.*, .clk(clk),
+   rvdffpcie #(pt.XLEN-1) i_pred_correct_npc_e3 (.*, .clk(clk),
                                     .en  ( i0_e3_data_en | i1_e3_data_en),
                                     .din ( pred_correct_npc_e2[i]       ),
                                     .dout( pred_correct_npc_e3[i]       ));
 
-   rvdffpcie #(31) i_pred_correct_npc_e4 (.*, .clk(clk),
+   rvdffpcie #(pt.XLEN-1) i_pred_correct_npc_e4 (.*, .clk(clk),
                                     .en  ( i0_e4_data_en | i1_e4_data_en),
                                     .din ( pred_correct_npc_e3[i]       ),
                                     .dout( pred_correct_npc_e4[i]       ));
@@ -742,36 +742,36 @@ import eh2_pkg::*;
 
 
 
-   rvdffpcie #(31) i0_upper_flush_e2_ff  (.*, .clk(clk),
-                                    .en  ( i0_e2_data_en                ),
-                                    .din ( i0_flush_path_e1[31:1]       ),
-                                    .dout( i0_flush_path_upper_e2[31:1] ));
+   rvdffpcie #(pt.XLEN-1) i0_upper_flush_e2_ff  (.*, .clk(clk),
+                                    .en  ( i0_e2_data_en                       ),
+                                    .din ( i0_flush_path_e1[pt.XLEN-1:1]       ),
+                                    .dout( i0_flush_path_upper_e2[pt.XLEN-1:1] ));
 
-   rvdffpcie #(31) i0_upper_flush_e3_ff  (.*, .clk(clk),
-                                    .en  ( i0_e3_data_en                ),
-                                    .din ( i0_flush_path_upper_e2[31:1] ),
-                                    .dout( i0_flush_path_upper_e3[31:1] ));
+   rvdffpcie #(pt.XLEN-1) i0_upper_flush_e3_ff  (.*, .clk(clk),
+                                    .en  ( i0_e3_data_en                       ),
+                                    .din ( i0_flush_path_upper_e2[pt.XLEN-1:1] ),
+                                    .dout( i0_flush_path_upper_e3[pt.XLEN-1:1] ));
 
-   rvdffpcie #(31) i0_upper_flush_e4_ff  (.*, .clk(clk),
-                                    .en  ( i0_e4_data_en                ),
-                                    .din ( i0_flush_path_upper_e3[31:1] ),
-                                    .dout( i0_flush_path_upper_e4[31:1] ));
+   rvdffpcie #(pt.XLEN-1) i0_upper_flush_e4_ff  (.*, .clk(clk),
+                                    .en  ( i0_e4_data_en                       ),
+                                    .din ( i0_flush_path_upper_e3[pt.XLEN-1:1] ),
+                                    .dout( i0_flush_path_upper_e4[pt.XLEN-1:1] ));
 
 
-   rvdffpcie #(31) i1_upper_flush_e2_ff  (.*, .clk(clk),
-                                    .en  ( i1_e2_data_en                ),
-                                    .din ( i1_flush_path_e1[31:1]       ),
-                                    .dout( i1_flush_path_upper_e2[31:1] ));
+   rvdffpcie #(pt.XLEN-1) i1_upper_flush_e2_ff  (.*, .clk(clk),
+                                    .en  ( i1_e2_data_en                       ),
+                                    .din ( i1_flush_path_e1[pt.XLEN-1:1]       ),
+                                    .dout( i1_flush_path_upper_e2[pt.XLEN-1:1] ));
 
-   rvdffpcie #(31) i1_upper_flush_e3_ff  (.*, .clk(clk                  ),
-                                    .en  ( i1_e3_data_en                ),
-                                    .din ( i1_flush_path_upper_e2[31:1] ),
-                                    .dout( i1_flush_path_upper_e3[31:1] ));
+   rvdffpcie #(pt.XLEN-1) i1_upper_flush_e3_ff  (.*, .clk(clk                  ),
+                                    .en  ( i1_e3_data_en                       ),
+                                    .din ( i1_flush_path_upper_e2[pt.XLEN-1:1] ),
+                                    .dout( i1_flush_path_upper_e3[pt.XLEN-1:1] ));
 
-   rvdffpcie #(31) i1_upper_flush_e4_ff  (.*, .clk(clk),
-                                    .en  ( i1_e4_data_en                ),
-                                    .din ( i1_flush_path_upper_e3[31:1] ),
-                                    .dout( i1_flush_path_upper_e4[31:1] ));
+   rvdffpcie #(pt.XLEN-1) i1_upper_flush_e4_ff  (.*, .clk(clk),
+                                    .en  ( i1_e4_data_en                       ),
+                                    .din ( i1_flush_path_upper_e3[pt.XLEN-1:1] ),
+                                    .dout( i1_flush_path_upper_e4[pt.XLEN-1:1] ));
 
 
    // npc for commit
@@ -793,15 +793,15 @@ import eh2_pkg::*;
    assign i1_pred_correct_e4_eff     = (i1_sec_decode_e4) ? i1_pred_correct_lower_e4 : i1_pred_correct_upper_e4;
    assign i0_pred_correct_e4_eff     = (i0_sec_decode_e4) ? i0_pred_correct_lower_e4 : i0_pred_correct_upper_e4;
 
-   assign i1_flush_path_e4_eff[31:1] = (i1_sec_decode_e4) ? exu_i1_flush_path_e4[31:1] : i1_flush_path_upper_e4[31:1];
-   assign i0_flush_path_e4_eff[31:1] = (i0_sec_decode_e4) ? exu_i0_flush_path_e4[31:1] : i0_flush_path_upper_e4[31:1];
+   assign i1_flush_path_e4_eff[pt.XLEN-1:1] = (i1_sec_decode_e4) ? exu_i1_flush_path_e4[pt.XLEN-1:1] : i1_flush_path_upper_e4[pt.XLEN-1:1];
+   assign i0_flush_path_e4_eff[pt.XLEN-1:1] = (i0_sec_decode_e4) ? exu_i0_flush_path_e4[pt.XLEN-1:1] : i0_flush_path_upper_e4[pt.XLEN-1:1];
 
 
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin
      assign i1_valid_e4_eff[i]  =  i1_valid_e4 & (i1_ap_e4.tid==i) & ~((i0_sec_decode_e4 & (i0_ap_e4.tid==i)) ?  exu_i0_flush_lower_e4[i]  :  i0_flush_upper_e4[i]);
 
-     assign exu_npc_e4[i][31:1] = (i1_valid_e4_eff[i]) ? ((i1_pred_correct_e4_eff & (i1_ap_e4.tid==i)) ? pred_correct_npc_e4[i][31:1] : i1_flush_path_e4_eff[31:1]) :
-                                                         ((i0_pred_correct_e4_eff & (i0_ap_e4.tid==i)) ? pred_correct_npc_e4[i][31:1] : i0_flush_path_e4_eff[31:1]);
+     assign exu_npc_e4[i][pt.XLEN-1:1] = (i1_valid_e4_eff[i]) ? ((i1_pred_correct_e4_eff & (i1_ap_e4.tid==i)) ? pred_correct_npc_e4[i][pt.XLEN-1:1] : i1_flush_path_e4_eff[pt.XLEN-1:1]) :
+                                                                ((i0_pred_correct_e4_eff & (i0_ap_e4.tid==i)) ? pred_correct_npc_e4[i][pt.XLEN-1:1] : i0_flush_path_e4_eff[pt.XLEN-1:1]);
    end
 
 

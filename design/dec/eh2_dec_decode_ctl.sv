@@ -202,7 +202,7 @@ import eh2_pkg::*;
    output logic dec_i0_tid_e4, // needed to maintain RS in BP
    output logic dec_i1_tid_e4,
 
-   output logic [31:0] dec_i0_immed_d,     // 32b immediate data decode
+   output logic [pt.XLEN-1:0] dec_i0_immed_d,     // 32b immediate data decode
 
    output logic          dec_i1_rs1_en_d,
    output logic          dec_i1_rs2_en_d,
@@ -212,7 +212,7 @@ import eh2_pkg::*;
 
 
 
-   output logic [31:0] dec_i1_immed_d,
+   output logic [pt.XLEN-1:0] dec_i1_immed_d,
 
    output logic [pt.BTB_TOFFSET_SIZE:1] dec_i0_br_immed_d,    // 12b branch immediate
    output logic [pt.BTB_TOFFSET_SIZE:1] dec_i1_br_immed_d,
@@ -404,8 +404,8 @@ import eh2_pkg::*;
    logic               i0_uiimm20, i1_uiimm20;
 
    logic               lsu_decode_d;
-   logic [31:0]        i0_immed_d;
-   logic [31:0]        i1_immed_d;
+   logic [pt.XLEN-1:0] i0_immed_d;
+   logic [pt.XLEN-1:0] i1_immed_d;
    logic               i0_presync;
    logic               i0_postsync;
 
@@ -1525,16 +1525,16 @@ end
 
 
 // read the csr value through rs2 immed port
-   assign dec_i0_immed_d[31:0] = ({32{ i0_dp.csr_read}} & dec_i0_csr_rddata_d[31:0]) |
-                                 ({32{~i0_dp.csr_read}} & i0_immed_d[31:0]);
+   assign dec_i0_immed_d[pt.XLEN-1:0] = ({pt.XLEN{ i0_dp.csr_read}} & dec_i0_csr_rddata_d[pt.XLEN-1:0]) |
+                                 ({pt.XLEN{~i0_dp.csr_read}} & i0_immed_d[pt.XLEN-1:0]);
 
 // end csr stuff
 
-   assign     i0_immed_d[31:0] = ({32{i0_dp.imm12}} &   { {20{i0[31]}},i0[31:20] }) |  // jalr
-                                 ({32{i0_dp.shimm5}} &    {27'b0, i0[24:20]}) |
-                                 ({32{i0_jalimm20}} &   { {12{i0[31]}},i0[19:12],i0[20],i0[30:21],1'b0}) |
-                                 ({32{i0_uiimm20}}  &     {i0[31:12],12'b0 }) |
-                                 ({32{i0_csr_write_only_d & i0_dp.csr_imm}} & {27'b0,i0[19:15]});  // for csr's that only write csr, dont read csr
+   assign     i0_immed_d[pt.XLEN-1:0] = ({pt.XLEN{i0_dp.imm12}} &   { {pt.XLEN-12{i0[31]}}, i0[31:20] }) |  // jalr
+                                        ({pt.XLEN{i0_dp.shimm5}} &  ( {{pt.XLEN-pt.XLENW{1'b0}}, i0[20+:pt.XLENW]})) |
+                                        ({pt.XLEN{i0_jalimm20}} &   { {pt.XLEN-20{i0[31]}}, i0[19:12],i0[20],i0[30:21],1'b0}) |
+                                        ({pt.XLEN{i0_uiimm20}}  &   { {pt.XLEN-32{i0[31]}}, i0[31:12],12'b0 }) |
+                                        ({pt.XLEN{i0_csr_write_only_d & i0_dp.csr_imm}} & {{pt.XLEN-5{1'b0}}, i0[19:15]});  // for csr's that only write csr, dont read csr
 
 
    // all conditional branches are currently predict_nt
@@ -1549,14 +1549,13 @@ end
    assign dec_i1_rs1_d[4:0] = i1r.rs1[4:0];
    assign dec_i1_rs2_d[4:0] = i1r.rs2[4:0];
 
+   assign     i1_immed_d[pt.XLEN-1:0] = ({pt.XLEN{i1_dp.imm12}} &   { {pt.XLEN-12{i1[31]}},i1[31:20] }) |  // jalr
+                                        ({pt.XLEN{i1_dp.shimm5}} &  { {pt.XLEN-pt.XLENW{1'b0}}, i1[20+:pt.XLENW]}) |
+                                        ({pt.XLEN{i1_jalimm20}} &   { {pt.XLEN-20{i1[31]}},i1[19:12],i1[20],i1[30:21],1'b0}) |
+                                        ({pt.XLEN{i1_uiimm20}}  &   { {pt.XLEN-32{i1[31]}},i1[31:12],12'b0 });
 
-   assign i1_immed_d[31:0] = ({32{i1_dp.imm12}} &   { {20{i1[31]}},i1[31:20] }) |
-                             ({32{i1_dp.shimm5}} &    {27'b0, i1[24:20]}) |
-                             ({32{i1_jalimm20}} &   { {12{i1[31]}},i1[19:12],i1[20],i1[30:21],1'b0}) |
-                             ({32{i1_uiimm20}}  &     {i1[31:12],12'b0 });
 
-
-   assign dec_i1_immed_d[31:0] = i1_immed_d[31:0];
+   assign dec_i1_immed_d[pt.XLEN-1:0] = i1_immed_d[pt.XLEN-1:0];
 
 
    // jal is always +2 or +4

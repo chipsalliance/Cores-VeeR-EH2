@@ -25,21 +25,22 @@ import eh2_pkg::*;
    input logic           scan_mode,                 // Scan mode
 
    input eh2_div_pkt_t  dp,                        // valid, sign, rem
-   input logic  [31:0]   dividend,                  // Numerator
-   input logic  [31:0]   divisor,                   // Denominator
+   input logic  [pt.XLEN-1:0]   dividend,                  // Numerator
+   input logic  [pt.XLEN-1:0]   divisor,                   // Denominator
 
    input logic           cancel,                    // Cancel divide
 
 
    output logic          finish_dly,                // Finish to match data
-   output logic [31:0]   out                        // Result
+   output logic [pt.XLEN-1:0]   out                        // Result
   );
 
-   logic [31:0]          out_raw;
+
+   logic [pt.XLEN-1:0]          out_raw;
 
 
 
-   assign out[31:0] = {32{finish_dly}} & out_raw[31:0];     // Qualification added to quiet result bus while divide is iterating
+   assign out[pt.XLEN-1:0] = {pt.XLEN{finish_dly}} & out_raw[pt.XLEN-1:0];     // Qualification added to quiet result bus while divide is iterating
 
 
 
@@ -53,10 +54,10 @@ import eh2_pkg::*;
             .valid_in         ( dp.valid                 ),   // I
             .signed_in        (~dp.unsign                ),   // I
             .rem_in           ( dp.rem                   ),   // I
-            .dividend_in      ( dividend[31:0]           ),   // I
-            .divisor_in       ( divisor[31:0]            ),   // I
+            .dividend_in      ( dividend[pt.XLEN-1:0]    ),   // I
+            .divisor_in       ( divisor[pt.XLEN-1:0]     ),   // I
             .valid_out        ( finish_dly               ),   // O
-            .data_out         ( out_raw[31:0]            ));  // O
+            .data_out         ( out_raw[pt.XLEN-1:0]     ));  // O
       end
 
 
@@ -70,10 +71,10 @@ import eh2_pkg::*;
             .valid_in         ( dp.valid                 ),   // I
             .signed_in        (~dp.unsign                ),   // I
             .rem_in           ( dp.rem                   ),   // I
-            .dividend_in      ( dividend[31:0]           ),   // I
-            .divisor_in       ( divisor[31:0]            ),   // I
+            .dividend_in      ( dividend[pt.XLEN-1:0]    ),   // I
+            .divisor_in       ( divisor[pt.XLEN-1:0]     ),   // I
             .valid_out        ( finish_dly               ),   // O
-            .data_out         ( out_raw[31:0]            ));  // O
+            .data_out         ( out_raw[pt.XLEN-1:0]     ));  // O
       end
 
 
@@ -87,10 +88,10 @@ import eh2_pkg::*;
             .valid_in         ( dp.valid                 ),   // I
             .signed_in        (~dp.unsign                ),   // I
             .rem_in           ( dp.rem                   ),   // I
-            .dividend_in      ( dividend[31:0]           ),   // I
-            .divisor_in       ( divisor[31:0]            ),   // I
+            .dividend_in      ( dividend[pt.XLEN-1:0]    ),   // I
+            .divisor_in       ( divisor[pt.XLEN-1:0]     ),   // I
             .valid_out        ( finish_dly               ),   // O
-            .data_out         ( out_raw[31:0]            ));  // O
+            .data_out         ( out_raw[pt.XLEN-1:0]     ));  // O
       end
 
 
@@ -104,10 +105,10 @@ import eh2_pkg::*;
             .valid_in         ( dp.valid                 ),   // I
             .signed_in        (~dp.unsign                ),   // I
             .rem_in           ( dp.rem                   ),   // I
-            .dividend_in      ( dividend[31:0]           ),   // I
-            .divisor_in       ( divisor[31:0]            ),   // I
+            .dividend_in      ( dividend[pt.XLEN-1:0]    ),   // I
+            .divisor_in       ( divisor[pt.XLEN-1:0]     ),   // I
             .valid_out        ( finish_dly               ),   // O
-            .data_out         ( out_raw[31:0]            ));  // O
+            .data_out         ( out_raw[pt.XLEN-1:0]     ));  // O
       end
 
 
@@ -121,10 +122,10 @@ import eh2_pkg::*;
             .valid_in         ( dp.valid                 ),   // I
             .signed_in        (~dp.unsign                ),   // I
             .rem_in           ( dp.rem                   ),   // I
-            .dividend_in      ( dividend[31:0]           ),   // I
-            .divisor_in       ( divisor[31:0]            ),   // I
+            .dividend_in      ( dividend[pt.XLEN-1:0]    ),   // I
+            .divisor_in       ( divisor[pt.XLEN-1:0]     ),   // I
             .valid_out        ( finish_dly               ),   // O
-            .data_out         ( out_raw[31:0]            ));  // O
+            .data_out         ( out_raw[pt.XLEN-1:0]     ));  // O
       end
 
 
@@ -137,6 +138,9 @@ endmodule // eh2_exu_div_ctl
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 module eh2_exu_div_existing_1bit_cheapshortq
+#(
+`include "eh2_param.vh"
+)
   (
    input  logic            clk,                       // Top level clock
    input  logic            rst_l,                     // Reset
@@ -146,36 +150,36 @@ module eh2_exu_div_existing_1bit_cheapshortq
    input  logic            valid_in,
    input  logic            signed_in,
    input  logic            rem_in,
-   input  logic [31:0]     dividend_in,
-   input  logic [31:0]     divisor_in,
+   input  logic [pt.XLEN-1:0]     dividend_in,
+   input  logic [pt.XLEN-1:0]     divisor_in,
 
    output logic            valid_out,
-   output logic [31:0]     data_out
+   output logic [pt.XLEN-1:0]     data_out
   );
 
 
    logic         div_clken;
    logic         run_in, run_state;
-   logic [5:0]   count_in, count;
-   logic [32:0]  m_ff;
+   logic [pt.XLENW:0] count_in, count;
+   logic [pt.XLEN:0] m_ff;
    logic         qff_enable;
    logic         aff_enable;
-   logic [32:0]  q_in, q_ff;
-   logic [32:0]  a_in, a_ff;
-   logic [32:0]  m_eff;
-   logic [32:0]  a_shift;
+   logic [pt.XLEN:0] q_in, q_ff;
+   logic [pt.XLEN:0] a_in, a_ff;
+   logic [pt.XLEN:0] m_eff;
+   logic [pt.XLEN:0] a_shift;
    logic         dividend_neg_ff, divisor_neg_ff;
-   logic [31:0]  dividend_comp;
-   logic [31:0]  dividend_eff;
-   logic [31:0]  q_ff_comp;
-   logic [31:0]  q_ff_eff;
-   logic [31:0]  a_ff_comp;
-   logic [31:0]  a_ff_eff;
+   logic [pt.XLEN-1:0] dividend_comp;
+   logic [pt.XLEN-1:0] dividend_eff;
+   logic [pt.XLEN-1:0] q_ff_comp;
+   logic [pt.XLEN-1:0] q_ff_eff;
+   logic [pt.XLEN-1:0] a_ff_comp;
+   logic [pt.XLEN-1:0] a_ff_eff;
    logic         sign_ff, sign_eff;
    logic         rem_ff;
    logic         add;
-   logic [32:0]  a_eff;
-   logic [64:0]  a_eff_shift;
+   logic [pt.XLEN:0]   a_eff;
+   logic [2*pt.XLEN:0] a_eff_shift;
    logic         rem_correct;
    logic         valid_ff_x;
    logic         valid_x;
@@ -193,7 +197,7 @@ module eh2_exu_div_existing_1bit_cheapshortq
    logic [5:0]   shortq;
    logic         shortq_enable;
    logic         shortq_enable_ff;
-   logic [32:0]  short_dividend;
+   logic [pt.XLEN:0]  short_dividend;
    logic [3:0]   shortq_raw;
    logic [3:0]   shortq_shift_xx;
 
@@ -202,17 +206,17 @@ module eh2_exu_div_existing_1bit_cheapshortq
    rvdffe #(18) i_misc_ff         (.*, .clk(clk), .en(div_clken), .din ({valid_in & ~cancel,
                                                                          finish   & ~cancel,
                                                                          run_in,
-                                                                         count_in[5:0],
+                                                                         count_in[pt.XLENW:0],
                                                                          shortq_enable,
                                                                          shortq_shift[3:0],
-                                                                         (valid_in & dividend_in[31]) | (~valid_in & dividend_neg_ff),
-                                                                         (valid_in & divisor_in[31] ) | (~valid_in & divisor_neg_ff ),
+                                                                         (valid_in & dividend_in[pt.XLEN-1]) | (~valid_in & dividend_neg_ff),
+                                                                         (valid_in & divisor_in[pt.XLEN-1] ) | (~valid_in & divisor_neg_ff ),
                                                                          (valid_in & sign_eff       ) | (~valid_in & sign_ff        ),
                                                                          (valid_in & rem_in         ) | (~valid_in & rem_ff         )} ),
                                                                   .dout({valid_ff_x,
                                                                          finish_ff,
                                                                          run_state,
-                                                                         count[5:0],
+                                                                         count[pt.XLENW:0],
                                                                          shortq_enable_ff,
                                                                          shortq_shift_xx[3:0],
                                                                          dividend_neg_ff,
@@ -231,13 +235,13 @@ module eh2_exu_div_existing_1bit_cheapshortq
                                                                          smallnum_case_wb,
                                                                          smallnum_ff[3:0]}));
 
-   rvdffe #(33) mff               (.*, .clk(clk), .en(valid_in),     .din({signed_in & divisor_in[31], divisor_in[31:0]}),   .dout(m_ff[32:0]));
-   rvdffe #(33) qff               (.*, .clk(clk), .en(qff_enable),   .din(q_in[32:0]),                                       .dout(q_ff[32:0]));
-   rvdffe #(33) aff               (.*, .clk(clk), .en(aff_enable),   .din(a_in[32:0]),                                       .dout(a_ff[32:0]));
+   rvdffe #(pt.XLEN+1) mff               (.*, .clk(clk), .en(valid_in),     .din({signed_in & divisor_in[pt.XLEN-1], divisor_in[pt.XLEN-1:0]}),   .dout(m_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN+1) qff               (.*, .clk(clk), .en(qff_enable),   .din(q_in[pt.XLEN:0]),                                       .dout(q_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN+1) aff               (.*, .clk(clk), .en(aff_enable),   .din(a_in[pt.XLEN:0]),                                       .dout(a_ff[pt.XLEN:0]));
 
-   rvtwoscomp #(32) i_dividend_comp (.din(q_ff[31:0]),    .dout(dividend_comp[31:0]));
-   rvtwoscomp #(32) i_q_ff_comp     (.din(q_ff[31:0]),    .dout(q_ff_comp[31:0]));
-   rvtwoscomp #(32) i_a_ff_comp     (.din(a_ff[31:0]),    .dout(a_ff_comp[31:0]));
+   rvtwoscomp #(pt.XLEN) i_dividend_comp (.din(q_ff[pt.XLEN-1:0]),    .dout(dividend_comp[pt.XLEN-1:0]));
+   rvtwoscomp #(pt.XLEN) i_q_ff_comp     (.din(q_ff[pt.XLEN-1:0]),    .dout(q_ff_comp[pt.XLEN-1:0]));
+   rvtwoscomp #(pt.XLEN) i_a_ff_comp     (.din(a_ff[pt.XLEN-1:0]),    .dout(a_ff_comp[pt.XLEN-1:0]));
 
 
    assign valid_x                 = valid_ff_x & ~cancel;
@@ -251,8 +255,8 @@ module eh2_exu_div_existing_1bit_cheapshortq
    // 2.  espresso -Dso -oeqntott smalldiv.e | addassign > smalldiv
 
    // smallnum case does not cover divide by 0
-   assign smallnum_case_e1        = ((q_ff[31:4] == 28'b0) & (m_ff[31:4] == 28'b0) & (m_ff[31:0] != 32'b0) & ~rem_ff & valid_x) |
-                                    ((q_ff[31:0] == 32'b0) &                         (m_ff[31:0] != 32'b0) & ~rem_ff & valid_x);
+   assign smallnum_case_e1        = ((q_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & (m_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & (m_ff[pt.XLEN-1:0] != {pt.XLEN{1'b0}}) & ~rem_ff & valid_x) |
+                                    ((q_ff[pt.XLEN-1:0] == {pt.XLEN{1'b0}}  ) &                                            (m_ff[pt.XLEN-1:0] != {pt.XLEN{1'b0}}) & ~rem_ff & valid_x);
 
 
    assign smallnum[3]             = ( q_ff[3] &                                  ~m_ff[3] & ~m_ff[2] & ~m_ff[1]           );
@@ -310,8 +314,8 @@ module eh2_exu_div_existing_1bit_cheapshortq
 
    // *** Start Short Q *** {{
 
-   assign short_dividend[31:0]    =  q_ff[31:0];
-   assign short_dividend[32]      =  sign_ff & q_ff[31];
+   assign short_dividend[pt.XLEN-1:0] =  q_ff[pt.XLEN-1:0];
+   assign short_dividend[pt.XLEN]     =  sign_ff & q_ff[pt.XLEN-1];
 
 
    //    A       B
@@ -335,14 +339,14 @@ module eh2_exu_div_existing_1bit_cheapshortq
    //   000     1xx    32
 
    assign a_cls[4:3]              =  2'b0;
-   assign a_cls[2]                =  (~short_dividend[32] & (short_dividend[31:24] != {8{1'b0}})) | ( short_dividend[32] & (short_dividend[31:23] != {9{1'b1}}));
-   assign a_cls[1]                =  (~short_dividend[32] & (short_dividend[23:16] != {8{1'b0}})) | ( short_dividend[32] & (short_dividend[22:15] != {8{1'b1}}));
-   assign a_cls[0]                =  (~short_dividend[32] & (short_dividend[15:08] != {8{1'b0}})) | ( short_dividend[32] & (short_dividend[14:07] != {8{1'b1}}));
+   assign a_cls[2]                =  (~short_dividend[pt.XLEN] & (short_dividend[pt.XLEN-1:24] != {pt.XLEN-24{1'b0}})) | ( short_dividend[pt.XLEN] & (short_dividend[pt.XLEN-1:23] != {pt.XLEN-23{1'b1}}));
+   assign a_cls[1]                =  (~short_dividend[pt.XLEN] & (short_dividend[23:16]        != {8{1'b0}}))          | ( short_dividend[pt.XLEN] & (short_dividend[22:15]        != {8{1'b1}}));
+   assign a_cls[0]                =  (~short_dividend[pt.XLEN] & (short_dividend[15:08]        != {8{1'b0}}))          | ( short_dividend[pt.XLEN] & (short_dividend[14:07]        != {8{1'b1}}));
 
    assign b_cls[4:3]              =  2'b0;
-   assign b_cls[2]                =  (~m_ff[32]           & (          m_ff[31:24] != {8{1'b0}})) | ( m_ff[32]           & (          m_ff[31:24] != {8{1'b1}}));
-   assign b_cls[1]                =  (~m_ff[32]           & (          m_ff[23:16] != {8{1'b0}})) | ( m_ff[32]           & (          m_ff[23:16] != {8{1'b1}}));
-   assign b_cls[0]                =  (~m_ff[32]           & (          m_ff[15:08] != {8{1'b0}})) | ( m_ff[32]           & (          m_ff[15:08] != {8{1'b1}}));
+   assign b_cls[2]                =  (~m_ff[pt.XLEN]           & (          m_ff[pt.XLEN-1:24] != {pt.XLEN-24{1'b0}})) | ( m_ff[pt.XLEN]           & (          m_ff[pt.XLEN-1:24] != {pt.XLEN-24{1'b1}}));
+   assign b_cls[1]                =  (~m_ff[pt.XLEN]           & (          m_ff[23:16]        != {8{1'b0}}))          | ( m_ff[pt.XLEN]           & (          m_ff[23:16]        != {8{1'b1}}));
+   assign b_cls[0]                =  (~m_ff[pt.XLEN]           & (          m_ff[15:08]        != {8{1'b0}}))          | ( m_ff[pt.XLEN]           & (          m_ff[15:08]        != {8{1'b1}}));
 
    assign shortq_raw[3]           = ( (a_cls[2:1] == 2'b01 ) & (b_cls[2]   == 1'b1  ) ) |   // Shift by 32
                                     ( (a_cls[2:0] == 3'b001) & (b_cls[2]   == 1'b1  ) ) |
@@ -364,7 +368,7 @@ module eh2_exu_div_existing_1bit_cheapshortq
                                     ( (a_cls[2:1] == 2'b01 ) & (b_cls[2:0] == 3'b000) );
 
 
-   assign shortq_enable           =  valid_ff_x & (m_ff[31:0] != 32'b0) & (shortq_raw[3:0] != 4'b0) & ~smallnum_case_e1;
+   assign shortq_enable           =  valid_ff_x & (m_ff[pt.XLEN-1:0] != (pt.XLEN)'('b0)) & (shortq_raw[3:0] != 4'b0) & ~smallnum_case_e1;
 
    assign shortq_shift[3:0]       = ({4{shortq_enable}} & shortq_raw[3:0]);
 
@@ -386,59 +390,59 @@ module eh2_exu_div_existing_1bit_cheapshortq
 
    assign run_in                  = (valid_in | run_state) & ~finish & ~cancel;
 
-   assign count_in[5:0]           = {6{run_state & ~finish & ~cancel & ~shortq_enable}} & (count[5:0] + {1'b0,shortq_shift_ff[4:0]} + 6'd1);
+   assign count_in[pt.XLENW:0]    = {pt.XLENW+1{run_state & ~finish & ~cancel & ~shortq_enable}} & (count[pt.XLENW:0] + {{pt.XLENW-4{1'b0}},shortq_shift_ff[4:0]} + {{pt.XLENW{1'b0}}, 1'd1});
 
 
-   assign finish                  = (smallnum_case_e4 | ((~rem_ff) ? (count[5:0] == 6'd32) : (count[5:0] == 6'd33)));
+   assign finish                  = (smallnum_case_e4 | ((~rem_ff) ? (count[pt.XLENW:0] == (pt.XLENW+1)'(pt.XLEN)) : (count[pt.XLENW:0] == (pt.XLENW+1)'(pt.XLEN+1))));
 
    assign valid_out               =  finish_ff & ~cancel;
 
-   assign sign_eff                =  signed_in & (divisor_in[31:0] != 32'b0);
+   assign sign_eff                =  signed_in & (divisor_in[pt.XLEN-1:0] != (pt.XLEN)'('0));
 
 
-   assign q_in[32:0]              = ({33{~run_state                                   }} &  {1'b0,dividend_in[31:0]}) |
-                                    ({33{ run_state &  (valid_ff_x | shortq_enable_ff)}} &  ({dividend_eff[31:0], ~a_in[32]} << shortq_shift_ff[4:0])) |
-                                    ({33{ run_state & ~(valid_ff_x | shortq_enable_ff)}} &  {q_ff[31:0], ~a_in[32]});
+   assign q_in[pt.XLEN:0]         = ({pt.XLEN+1{~run_state                                   }} &  {1'b0,dividend_in[pt.XLEN-1:0]}) |
+                                    ({pt.XLEN+1{ run_state &  (valid_ff_x | shortq_enable_ff)}} &  ({dividend_eff[pt.XLEN-1:0], ~a_in[pt.XLEN]} << shortq_shift_ff[4:0])) |
+                                    ({pt.XLEN+1{ run_state & ~(valid_ff_x | shortq_enable_ff)}} &  {q_ff[pt.XLEN-1:0], ~a_in[pt.XLEN]});
 
    assign qff_enable              =  valid_in | (run_state & ~shortq_enable);
 
 
 
 
-   assign dividend_eff[31:0]      = (sign_ff & dividend_neg_ff) ? dividend_comp[31:0] : q_ff[31:0];
+   assign dividend_eff[pt.XLEN-1:0] = (sign_ff & dividend_neg_ff) ? dividend_comp[pt.XLEN-1:0] : q_ff[pt.XLEN-1:0];
 
 
-   assign m_eff[32:0]             = ( add ) ? m_ff[32:0] : ~m_ff[32:0];
+   assign m_eff[pt.XLEN:0]        = ( add ) ? m_ff[pt.XLEN:0] : ~m_ff[pt.XLEN:0];
 
-   assign a_eff_shift[64:0]       = {33'b0, dividend_eff[31:0]} << shortq_shift_ff[4:0];
+   assign a_eff_shift[2*pt.XLEN:0] = {{pt.XLEN+1{1'b0}}, dividend_eff[pt.XLEN-1:0]} << shortq_shift_ff[4:0];
 
-   assign a_eff[32:0]             = ({33{ rem_correct                    }} &  a_ff[32:0]            ) |
-                                    ({33{~rem_correct & ~shortq_enable_ff}} & {a_ff[31:0], q_ff[32]} ) |
-                                    ({33{~rem_correct &  shortq_enable_ff}} &  a_eff_shift[64:32]    );
+   assign a_eff[pt.XLEN:0]        = ({pt.XLEN+1{ rem_correct                    }} &  a_ff[pt.XLEN:0]                   ) |
+                                    ({pt.XLEN+1{~rem_correct & ~shortq_enable_ff}} & {a_ff[pt.XLEN-1:0], q_ff[pt.XLEN]} ) |
+                                    ({pt.XLEN+1{~rem_correct &  shortq_enable_ff}} &  a_eff_shift[2*pt.XLEN:pt.XLEN]    );
 
-   assign a_shift[32:0]           = {33{run_state}} & a_eff[32:0];
+   assign a_shift[pt.XLEN:0]      = {pt.XLEN+1{run_state}} & a_eff[pt.XLEN:0];
 
-   assign a_in[32:0]              = {33{run_state}} & (a_shift[32:0] + m_eff[32:0] + {32'b0,~add});
+   assign a_in[pt.XLEN:0]         = {pt.XLEN+1{run_state}} & (a_shift[pt.XLEN:0] + m_eff[pt.XLEN:0] + {{pt.XLEN{1'b0}},~add});
 
-   assign aff_enable              =  valid_in | (run_state & ~shortq_enable & (count[5:0]!=6'd33)) | rem_correct;
+   assign aff_enable              =  valid_in | (run_state & ~shortq_enable & (count[pt.XLENW:0]!=(pt.XLENW+1)'(pt.XLEN+1))) | rem_correct;
 
 
    assign m_already_comp          = (divisor_neg_ff & sign_ff);
 
    // if m already complemented, then invert operation add->sub, sub->add
-   assign add                     = (a_ff[32] | rem_correct) ^ m_already_comp;
+   assign add                     = (a_ff[pt.XLEN] | rem_correct) ^ m_already_comp;
 
-   assign rem_correct             = (count[5:0] == 6'd33) & rem_ff & a_ff[32];
+   assign rem_correct             = (count[pt.XLENW:0] == (pt.XLENW+1)'(pt.XLEN+1)) & rem_ff & a_ff[pt.XLEN];
 
 
 
-   assign q_ff_eff[31:0]          = (sign_ff & (dividend_neg_ff ^ divisor_neg_ff)) ? q_ff_comp[31:0] : q_ff[31:0];
+   assign q_ff_eff[pt.XLEN-1:0]   = (sign_ff & (dividend_neg_ff ^ divisor_neg_ff)) ? q_ff_comp[pt.XLEN-1:0] : q_ff[pt.XLEN-1:0];
 
-   assign a_ff_eff[31:0]          = (sign_ff &  dividend_neg_ff) ? a_ff_comp[31:0] : a_ff[31:0];
+   assign a_ff_eff[pt.XLEN-1:0]   = (sign_ff &  dividend_neg_ff) ? a_ff_comp[pt.XLEN-1:0] : a_ff[pt.XLEN-1:0];
 
-   assign data_out[31:0]          = ({32{ smallnum_case_wb          }} & {28'b0, smallnum_ff[3:0]}) |
-                                    ({32{                     rem_ff}} &  a_ff_eff[31:0]          ) |
-                                    ({32{~smallnum_case_wb & ~rem_ff}} &  q_ff_eff[31:0]          );
+   assign data_out[pt.XLEN-1:0]   = ({pt.XLEN{ smallnum_case_wb          }} & {{pt.XLEN-4{1'b0}}, smallnum_ff[3:0]}) |
+                                    ({pt.XLEN{                     rem_ff}} &  a_ff_eff[pt.XLEN-1:0]          ) |
+                                    ({pt.XLEN{~smallnum_case_wb & ~rem_ff}} &  q_ff_eff[pt.XLEN-1:0]          );
 
 
 
@@ -452,20 +456,23 @@ endmodule // eh2_exu_div_existing_1bit_cheapshortq
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 module eh2_exu_div_new_1bit_fullshortq
+#(
+`include "eh2_param.vh"
+)
   (
-   input  logic            clk,                       // Top level clock
-   input  logic            rst_l,                     // Reset
-   input  logic            scan_mode,                 // Scan mode
+   input  logic               clk,                       // Top level clock
+   input  logic               rst_l,                     // Reset
+   input  logic               scan_mode,                 // Scan mode
 
-   input  logic            cancel,                    // Flush pipeline
-   input  logic            valid_in,
-   input  logic            signed_in,
-   input  logic            rem_in,
-   input  logic [31:0]     dividend_in,
-   input  logic [31:0]     divisor_in,
+   input  logic               cancel,                    // Flush pipeline
+   input  logic               valid_in,
+   input  logic               signed_in,
+   input  logic               rem_in,
+   input  logic [pt.XLEN-1:0] dividend_in,
+   input  logic [pt.XLEN-1:0] divisor_in,
 
-   output logic            valid_out,
-   output logic [31:0]     data_out
+   output logic               valid_out,
+   output logic [pt.XLEN-1:0] data_out
   );
 
 
@@ -473,54 +480,54 @@ module eh2_exu_div_new_1bit_fullshortq
    logic                   finish_raw, finish, finish_ff;
    logic                   running_state;
    logic                   misc_enable;
-   logic        [2:0]      control_in, control_ff;
+   logic [2:0]             control_in, control_ff;
    logic                   dividend_sign_ff, divisor_sign_ff, rem_ff;
    logic                   count_enable;
-   logic        [6:0]      count_in, count_ff;
+   logic [pt.XLENW+1:0]      count_in, count_ff;
 
    logic                   smallnum_case;
-   logic        [3:0]      smallnum;
+   logic [3:0]             smallnum;
 
    logic                   a_enable, a_shift;
-   logic        [31:0]     a_in, a_ff;
+   logic [pt.XLEN-1:0]     a_in, a_ff;
 
    logic                   b_enable, b_twos_comp;
-   logic        [32:0]     b_in, b_ff;
+   logic [pt.XLEN:0]       b_in, b_ff;
 
-   logic        [31:0]     q_in, q_ff;
+   logic [pt.XLEN-1:0]     q_in, q_ff;
 
    logic                   rq_enable, r_sign_sel, r_restore_sel, r_adder_sel;
-   logic        [31:0]     r_in, r_ff;
+   logic [pt.XLEN-1:0]     r_in, r_ff;
 
    logic                   twos_comp_q_sel, twos_comp_b_sel;
-   logic        [31:0]     twos_comp_in, twos_comp_out;
+   logic [pt.XLEN-1:0]     twos_comp_in, twos_comp_out;
 
    logic                   quotient_set;
-   logic        [32:0]     adder_out;
+   logic [pt.XLEN:0]       adder_out;
 
-   logic        [63:0]     ar_shifted;
-   logic        [5:0]      shortq;
-   logic        [4:0]      shortq_shift;
-   logic        [4:0]      shortq_shift_ff;
+   logic [(2*pt.XLEN)-1:0] ar_shifted;
+   logic [5:0]             shortq;
+   logic [4:0]             shortq_shift;
+   logic [4:0]             shortq_shift_ff;
    logic                   shortq_neg_or_zero;
    logic                   shortq_enable;
    logic                   shortq_enable_ff;
-   logic        [32:0]     shortq_dividend;
+   logic [pt.XLEN:0]       shortq_dividend;
 
    logic                   by_zero_case;
 
-   logic         [4:1]     special_in;
-   logic         [4:1]     special_ff;
+   logic [4:1]             special_in;
+   logic [4:1]             special_ff;
 
 
 
-   rvdffe #(22) i_misc_ff        (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[6:0], special_in[4:1], shortq_enable,    shortq_shift[4:0],    finish   }),
-                                                                    .dout({valid_ff,    control_ff[2:0], count_ff[6:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:0], finish_ff}) );
+   rvdffe #(16+pt.XLENW+1) i_misc_ff  (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[pt.XLENW+1:0], special_in[4:1], shortq_enable,    shortq_shift[4:0],    finish   }),
+                                                                         .dout({valid_ff,    control_ff[2:0], count_ff[pt.XLENW+1:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:0], finish_ff}) );
 
-   rvdffe #(32) i_a_ff           (.*, .clk(clk), .en(a_enable),     .din(a_in[31:0]),    .dout(a_ff[31:0]));
-   rvdffe #(33) i_b_ff           (.*, .clk(clk), .en(b_enable),     .din(b_in[32:0]),    .dout(b_ff[32:0]));
-   rvdffe #(32) i_r_ff           (.*, .clk(clk), .en(rq_enable),    .din(r_in[31:0]),    .dout(r_ff[31:0]));
-   rvdffe #(32) i_q_ff           (.*, .clk(clk), .en(rq_enable),    .din(q_in[31:0]),    .dout(q_ff[31:0]));
+   rvdffe #(pt.XLEN)     i_a_ff    (.*, .clk(clk), .en(a_enable),     .din(a_in[pt.XLEN-1:0]),    .dout(a_ff[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN+1)   i_b_ff    (.*, .clk(clk), .en(b_enable),     .din(b_in[pt.XLEN:0]),      .dout(b_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN)     i_r_ff    (.*, .clk(clk), .en(rq_enable),    .din(r_in[pt.XLEN-1:0]),    .dout(r_ff[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN)     i_q_ff    (.*, .clk(clk), .en(rq_enable),    .din(q_in[pt.XLEN-1:0]),    .dout(q_ff[pt.XLEN-1:0]));
 
 
 
@@ -531,8 +538,8 @@ module eh2_exu_div_new_1bit_fullshortq
 
    assign valid_ff_in            =  valid_in  & ~cancel;
 
-   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[31]);
-   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[31]);
+   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[pt.XLEN-1]);
+   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[pt.XLEN-1]);
    assign control_in[0]          = (~valid_in & control_ff[0]) | (valid_in & rem_in);
 
    assign dividend_sign_ff       =  control_ff[2];
@@ -540,35 +547,35 @@ module eh2_exu_div_new_1bit_fullshortq
    assign rem_ff                 =  control_ff[0];
 
 
-   assign by_zero_case           =  valid_ff & (b_ff[31:0] == 32'b0);
+   assign by_zero_case           =  valid_ff & (b_ff[pt.XLEN-1:0] == {pt.XLEN{1'b0}});
 
    assign misc_enable            =  valid_in | valid_ff | cancel | running_state | finish_ff;
-   assign running_state          = (| count_ff[6:0]) | shortq_enable_ff;
+   assign running_state          = (| count_ff[pt.XLENW+1:0]) | shortq_enable_ff;
    assign finish_raw             =   special_ff[3] |
-                                    (count_ff[6:0] == 7'd32);
+                                    (count_ff[pt.XLENW+1:0] == (pt.XLENW+2)'(pt.XLEN));
 
 
    assign finish                 =  finish_raw & ~cancel;
    assign count_enable           = (valid_ff | running_state) & ~finish & ~finish_ff & ~cancel & ~shortq_enable;
-   assign count_in[6:0]          = {7{count_enable}} & (count_ff[6:0] + {6'b0,1'b1} + {2'b0,shortq_shift_ff[4:0]});
+   assign count_in[pt.XLENW+1:0]      = {pt.XLENW+2{count_enable}} & (count_ff[pt.XLENW+1:0] + {{pt.XLENW+1{1'b0}},1'b1} + {2'b0,shortq_shift_ff[4:0]});
 
 
    assign a_enable               =  valid_in | running_state;
    assign a_shift                =  running_state & ~shortq_enable_ff;
 
-   assign ar_shifted[63:0]       = { {32{dividend_sign_ff}} , a_ff[31:0]} << shortq_shift_ff[4:0];
+   assign ar_shifted[(2*pt.XLEN)-1:0] = { {pt.XLEN{dividend_sign_ff}} , a_ff[pt.XLEN-1:0]} << shortq_shift_ff[4:0];
 
-   assign a_in[31:0]             = ( {32{~a_shift & ~shortq_enable_ff}} &  dividend_in[31:0] ) |
-                                   ( {32{ a_shift                    }} & {a_ff[30:0],1'b0}  ) |
-                                   ( {32{            shortq_enable_ff}} &  ar_shifted[31:0]  );
+   assign a_in[pt.XLEN-1:0]      = ( {pt.XLEN{~a_shift & ~shortq_enable_ff}} &  dividend_in[pt.XLEN-1:0] ) |
+                                   ( {pt.XLEN{ a_shift                    }} & {a_ff[pt.XLEN-2:0],1'b0}  ) |
+                                   ( {pt.XLEN{            shortq_enable_ff}} &  ar_shifted[pt.XLEN-1:0]  );
 
 
 
    assign b_enable               =    valid_in | b_twos_comp;
    assign b_twos_comp            =    valid_ff & ~(dividend_sign_ff ^ divisor_sign_ff);
 
-   assign b_in[32:0]             = ( {33{~b_twos_comp}} & { (signed_in & divisor_in[31]),divisor_in[31:0] } ) |
-                                   ( {33{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[31:0] } );
+   assign b_in[pt.XLEN:0]        = ( {pt.XLEN+1{~b_twos_comp}} & { (signed_in & divisor_in[pt.XLEN-1]),divisor_in[pt.XLEN-1:0] } ) |
+                                   ( {pt.XLEN+1{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[pt.XLEN-1:0] } );
 
 
    assign rq_enable              = (valid_in | valid_ff | running_state) & ~(| special_ff[3:1]);
@@ -577,49 +584,49 @@ module eh2_exu_div_new_1bit_fullshortq
    assign r_adder_sel            =  running_state &  quotient_set & ~shortq_enable_ff;
 
 
-   assign r_in[31:0]             = ( {32{r_sign_sel      }} &  32'hffffffff          ) |
-                                   ( {32{r_restore_sel   }} & {r_ff[30:0] ,a_ff[31]} ) |
-                                   ( {32{r_adder_sel     }} &  adder_out[31:0]       ) |
-                                   ( {32{shortq_enable_ff}} &  ar_shifted[63:32]     ) |
-                                   ( {32{by_zero_case    }} &  a_ff[31:0]            );
+   assign r_in[pt.XLEN-1:0]      = ( {pt.XLEN{r_sign_sel      }} & {pt.XLEN{1'b1}}                      ) |
+                                   ( {pt.XLEN{r_restore_sel   }} & {r_ff[pt.XLEN-2:0], a_ff[pt.XLEN-1]} ) |
+                                   ( {pt.XLEN{r_adder_sel     }} &  adder_out[pt.XLEN-1:0]              ) |
+                                   ( {pt.XLEN{shortq_enable_ff}} &  ar_shifted[(2*pt.XLEN)-1:pt.XLEN]   ) |
+                                   ( {pt.XLEN{by_zero_case    }} &  a_ff[pt.XLEN-1:0]                   );
 
 
-   assign q_in[31:0]             = ( {32{~valid_ff       }} & {q_ff[30:0], quotient_set}  ) |
-                                   ( {32{ smallnum_case  }} & {28'b0     , smallnum[3:0]} ) |
-                                   ( {32{ by_zero_case   }} & {32{1'b1}}                  );
+   assign q_in[pt.XLEN-1:0]      = ( {pt.XLEN{~valid_ff       }} & {q_ff[pt.XLEN-2:0], quotient_set}  ) |
+                                   ( {pt.XLEN{ smallnum_case  }} & {{pt.XLEN-4{1'b0}}, smallnum[3:0]} ) |
+                                   ( {pt.XLEN{ by_zero_case   }} & {pt.XLEN{1'b1}}                    );
 
 
 
-   assign adder_out[32:0]        = {r_ff[31:0],a_ff[31]} + {b_ff[32:0] };
+   assign adder_out[pt.XLEN:0]   = {r_ff[pt.XLEN-1:0],a_ff[pt.XLEN-1]} + {b_ff[pt.XLEN:0] };
 
 
-   assign quotient_set           = (~adder_out[32] ^ dividend_sign_ff) | ( (a_ff[30:0] == 31'b0) & (adder_out[32:0] == 33'b0) );
+   assign quotient_set           = (~adder_out[pt.XLEN] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-2:0] == {pt.XLEN-1{1'b0}}) & (adder_out[pt.XLEN:0] == {pt.XLEN+1{1'b0}}) );
 
 
 
    assign twos_comp_b_sel        =  valid_ff           & ~(dividend_sign_ff ^ divisor_sign_ff);
    assign twos_comp_q_sel        = ~valid_ff & ~rem_ff &  (dividend_sign_ff ^ divisor_sign_ff) & ~special_ff[4];
 
-   assign twos_comp_in[31:0]     = ( {32{twos_comp_q_sel}} & q_ff[31:0] ) |
-                                   ( {32{twos_comp_b_sel}} & b_ff[31:0] );
+   assign twos_comp_in[pt.XLEN-1:0] = ( {pt.XLEN{twos_comp_q_sel}} & q_ff[pt.XLEN-1:0] ) |
+                                      ( {pt.XLEN{twos_comp_b_sel}} & b_ff[pt.XLEN-1:0] );
 
-   rvtwoscomp #(32) i_twos_comp  (.din(twos_comp_in[31:0]), .dout(twos_comp_out[31:0]));
+   rvtwoscomp #(pt.XLEN) i_twos_comp  (.din(twos_comp_in[pt.XLEN-1:0]), .dout(twos_comp_out[pt.XLEN-1:0]));
 
 
 
    assign valid_out              =  finish_ff & ~cancel;
 
-   assign data_out[31:0]         = ( {32{~rem_ff & ~twos_comp_q_sel}} & q_ff[31:0]          ) |
-                                   ( {32{ rem_ff                   }} & r_ff[31:0]          ) |
-                                   ( {32{           twos_comp_q_sel}} & twos_comp_out[31:0] );
+   assign data_out[pt.XLEN-1:0]  = ( {pt.XLEN{~rem_ff & ~twos_comp_q_sel}} & q_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{ rem_ff                   }} & r_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{           twos_comp_q_sel}} & twos_comp_out[pt.XLEN-1:0] );
 
 
 
 
    // *** *** *** START : SMALLNUM {{
 
-   assign smallnum_case          = ( (a_ff[31:4]  == 28'b0) & (b_ff[31:4] == 28'b0) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel) |
-                                   ( (a_ff[31:0]  == 32'b0) &                         ~by_zero_case & ~rem_ff & valid_ff & ~cancel);
+   assign smallnum_case          = ( (a_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & (b_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel) |
+                                   ( (a_ff[pt.XLEN-1:0] == {pt.XLEN{1'b0}}  ) &                                            ~by_zero_case & ~rem_ff & valid_ff & ~cancel);
 
    assign smallnum[3]            = ( a_ff[3] &                                  ~b_ff[3] & ~b_ff[2] & ~b_ff[1]           );
 
@@ -671,11 +678,11 @@ module eh2_exu_div_new_1bit_fullshortq
 
    // *** *** *** Start : Short Q {{
 
-   assign shortq_dividend[32:0]   = {dividend_sign_ff,a_ff[31:0]};
+   assign shortq_dividend[pt.XLEN:0] = {dividend_sign_ff,a_ff[pt.XLEN-1:0]};
 
 
-   parameter shortq_a_width = 33;
-   parameter shortq_b_width = 33;
+   parameter shortq_a_width = pt.XLEN + 1;
+   parameter shortq_b_width = pt.XLEN + 1;
 
    logic [5:0]  dw_a_enc;
    logic [5:0]  dw_b_enc;
@@ -683,11 +690,11 @@ module eh2_exu_div_new_1bit_fullshortq
 
 
    eh2_exu_div_cls i_a_cls  (
-       .operand  ( shortq_dividend[32:0]  ),
-       .cls      ( dw_a_enc[4:0]          ));
+       .operand  ( shortq_dividend[pt.XLEN:0]  ),
+       .cls      ( dw_a_enc[4:0]               ));
 
    eh2_exu_div_cls i_b_cls  (
-       .operand  ( b_ff[32:0]             ),
+       .operand  ( b_ff[pt.XLEN:0]        ),
        .cls      ( dw_b_enc[4:0]          ));
 
    assign dw_a_enc[5]             =  1'b0;
@@ -718,19 +725,19 @@ endmodule // eh2_exu_div_new_1bit_fullshortq
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 module eh2_exu_div_new_2bit_fullshortq
   (
-   input  logic            clk,                       // Top level clock
-   input  logic            rst_l,                     // Reset
-   input  logic            scan_mode,                 // Scan mode
+   input  logic               clk,                       // Top level clock
+   input  logic               rst_l,                     // Reset
+   input  logic               scan_mode,                 // Scan mode
 
-   input  logic            cancel,                    // Flush pipeline
-   input  logic            valid_in,
-   input  logic            signed_in,
-   input  logic            rem_in,
-   input  logic [31:0]     dividend_in,
-   input  logic [31:0]     divisor_in,
+   input  logic               cancel,                    // Flush pipeline
+   input  logic               valid_in,
+   input  logic               signed_in,
+   input  logic               rem_in,
+   input  logic [pt.XLEN-1:0] dividend_in,
+   input  logic [pt.XLEN-1:0] divisor_in,
 
-   output logic            valid_out,
-   output logic [31:0]     data_out
+   output logic               valid_out,
+   output logic [pt.XLEN-1:0] data_out
   );
 
 
@@ -738,58 +745,58 @@ module eh2_exu_div_new_2bit_fullshortq
    logic                   finish_raw, finish, finish_ff;
    logic                   running_state;
    logic                   misc_enable;
-   logic        [2:0]      control_in, control_ff;
+   logic [2:0]             control_in, control_ff;
    logic                   dividend_sign_ff, divisor_sign_ff, rem_ff;
    logic                   count_enable;
-   logic        [6:0]      count_in, count_ff;
+   logic [pt.XLENW+1:0]      count_in, count_ff;
 
    logic                   smallnum_case;
-   logic        [3:0]      smallnum;
+   logic [3:0]             smallnum;
 
    logic                   a_enable, a_shift;
-   logic        [31:0]     a_in, a_ff;
+   logic [pt.XLEN-1:0]     a_in, a_ff;
 
    logic                   b_enable, b_twos_comp;
-   logic        [32:0]     b_in;
-   logic        [34:0]     b_ff;
+   logic [pt.XLEN:0]       b_in;
+   logic [pt.XLEN+2:0]     b_ff;
 
-   logic        [31:0]     q_in, q_ff;
+   logic [pt.XLEN-1:0]     q_in, q_ff;
 
    logic                   rq_enable, r_sign_sel, r_restore_sel, r_adder1_sel, r_adder2_sel, r_adder3_sel;
-   logic        [31:0]     r_in, r_ff;
+   logic [pt.XLEN-1:0]     r_in, r_ff;
 
    logic                   twos_comp_q_sel, twos_comp_b_sel;
-   logic        [31:0]     twos_comp_in, twos_comp_out;
+   logic [pt.XLEN-1:0]     twos_comp_in, twos_comp_out;
 
-   logic        [3:1]      quotient_raw;
-   logic        [1:0]      quotient_new;
-   logic        [32:0]     adder1_out;
-   logic        [33:0]     adder2_out;
-   logic        [34:0]     adder3_out;
+   logic [3:1]             quotient_raw;
+   logic [1:0]             quotient_new;
+   logic [pt.XLEN:0]       adder1_out;
+   logic [pt.XLEN+1:0]     adder2_out;
+   logic [pt.XLEN+2:0]     adder3_out;
 
-   logic        [63:0]     ar_shifted;
-   logic        [5:0]      shortq;
-   logic        [4:0]      shortq_shift;
-   logic        [4:1]      shortq_shift_ff;
+   logic [(2*pt.XLEN)-1:0] ar_shifted;
+   logic [5:0]             shortq;
+   logic [4:0]             shortq_shift;
+   logic [4:0]             shortq_shift_ff;
    logic                   shortq_neg_or_zero;
    logic                   shortq_enable;
    logic                   shortq_enable_ff;
-   logic        [32:0]     shortq_dividend;
+   logic [pt.XLEN:0]       shortq_dividend;
 
    logic                   by_zero_case;
 
-   logic         [4:1]     special_in;
-   logic         [4:1]     special_ff;
+   logic [4:1]             special_in;
+   logic [4:1]             special_ff;
 
 
 
-   rvdffe #(21) i_misc_ff        (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[6:0], special_in[4:1], shortq_enable,    shortq_shift[4:1],    finish   }),
-                                                                    .dout({valid_ff,    control_ff[2:0], count_ff[6:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:1], finish_ff}) );
+   rvdffe #(15+pt.XLENW+1) i_misc_ff  (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[pt.XLENW+1:0], special_in[4:1], shortq_enable,    shortq_shift[4:1],    finish   }),
+                                                                       .dout({valid_ff,    control_ff[2:0], count_ff[pt.XLENW+1:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:1], finish_ff}) );
 
-   rvdffe #(32) i_a_ff           (.*, .clk(clk), .en(a_enable),     .din(a_in[31:0]),    .dout(a_ff[31:0]));
-   rvdffe #(33) i_b_ff           (.*, .clk(clk), .en(b_enable),     .din(b_in[32:0]),    .dout(b_ff[32:0]));
-   rvdffe #(32) i_r_ff           (.*, .clk(clk), .en(rq_enable),    .din(r_in[31:0]),    .dout(r_ff[31:0]));
-   rvdffe #(32) i_q_ff           (.*, .clk(clk), .en(rq_enable),    .din(q_in[31:0]),    .dout(q_ff[31:0]));
+   rvdffe #(pt.XLEN)     i_a_ff    (.*, .clk(clk), .en(a_enable),     .din(a_in[pt.XLEN-1:0]),    .dout(a_ff[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN+1)   i_b_ff    (.*, .clk(clk), .en(b_enable),     .din(b_in[pt.XLEN:0]),      .dout(b_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN)     i_r_ff    (.*, .clk(clk), .en(rq_enable),    .din(r_in[pt.XLEN-1:0]),    .dout(r_ff[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN)     i_q_ff    (.*, .clk(clk), .en(rq_enable),    .din(q_in[pt.XLEN-1:0]),    .dout(q_ff[pt.XLEN-1:0]));
 
 
 
@@ -800,8 +807,8 @@ module eh2_exu_div_new_2bit_fullshortq
 
    assign valid_ff_in            =  valid_in  & ~cancel;
 
-   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[31]);
-   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[31]);
+   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[pt.XLEN-1]);
+   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[pt.XLEN-1]);
    assign control_in[0]          = (~valid_in & control_ff[0]) | (valid_in & rem_in);
 
    assign dividend_sign_ff       =  control_ff[2];
@@ -809,35 +816,35 @@ module eh2_exu_div_new_2bit_fullshortq
    assign rem_ff                 =  control_ff[0];
 
 
-   assign by_zero_case           =  valid_ff & (b_ff[31:0] == 32'b0);
+   assign by_zero_case           =  valid_ff & (b_ff[pt.XLEN-1:0] == {pt.XLEN{1'b0}});
 
    assign misc_enable            =  valid_in | valid_ff | cancel | running_state | finish_ff;
-   assign running_state          = (| count_ff[6:0]) | shortq_enable_ff;
+   assign running_state          = (| count_ff[pt.XLENW+1:0]) | shortq_enable_ff;
    assign finish_raw             =   special_ff[3] |
-                                    (count_ff[6:0] == 7'd32);
+                                    (count_ff[pt.XLENW+1:0] == (pt.XLENW+2)'(pt.XLEN));
 
 
    assign finish                 =  finish_raw & ~cancel;
    assign count_enable           = (valid_ff | running_state) & ~finish & ~finish_ff & ~cancel & ~shortq_enable;
-   assign count_in[6:0]          = {7{count_enable}} & (count_ff[6:0] + {5'b0,2'b10} + {2'b0,shortq_shift_ff[4:1],1'b0});
+   assign count_in[pt.XLENW+1:0]   = {pt.XLENW+2{count_enable}} & (count_ff[pt.XLENW+1:0] + {{pt.XLENW{1'b0}},2'b10} + {2'b0,shortq_shift_ff[4:1], 1'b0});
 
 
    assign a_enable               =  valid_in | running_state;
    assign a_shift                =  running_state & ~shortq_enable_ff;
 
-   assign ar_shifted[63:0]       = { {32{dividend_sign_ff}} , a_ff[31:0]} << {shortq_shift_ff[4:1],1'b0};
+   assign ar_shifted[(2*pt.XLEN)-1:0] = { {pt.XLEN{dividend_sign_ff}} , a_ff[pt.XLEN-1:0]} << {shortq_shift_ff[4:1],1'b0};
 
-   assign a_in[31:0]             = ( {32{~a_shift & ~shortq_enable_ff}} &  dividend_in[31:0] ) |
-                                   ( {32{ a_shift                    }} & {a_ff[29:0],2'b0}  ) |
-                                   ( {32{            shortq_enable_ff}} &  ar_shifted[31:0]  );
+   assign a_in[pt.XLEN-1:0]      = ( {pt.XLEN{~a_shift & ~shortq_enable_ff}} &  dividend_in[pt.XLEN-1:0] ) |
+                                   ( {pt.XLEN{ a_shift                    }} & {a_ff[pt.XLEN-3:0],2'b0}  ) |
+                                   ( {pt.XLEN{            shortq_enable_ff}} &  ar_shifted[pt.XLEN-1:0]  );
 
 
 
    assign b_enable               =    valid_in | b_twos_comp;
    assign b_twos_comp            =    valid_ff & ~(dividend_sign_ff ^ divisor_sign_ff);
 
-   assign b_in[32:0]             = ( {33{~b_twos_comp}} & { (signed_in & divisor_in[31]),divisor_in[31:0] } ) |
-                                   ( {33{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[31:0] } );
+   assign b_in[pt.XLEN:0]        = ( {pt.XLEN+1{~b_twos_comp}} & { (signed_in & divisor_in[pt.XLEN-1]),divisor_in[pt.XLEN-1:0] } ) |
+                                   ( {pt.XLEN+1{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[pt.XLEN-1:0] } );
 
 
    assign rq_enable              = (valid_in | valid_ff | running_state) & ~(| special_ff[3:1]);
@@ -848,31 +855,31 @@ module eh2_exu_div_new_2bit_fullshortq
    assign r_adder3_sel           =  running_state & (quotient_new[1:0] == 2'b11) & ~shortq_enable_ff;
 
 
-   assign r_in[31:0]             = ( {32{r_sign_sel      }} &  32'hffffffff             ) |
-                                   ( {32{r_restore_sel   }} & {r_ff[29:0] ,a_ff[31:30]} ) |
-                                   ( {32{r_adder1_sel    }} &  adder1_out[31:0]         ) |
-                                   ( {32{r_adder2_sel    }} &  adder2_out[31:0]         ) |
-                                   ( {32{r_adder3_sel    }} &  adder3_out[31:0]         ) |
-                                   ( {32{shortq_enable_ff}} &  ar_shifted[63:32]        ) |
-                                   ( {32{by_zero_case    }} &  a_ff[31:0]               );
+   assign r_in[pt.XLEN-1:0]      = ( {pt.XLEN{r_sign_sel      }} & {pt.XLEN{1'b1}}                                ) |
+                                   ( {pt.XLEN{r_restore_sel   }} & {r_ff[pt.XLEN-3:0] ,a_ff[pt.XLEN-1:pt.XLEN-2]} ) |
+                                   ( {pt.XLEN{r_adder1_sel    }} &  adder1_out[pt.XLEN-1:0]                       ) |
+                                   ( {pt.XLEN{r_adder2_sel    }} &  adder2_out[pt.XLEN-1:0]                       ) |
+                                   ( {pt.XLEN{r_adder3_sel    }} &  adder3_out[pt.XLEN-1:0]                       ) |
+                                   ( {pt.XLEN{shortq_enable_ff}} &  ar_shifted[(2*pt.XLEN)-1:pt.XLEN]             ) |
+                                   ( {pt.XLEN{by_zero_case    }} &  a_ff[pt.XLEN-1:0]                             );
 
 
-   assign q_in[31:0]             = ( {32{~valid_ff       }} & {q_ff[29:0], quotient_new[1:0]} ) |
-                                   ( {32{ smallnum_case  }} & {28'b0     , smallnum[3:0]}     ) |
-                                   ( {32{ by_zero_case   }} & {32{1'b1}}                      );
+   assign q_in[pt.XLEN-1:0]      = ( {pt.XLEN{~valid_ff       }} & {q_ff[pt.XLEN-3:0], quotient_new[1:0]}  ) |
+                                   ( {pt.XLEN{ smallnum_case  }} & {{pt.XLEN-4{1'b0}}, smallnum[3:0]}      ) |
+                                   ( {pt.XLEN{ by_zero_case   }} & {pt.XLEN{1'b1}}                         );
 
 
-   assign b_ff[34:33]            = {b_ff[32],b_ff[32]};
+   assign b_ff[pt.XLEN+2:pt.XLEN+1] = {b_ff[pt.XLEN],b_ff[pt.XLEN]};
 
 
-   assign adder1_out[32:0]       = {         r_ff[30:0],a_ff[31:30]}  +  b_ff[32:0];
-   assign adder2_out[33:0]       = {         r_ff[31:0],a_ff[31:30]}  + {b_ff[32:0],1'b0};
-   assign adder3_out[34:0]       = {r_ff[31],r_ff[31:0],a_ff[31:30]}  + {b_ff[33:0],1'b0}  +  b_ff[34:0];
+   assign adder1_out[pt.XLEN:0]   = {                r_ff[pt.XLEN-2:0],a_ff[pt.XLEN-1:pt.XLEN-2]}  +  b_ff[pt.XLEN:0];
+   assign adder2_out[pt.XLEN+1:0] = {                r_ff[pt.XLEN-1:0],a_ff[pt.XLEN-1:pt.XLEN-2]}  + {b_ff[pt.XLEN:0],1'b0};
+   assign adder3_out[pt.XLEN+2:0] = {r_ff[pt.XLEN-1],r_ff[pt.XLEN-1:0],a_ff[pt.XLEN-1:pt.XLEN-2]}  + {b_ff[pt.XLEN+1:0],1'b0}  +  b_ff[pt.XLEN+2:0];
 
 
-   assign quotient_raw[1]        = (~adder1_out[32] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder1_out[32:0] == 33'b0) );
-   assign quotient_raw[2]        = (~adder2_out[33] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder2_out[33:0] == 34'b0) );
-   assign quotient_raw[3]        = (~adder3_out[34] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder3_out[34:0] == 35'b0) );
+   assign quotient_raw[1]        = (~adder1_out[pt.XLEN]   ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder1_out[pt.XLEN:0]   == {pt.XLEN+1{1'b0}}) );
+   assign quotient_raw[2]        = (~adder2_out[pt.XLEN+1] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder2_out[pt.XLEN+1:0] == {pt.XLEN+2{1'b0}}) );
+   assign quotient_raw[3]        = (~adder3_out[pt.XLEN+2] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder3_out[pt.XLEN+2:0] == {pt.XLEN+3{1'b0}}) );
 
    assign quotient_new[1]        = quotient_raw[3] |  quotient_raw[2];
    assign quotient_new[0]        = quotient_raw[3] |(~quotient_raw[2] & quotient_raw[1]);
@@ -881,26 +888,26 @@ module eh2_exu_div_new_2bit_fullshortq
    assign twos_comp_b_sel        =  valid_ff           & ~(dividend_sign_ff ^ divisor_sign_ff);
    assign twos_comp_q_sel        = ~valid_ff & ~rem_ff &  (dividend_sign_ff ^ divisor_sign_ff) & ~special_ff[4];
 
-   assign twos_comp_in[31:0]     = ( {32{twos_comp_q_sel}} & q_ff[31:0] ) |
-                                   ( {32{twos_comp_b_sel}} & b_ff[31:0] );
+   assign twos_comp_in[pt.XLEN-1:0] = ( {pt.XLEN{twos_comp_q_sel}} & q_ff[pt.XLEN-1:0] ) |
+                                      ( {pt.XLEN{twos_comp_b_sel}} & b_ff[pt.XLEN-1:0] );
 
-   rvtwoscomp #(32) i_twos_comp  (.din(twos_comp_in[31:0]), .dout(twos_comp_out[31:0]));
+   rvtwoscomp #(pt.XLEN) i_twos_comp  (.din(twos_comp_in[pt.XLEN-1:0]), .dout(twos_comp_out[pt.XLEN-1:0]));
 
 
 
    assign valid_out              =  finish_ff & ~cancel;
 
-   assign data_out[31:0]         = ( {32{~rem_ff & ~twos_comp_q_sel}} & q_ff[31:0]          ) |
-                                   ( {32{ rem_ff                   }} & r_ff[31:0]          ) |
-                                   ( {32{           twos_comp_q_sel}} & twos_comp_out[31:0] );
+   assign data_out[pt.XLEN-1:0]  = ( {pt.XLEN{~rem_ff & ~twos_comp_q_sel}} & q_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{ rem_ff                   }} & r_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{           twos_comp_q_sel}} & twos_comp_out[pt.XLEN-1:0] );
 
 
 
 
    // *** *** *** START : SMALLNUM {{
 
-   assign smallnum_case          = ( (a_ff[31:4]  == 28'b0) & (b_ff[31:4] == 28'b0) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel) |
-                                   ( (a_ff[31:0]  == 32'b0) &                         ~by_zero_case & ~rem_ff & valid_ff & ~cancel);
+   assign smallnum_case          = ( (a_ff[pt.XLEN-1:4]  == {pt.XLEN-4{1'b0}}) & (b_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel) |
+                                   ( (a_ff[pt.XLEN-1:0]  == {pt.XLEN{1'b0}})   &                                            ~by_zero_case & ~rem_ff & valid_ff & ~cancel);
 
    assign smallnum[3]            = ( a_ff[3] &                                  ~b_ff[3] & ~b_ff[2] & ~b_ff[1]           );
 
@@ -952,11 +959,11 @@ module eh2_exu_div_new_2bit_fullshortq
 
    // *** *** *** Start : Short Q {{
 
-   assign shortq_dividend[32:0]   = {dividend_sign_ff,a_ff[31:0]};
+   assign shortq_dividend[pt.XLEN:0]   = {dividend_sign_ff,a_ff[pt.XLEN-1:0]};
 
 
-   parameter shortq_a_width = 33;
-   parameter shortq_b_width = 33;
+   parameter shortq_a_width = pt.XLEN + 1;
+   parameter shortq_b_width = pt.XLEN + 1;
 
    logic [5:0]  dw_a_enc;
    logic [5:0]  dw_b_enc;
@@ -964,12 +971,12 @@ module eh2_exu_div_new_2bit_fullshortq
 
 
    eh2_exu_div_cls i_a_cls  (
-       .operand  ( shortq_dividend[32:0]  ),
-       .cls      ( dw_a_enc[4:0]          ));
+       .operand  ( shortq_dividend[pt.XLEN:0]  ),
+       .cls      ( dw_a_enc[4:0]               ));
 
    eh2_exu_div_cls i_b_cls  (
-       .operand  ( b_ff[32:0]             ),
-       .cls      ( dw_b_enc[4:0]          ));
+       .operand  ( b_ff[pt.XLEN:0]             ),
+       .cls      ( dw_b_enc[4:0]               ));
 
    assign dw_a_enc[5]             =  1'b0;
    assign dw_b_enc[5]             =  1'b0;
@@ -998,20 +1005,23 @@ endmodule // eh2_exu_div_new_2bit_fullshortq
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 module eh2_exu_div_new_3bit_fullshortq
+#(
+`include "eh2_param.vh"
+)
   (
-   input  logic            clk,                       // Top level clock
-   input  logic            rst_l,                     // Reset
-   input  logic            scan_mode,                 // Scan mode
+   input  logic               clk,                       // Top level clock
+   input  logic               rst_l,                     // Reset
+   input  logic               scan_mode,                 // Scan mode
 
-   input  logic            cancel,                    // Flush pipeline
-   input  logic            valid_in,
-   input  logic            signed_in,
-   input  logic            rem_in,
-   input  logic [31:0]     dividend_in,
-   input  logic [31:0]     divisor_in,
+   input  logic               cancel,                    // Flush pipeline
+   input  logic               valid_in,
+   input  logic               signed_in,
+   input  logic               rem_in,
+   input  logic [pt.XLEN-1:0] dividend_in,
+   input  logic [pt.XLEN-1:0] divisor_in,
 
-   output logic            valid_out,
-   output logic [31:0]     data_out
+   output logic               valid_out,
+   output logic [pt.XLEN-1:0] data_out
   );
 
 
@@ -1019,50 +1029,50 @@ module eh2_exu_div_new_3bit_fullshortq
    logic                   finish_raw, finish, finish_ff;
    logic                   running_state;
    logic                   misc_enable;
-   logic        [2:0]      control_in, control_ff;
+   logic [2:0]             control_in, control_ff;
    logic                   dividend_sign_ff, divisor_sign_ff, rem_ff;
    logic                   count_enable;
-   logic        [6:0]      count_in, count_ff;
+   logic [pt.XLENW+1:0]      count_in, count_ff;
 
    logic                   smallnum_case;
-   logic        [3:0]      smallnum;
+   logic [3:0]             smallnum;
 
    logic                   a_enable, a_shift;
-   logic        [32:0]     a_in, a_ff;
+   logic [pt.XLEN:0]       a_in, a_ff;
 
    logic                   b_enable, b_twos_comp;
-   logic        [32:0]     b_in;
-   logic        [36:0]     b_ff;
+   logic [pt.XLEN:0]       b_in;
+   logic [pt.XLEN+4:0]     b_ff;
 
-   logic        [31:0]     q_in, q_ff;
+   logic [pt.XLEN-1:0]     q_in, q_ff;
 
    logic                   rq_enable;
    logic                   r_sign_sel;
    logic                   r_restore_sel;
    logic                   r_adder1_sel, r_adder2_sel, r_adder3_sel, r_adder4_sel, r_adder5_sel, r_adder6_sel, r_adder7_sel;
-   logic        [32:0]     r_in, r_ff;
+   logic [pt.XLEN:0]       r_in, r_ff;
 
    logic                   twos_comp_q_sel, twos_comp_b_sel;
-   logic        [31:0]     twos_comp_in, twos_comp_out;
+   logic [pt.XLEN-1:0]     twos_comp_in, twos_comp_out;
 
-   logic        [7:1]      quotient_raw;
-   logic        [2:0]      quotient_new;
-   logic        [33:0]     adder1_out;
-   logic        [34:0]     adder2_out;
-   logic        [35:0]     adder3_out;
-   logic        [36:0]     adder4_out;
-   logic        [36:0]     adder5_out;
-   logic        [36:0]     adder6_out;
-   logic        [36:0]     adder7_out;
+   logic [7:1]             quotient_raw;
+   logic [2:0]             quotient_new;
+   logic [pt.XLEN+1:0]     adder1_out;
+   logic [pt.XLEN+2:0]     adder2_out;
+   logic [pt.XLEN+3:0]     adder3_out;
+   logic [pt.XLEN+4:0]     adder4_out;
+   logic [pt.XLEN+4:0]     adder5_out;
+   logic [pt.XLEN+4:0]     adder6_out;
+   logic [pt.XLEN+4:0]     adder7_out;
 
-   logic        [65:0]     ar_shifted;
-   logic        [5:0]      shortq;
-   logic        [4:0]      shortq_shift;
-   logic        [4:0]      shortq_decode;
-   logic        [4:0]      shortq_shift_ff;
+   logic [(2*pt.XLEN)+1:0] ar_shifted;
+   logic [5:0]             shortq;
+   logic [4:0]             shortq_shift;
+   logic [4:0]             shortq_decode;
+   logic [4:0]             shortq_shift_ff;
    logic                   shortq_enable;
    logic                   shortq_enable_ff;
-   logic        [32:0]     shortq_dividend;
+   logic [pt.XLEN:0]       shortq_dividend;
 
    logic                   by_zero_case;
 
@@ -1071,13 +1081,13 @@ module eh2_exu_div_new_3bit_fullshortq
 
 
 
-   rvdffe #(22) i_misc_ff        (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[6:0], special_in[4:1], shortq_enable,    shortq_shift[4:0],    finish   }),
-                                                                    .dout({valid_ff,    control_ff[2:0], count_ff[6:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:0], finish_ff}) );
+   rvdffe #(16+pt.XLENW+1) i_misc_ff  (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[pt.XLENW+1:0], special_in[4:1], shortq_enable,    shortq_shift[4:0],    finish   }),
+                                                                       .dout({valid_ff,    control_ff[2:0], count_ff[pt.XLENW+1:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:0], finish_ff}) );
 
-   rvdffe #(33) i_a_ff           (.*, .clk(clk), .en(a_enable),     .din(a_in[32:0]),    .dout(a_ff[32:0]));
-   rvdffe #(33) i_b_ff           (.*, .clk(clk), .en(b_enable),     .din(b_in[32:0]),    .dout(b_ff[32:0]));
-   rvdffe #(33) i_r_ff           (.*, .clk(clk), .en(rq_enable),    .din(r_in[32:0]),    .dout(r_ff[32:0]));
-   rvdffe #(32) i_q_ff           (.*, .clk(clk), .en(rq_enable),    .din(q_in[31:0]),    .dout(q_ff[31:0]));
+   rvdffe #(pt.XLEN+1)   i_a_ff    (.*, .clk(clk), .en(a_enable),     .din(a_in[pt.XLEN:0]),    .dout(a_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN+1)   i_b_ff    (.*, .clk(clk), .en(b_enable),     .din(b_in[pt.XLEN:0]),    .dout(b_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN+1)   i_r_ff    (.*, .clk(clk), .en(rq_enable),    .din(r_in[pt.XLEN:0]),    .dout(r_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN)     i_q_ff    (.*, .clk(clk), .en(rq_enable),    .din(q_in[pt.XLEN-1:0]),  .dout(q_ff[pt.XLEN-1:0]));
 
 
 
@@ -1088,8 +1098,8 @@ module eh2_exu_div_new_3bit_fullshortq
 
    assign valid_ff_in            =  valid_in  & ~cancel;
 
-   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[31]);
-   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[31]);
+   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[pt.XLEN-1]);
+   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[pt.XLEN-1]);
    assign control_in[0]          = (~valid_in & control_ff[0]) | (valid_in & rem_in);
 
    assign dividend_sign_ff       =  control_ff[2];
@@ -1097,35 +1107,35 @@ module eh2_exu_div_new_3bit_fullshortq
    assign rem_ff                 =  control_ff[0];
 
 
-   assign by_zero_case           =  valid_ff & (b_ff[31:0] == 32'b0);
+   assign by_zero_case           =  valid_ff & (b_ff[pt.XLEN-1:0] == {pt.XLEN{1'b0}});
 
    assign misc_enable            =  valid_in | valid_ff | cancel | running_state | finish_ff;
-   assign running_state          = (| count_ff[6:0]) | shortq_enable_ff;
+   assign running_state          = (| count_ff[pt.XLENW+1:0]) | shortq_enable_ff;
    assign finish_raw             =   special_ff[3] |
-                                    (count_ff[6:0] == 7'd33);
+                                    (count_ff[pt.XLENW+1:0] == (pt.XLENW+2)'(pt.XLEN+1));
 
 
    assign finish                 =  finish_raw & ~cancel;
    assign count_enable           = (valid_ff | running_state) & ~finish & ~finish_ff & ~cancel & ~shortq_enable;
-   assign count_in[6:0]          = {7{count_enable}} & (count_ff[6:0] + {5'b0,2'b11} + {2'b0,shortq_shift_ff[4:0]});
+   assign count_in[pt.XLENW+1:0]   = {pt.XLENW+2{count_enable}} & (count_ff[pt.XLENW+1:0] + {{pt.XLENW{1'b0}},2'b11} + {2'b0,shortq_shift_ff[4:0]});
 
 
    assign a_enable               =  valid_in | running_state;
    assign a_shift                =  running_state & ~shortq_enable_ff;
 
-   assign ar_shifted[65:0]       = { {33{dividend_sign_ff}} , a_ff[32:0]} << {shortq_shift_ff[4:0]};
+   assign ar_shifted[(2*pt.XLEN)+1:0] = { {pt.XLEN+1{dividend_sign_ff}} , a_ff[pt.XLEN:0]} << {shortq_shift_ff[4:0]};
 
-   assign a_in[32:0]             = ( {33{~a_shift & ~shortq_enable_ff}} & {signed_in & dividend_in[31],dividend_in[31:0]} ) |
-                                   ( {33{ a_shift                    }} & {a_ff[29:0],3'b0}  ) |
-                                   ( {33{            shortq_enable_ff}} &  ar_shifted[32:0]  );
+   assign a_in[pt.XLEN:0]        = ( {pt.XLEN+1{~a_shift & ~shortq_enable_ff}} & {signed_in & dividend_in[pt.XLEN-1], dividend_in[pt.XLEN-1:0]} ) |
+                                   ( {pt.XLEN+1{ a_shift                    }} & {a_ff[pt.XLEN-3:0], 3'b0}  ) |
+                                   ( {pt.XLEN+1{            shortq_enable_ff}} &  ar_shifted[pt.XLEN:0]     );
 
 
 
    assign b_enable               =    valid_in | b_twos_comp;
    assign b_twos_comp            =    valid_ff & ~(dividend_sign_ff ^ divisor_sign_ff);
 
-   assign b_in[32:0]             = ( {33{~b_twos_comp}} & { (signed_in & divisor_in[31]),divisor_in[31:0] } ) |
-                                   ( {33{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[31:0] } );
+   assign b_in[pt.XLEN:0]        = ( {pt.XLEN+1{~b_twos_comp}} & { (signed_in & divisor_in[pt.XLEN-1]),divisor_in[pt.XLEN-1:0] } ) |
+                                   ( {pt.XLEN+1{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[pt.XLEN-1:0] } );
 
 
    assign rq_enable              = (valid_in | valid_ff | running_state) & ~(| special_ff[3:1]);
@@ -1140,42 +1150,42 @@ module eh2_exu_div_new_3bit_fullshortq
    assign r_adder7_sel           =  running_state & (quotient_new[2:0] == 3'b111) & ~shortq_enable_ff;
 
 
-   assign r_in[32:0]             = ( {33{r_sign_sel      }} & {33{1'b1}}               ) |
-                                   ( {33{r_restore_sel   }} & {r_ff[29:0] ,a_ff[32:30]} ) |
-                                   ( {33{r_adder1_sel    }} &  adder1_out[32:0]         ) |
-                                   ( {33{r_adder2_sel    }} &  adder2_out[32:0]         ) |
-                                   ( {33{r_adder3_sel    }} &  adder3_out[32:0]         ) |
-                                   ( {33{r_adder4_sel    }} &  adder4_out[32:0]         ) |
-                                   ( {33{r_adder5_sel    }} &  adder5_out[32:0]         ) |
-                                   ( {33{r_adder6_sel    }} &  adder6_out[32:0]         ) |
-                                   ( {33{r_adder7_sel    }} &  adder7_out[32:0]         ) |
-                                   ( {33{shortq_enable_ff}} &  ar_shifted[65:33]        ) |
-                                   ( {33{by_zero_case    }} & {1'b0,a_ff[31:0]}         );
+   assign r_in[pt.XLEN:0]        = ( {pt.XLEN+1{r_sign_sel      }} & {pt.XLEN+1{1'b1}}                            ) |
+                                   ( {pt.XLEN+1{r_restore_sel   }} & {r_ff[pt.XLEN-3:0] ,a_ff[pt.XLEN:pt.XLEN-2]} ) |
+                                   ( {pt.XLEN+1{r_adder1_sel    }} &  adder1_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder2_sel    }} &  adder2_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder3_sel    }} &  adder3_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder4_sel    }} &  adder4_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder5_sel    }} &  adder5_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder6_sel    }} &  adder6_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder7_sel    }} &  adder7_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{shortq_enable_ff}} &  ar_shifted[(2*pt.XLEN)+1:pt.XLEN+1]         ) |
+                                   ( {pt.XLEN+1{by_zero_case    }} & {1'b0,a_ff[pt.XLEN-1:0]}                     );
 
 
-   assign q_in[31:0]             = ( {32{~valid_ff     }} & {q_ff[28:0], quotient_new[2:0]} ) |
-                                   ( {32{ smallnum_case}} & {28'b0     , smallnum[3:0]}     ) |
-                                   ( {32{ by_zero_case }} & {32{1'b1}}                      );
+   assign q_in[pt.XLEN-1:0]      = ( {pt.XLEN{~valid_ff       }} & {q_ff[pt.XLEN-4:0], quotient_new[2:0]}  ) |
+                                   ( {pt.XLEN{ smallnum_case  }} & {{pt.XLEN-4{1'b0}}, smallnum[3:0]}      ) |
+                                   ( {pt.XLEN{ by_zero_case   }} & {pt.XLEN{1'b1}}                         );
 
 
-   assign b_ff[36:33]            = {b_ff[32],b_ff[32],b_ff[32],b_ff[32]};
+   assign b_ff[pt.XLEN+4:pt.XLEN+1] = {b_ff[pt.XLEN],b_ff[pt.XLEN],b_ff[pt.XLEN],b_ff[pt.XLEN]};
 
 
-   assign adder1_out[33:0]       = {         r_ff[30:0],a_ff[32:30]}  +   b_ff[33:0];
-   assign adder2_out[34:0]       = {         r_ff[31:0],a_ff[32:30]}  +  {b_ff[33:0],1'b0};
-   assign adder3_out[35:0]       = {         r_ff[32:0],a_ff[32:30]}  +  {b_ff[34:0],1'b0}  +   b_ff[35:0];
-   assign adder4_out[36:0]       = {r_ff[32],r_ff[32:0],a_ff[32:30]}  +  {b_ff[34:0],2'b0};
-   assign adder5_out[36:0]       = {r_ff[32],r_ff[32:0],a_ff[32:30]}  +  {b_ff[34:0],2'b0}  +   b_ff[36:0];
-   assign adder6_out[36:0]       = {r_ff[32],r_ff[32:0],a_ff[32:30]}  +  {b_ff[34:0],2'b0}  +  {b_ff[35:0],1'b0};
-   assign adder7_out[36:0]       = {r_ff[32],r_ff[32:0],a_ff[32:30]}  +  {b_ff[34:0],2'b0}  +  {b_ff[35:0],1'b0}  +  b_ff[36:0];
+   assign adder1_out[pt.XLEN+1:0]       = {              r_ff[pt.XLEN-2:0],a_ff[pt.XLEN:pt.XLEN-2]}  +   b_ff[pt.XLEN+1:0];
+   assign adder2_out[pt.XLEN+2:0]       = {              r_ff[pt.XLEN-1:0],a_ff[pt.XLEN:pt.XLEN-2]}  +  {b_ff[pt.XLEN+1:0],1'b0};
+   assign adder3_out[pt.XLEN+3:0]       = {              r_ff[pt.XLEN:0],  a_ff[pt.XLEN:pt.XLEN-2]}  +  {b_ff[pt.XLEN+2:0],1'b0}  +   b_ff[pt.XLEN+3:0];
+   assign adder4_out[pt.XLEN+4:0]       = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],  a_ff[pt.XLEN:pt.XLEN-2]}  +  {b_ff[pt.XLEN+2:0],2'b0};
+   assign adder5_out[pt.XLEN+4:0]       = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],  a_ff[pt.XLEN:pt.XLEN-2]}  +  {b_ff[pt.XLEN+2:0],2'b0}  +   b_ff[pt.XLEN+4:0];
+   assign adder6_out[pt.XLEN+4:0]       = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],  a_ff[pt.XLEN:pt.XLEN-2]}  +  {b_ff[pt.XLEN+2:0],2'b0}  +  {b_ff[pt.XLEN+3:0],1'b0};
+   assign adder7_out[pt.XLEN+4:0]       = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],  a_ff[pt.XLEN:pt.XLEN-2]}  +  {b_ff[pt.XLEN+2:0],2'b0}  +  {b_ff[pt.XLEN+3:0],1'b0}  +  b_ff[pt.XLEN+4:0];
 
-   assign quotient_raw[1]        = (~adder1_out[33] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder1_out[33:0] == 34'b0) );
-   assign quotient_raw[2]        = (~adder2_out[34] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder2_out[34:0] == 35'b0) );
-   assign quotient_raw[3]        = (~adder3_out[35] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder3_out[35:0] == 36'b0) );
-   assign quotient_raw[4]        = (~adder4_out[36] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder4_out[36:0] == 37'b0) );
-   assign quotient_raw[5]        = (~adder5_out[36] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder5_out[36:0] == 37'b0) );
-   assign quotient_raw[6]        = (~adder6_out[36] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder6_out[36:0] == 37'b0) );
-   assign quotient_raw[7]        = (~adder7_out[36] ^ dividend_sign_ff) | ( (a_ff[29:0] == 30'b0) & (adder7_out[36:0] == 37'b0) );
+   assign quotient_raw[1]        = (~adder1_out[pt.XLEN+1] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder1_out[pt.XLEN+1:0] == {pt.XLEN+2{1'b0}}) );
+   assign quotient_raw[2]        = (~adder2_out[pt.XLEN+2] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder2_out[pt.XLEN+2:0] == {pt.XLEN+3{1'b0}}) );
+   assign quotient_raw[3]        = (~adder3_out[pt.XLEN+3] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder3_out[pt.XLEN+3:0] == {pt.XLEN+4{1'b0}}) );
+   assign quotient_raw[4]        = (~adder4_out[pt.XLEN+4] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder4_out[pt.XLEN+4:0] == {pt.XLEN+5{1'b0}}) );
+   assign quotient_raw[5]        = (~adder5_out[pt.XLEN+4] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder5_out[pt.XLEN+4:0] == {pt.XLEN+5{1'b0}}) );
+   assign quotient_raw[6]        = (~adder6_out[pt.XLEN+4] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder6_out[pt.XLEN+4:0] == {pt.XLEN+5{1'b0}}) );
+   assign quotient_raw[7]        = (~adder7_out[pt.XLEN+4] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-3:0] == {pt.XLEN-2{1'b0}}) & (adder7_out[pt.XLEN+4:0] == {pt.XLEN+5{1'b0}}) );
 
    assign quotient_new[2]        = quotient_raw[7] |   quotient_raw[6] | quotient_raw[5]  |   quotient_raw[4];
    assign quotient_new[1]        = quotient_raw[7] |   quotient_raw[6] |                    (~quotient_raw[4] & quotient_raw[3]) | (~quotient_raw[3] & quotient_raw[2]);
@@ -1185,26 +1195,26 @@ module eh2_exu_div_new_3bit_fullshortq
    assign twos_comp_b_sel        =  valid_ff           & ~(dividend_sign_ff ^ divisor_sign_ff);
    assign twos_comp_q_sel        = ~valid_ff & ~rem_ff &  (dividend_sign_ff ^ divisor_sign_ff) & ~special_ff[4];
 
-   assign twos_comp_in[31:0]     = ( {32{twos_comp_q_sel}} & q_ff[31:0] ) |
-                                   ( {32{twos_comp_b_sel}} & b_ff[31:0] );
+   assign twos_comp_in[pt.XLEN-1:0] = ( {pt.XLEN{twos_comp_q_sel}} & q_ff[pt.XLEN-1:0] ) |
+                                      ( {pt.XLEN{twos_comp_b_sel}} & b_ff[pt.XLEN-1:0] );
 
-   rvtwoscomp #(32) i_twos_comp  (.din(twos_comp_in[31:0]), .dout(twos_comp_out[31:0]));
+   rvtwoscomp #(pt.XLEN) i_twos_comp  (.din(twos_comp_in[pt.XLEN-1:0]), .dout(twos_comp_out[pt.XLEN-1:0]));
 
 
 
    assign valid_out              =  finish_ff & ~cancel;
 
-   assign data_out[31:0]         = ( {32{~rem_ff & ~twos_comp_q_sel}} & q_ff[31:0]          ) |
-                                   ( {32{ rem_ff                   }} & r_ff[31:0]          ) |
-                                   ( {32{           twos_comp_q_sel}} & twos_comp_out[31:0] );
+   assign data_out[pt.XLEN-1:0]  = ( {pt.XLEN{~rem_ff & ~twos_comp_q_sel}} & q_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{ rem_ff                   }} & r_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{           twos_comp_q_sel}} & twos_comp_out[pt.XLEN-1:0] );
 
 
 
 
    // *** *** *** START : SMALLNUM {{
 
-   assign smallnum_case          = ( (a_ff[31:4]  == 28'b0) & (b_ff[31:4] == 28'b0) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0) |
-                                   ( (a_ff[31:0]  == 32'b0) &                         ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0);
+   assign smallnum_case          = ( (a_ff[pt.XLEN-1:4]  == {pt.XLEN-4{1'b0}}) & (b_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0) |
+                                   ( (a_ff[pt.XLEN-1:0]  == {pt.XLEN{1'b0}})   &                                            ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0);
 
    assign smallnum[3]            = ( a_ff[3] &                                  ~b_ff[3] & ~b_ff[2] & ~b_ff[1]           );
 
@@ -1256,11 +1266,11 @@ module eh2_exu_div_new_3bit_fullshortq
 
    // *** *** *** Start : Short Q {{
 
-   assign shortq_dividend[32:0]   = {dividend_sign_ff,a_ff[31:0]};
+   assign shortq_dividend[pt.XLEN:0]   = {dividend_sign_ff,a_ff[pt.XLEN-1:0]};
 
 
-   parameter shortq_a_width = 33;
-   parameter shortq_b_width = 33;
+   parameter shortq_a_width = pt.XLEN + 1;
+   parameter shortq_b_width = pt.XLEN + 1;
 
    logic [5:0]  dw_a_enc;
    logic [5:0]  dw_b_enc;
@@ -1268,12 +1278,12 @@ module eh2_exu_div_new_3bit_fullshortq
 
 
    eh2_exu_div_cls i_a_cls  (
-       .operand  ( shortq_dividend[32:0]  ),
-       .cls      ( dw_a_enc[4:0]          ));
+       .operand  ( shortq_dividend[pt.XLEN:0]  ),
+       .cls      ( dw_a_enc[4:0]               ));
 
    eh2_exu_div_cls i_b_cls  (
-       .operand  ( b_ff[32:0]             ),
-       .cls      ( dw_b_enc[4:0]          ));
+       .operand  ( b_ff[pt.XLEN:0]             ),
+       .cls      ( dw_b_enc[4:0]               ));
 
    assign dw_a_enc[5]             =  1'b0;
    assign dw_b_enc[5]             =  1'b0;
@@ -1335,20 +1345,23 @@ endmodule // eh2_exu_div_new_3bit_fullshortq
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 module eh2_exu_div_new_4bit_fullshortq
+#(
+`include "eh2_param.vh"
+)
   (
-   input  logic            clk,                       // Top level clock
-   input  logic            rst_l,                     // Reset
-   input  logic            scan_mode,                 // Scan mode
+   input  logic               clk,                       // Top level clock
+   input  logic               rst_l,                     // Reset
+   input  logic               scan_mode,                 // Scan mode
 
-   input  logic            cancel,                    // Flush pipeline
-   input  logic            valid_in,
-   input  logic            signed_in,
-   input  logic            rem_in,
-   input  logic [31:0]     dividend_in,
-   input  logic [31:0]     divisor_in,
+   input  logic               cancel,                    // Flush pipeline
+   input  logic               valid_in,
+   input  logic               signed_in,
+   input  logic               rem_in,
+   input  logic [pt.XLEN-1:0] dividend_in,
+   input  logic [pt.XLEN-1:0] divisor_in,
 
-   output logic            valid_out,
-   output logic [31:0]     data_out
+   output logic               valid_out,
+   output logic [pt.XLEN-1:0] data_out
   );
 
 
@@ -1356,22 +1369,22 @@ module eh2_exu_div_new_4bit_fullshortq
    logic                   finish_raw, finish, finish_ff;
    logic                   running_state;
    logic                   misc_enable;
-   logic         [2:0]     control_in, control_ff;
+   logic [2:0]             control_in, control_ff;
    logic                   dividend_sign_ff, divisor_sign_ff, rem_ff;
    logic                   count_enable;
-   logic         [6:0]     count_in, count_ff;
+   logic [pt.XLENW+1:0]      count_in, count_ff;
 
    logic                   smallnum_case;
-   logic         [3:0]     smallnum;
+   logic [3:0]             smallnum;
 
    logic                   a_enable, a_shift;
-   logic        [31:0]     a_in, a_ff;
+   logic [pt.XLEN-1:0]     a_in, a_ff;
 
    logic                   b_enable, b_twos_comp;
-   logic        [32:0]     b_in;
-   logic        [37:0]     b_ff;
+   logic [pt.XLEN:0]       b_in;
+   logic [pt.XLEN+5:0]     b_ff;
 
-   logic        [31:0]     q_in, q_ff;
+   logic [pt.XLEN-1:0]     q_in, q_ff;
 
    logic                   rq_enable;
    logic                   r_sign_sel;
@@ -1380,52 +1393,52 @@ module eh2_exu_div_new_4bit_fullshortq
    logic                   r_adder04_sel, r_adder05_sel, r_adder06_sel, r_adder07_sel;
    logic                   r_adder08_sel, r_adder09_sel, r_adder10_sel, r_adder11_sel;
    logic                   r_adder12_sel, r_adder13_sel, r_adder14_sel, r_adder15_sel;
-   logic        [32:0]     r_in, r_ff;
+   logic [pt.XLEN:0]       r_in, r_ff;
 
    logic                   twos_comp_q_sel, twos_comp_b_sel;
-   logic        [31:0]     twos_comp_in, twos_comp_out;
+   logic [pt.XLEN-1:0]     twos_comp_in, twos_comp_out;
 
-   logic        [15:1]     quotient_raw;
-   logic         [3:0]     quotient_new;
-   logic        [34:0]     adder01_out;
-   logic        [35:0]     adder02_out;
-   logic        [36:0]     adder03_out;
-   logic        [37:0]     adder04_out;
-   logic        [37:0]     adder05_out;
-   logic        [37:0]     adder06_out;
-   logic        [37:0]     adder07_out;
-   logic        [37:0]     adder08_out;
-   logic        [37:0]     adder09_out;
-   logic        [37:0]     adder10_out;
-   logic        [37:0]     adder11_out;
-   logic        [37:0]     adder12_out;
-   logic        [37:0]     adder13_out;
-   logic        [37:0]     adder14_out;
-   logic        [37:0]     adder15_out;
+   logic [15:1]            quotient_raw;
+   logic [3:0]             quotient_new;
+   logic [pt.XLEN+2:0]     adder01_out;
+   logic [pt.XLEN+3:0]     adder02_out;
+   logic [pt.XLEN+4:0]     adder03_out;
+   logic [pt.XLEN+5:0]     adder04_out;
+   logic [pt.XLEN+5:0]     adder05_out;
+   logic [pt.XLEN+5:0]     adder06_out;
+   logic [pt.XLEN+5:0]     adder07_out;
+   logic [pt.XLEN+5:0]     adder08_out;
+   logic [pt.XLEN+5:0]     adder09_out;
+   logic [pt.XLEN+5:0]     adder10_out;
+   logic [pt.XLEN+5:0]     adder11_out;
+   logic [pt.XLEN+5:0]     adder12_out;
+   logic [pt.XLEN+5:0]     adder13_out;
+   logic [pt.XLEN+5:0]     adder14_out;
+   logic [pt.XLEN+5:0]     adder15_out;
 
-   logic        [64:0]     ar_shifted;
-   logic         [5:0]     shortq;
-   logic         [4:0]     shortq_shift;
-   logic         [4:0]     shortq_decode;
-   logic         [4:0]     shortq_shift_ff;
+   logic [2*pt.XLEN:0]     ar_shifted;
+   logic [5:0]             shortq;
+   logic [4:0]             shortq_shift;
+   logic [4:0]             shortq_decode;
+   logic [4:0]             shortq_shift_ff;
    logic                   shortq_enable;
    logic                   shortq_enable_ff;
-   logic        [32:0]     shortq_dividend;
+   logic [pt.XLEN:0]       shortq_dividend;
 
    logic                   by_zero_case;
 
-   logic         [4:1]     special_in;
-   logic         [4:1]     special_ff;
+   logic [4:1]             special_in;
+   logic [4:1]             special_ff;
 
 
 
-   rvdffe #(22) i_misc_ff        (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[6:0], special_in[4:1], shortq_enable,    shortq_shift[4:0],    finish   }),
-                                                                    .dout({valid_ff,    control_ff[2:0], count_ff[6:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:0], finish_ff}) );
+   rvdffe #(16+pt.XLENW+1) i_misc_ff  (.*, .clk(clk), .en(misc_enable),  .din ({valid_ff_in, control_in[2:0], count_in[pt.XLENW+1:0], special_in[4:1], shortq_enable,    shortq_shift[4:0],    finish   }),
+                                                                       .dout({valid_ff,    control_ff[2:0], count_ff[pt.XLENW+1:0], special_ff[4:1], shortq_enable_ff, shortq_shift_ff[4:0], finish_ff}) );
 
-   rvdffe #(32) i_a_ff           (.*, .clk(clk), .en(a_enable),     .din(a_in[31:0]),    .dout(a_ff[31:0]));
-   rvdffe #(33) i_b_ff           (.*, .clk(clk), .en(b_enable),     .din(b_in[32:0]),    .dout(b_ff[32:0]));
-   rvdffe #(33) i_r_ff           (.*, .clk(clk), .en(rq_enable),    .din(r_in[32:0]),    .dout(r_ff[32:0]));
-   rvdffe #(32) i_q_ff           (.*, .clk(clk), .en(rq_enable),    .din(q_in[31:0]),    .dout(q_ff[31:0]));
+   rvdffe #(pt.XLEN)     i_a_ff    (.*, .clk(clk), .en(a_enable),     .din(a_in[pt.XLEN-1:0]),    .dout(a_ff[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN+1)   i_b_ff    (.*, .clk(clk), .en(b_enable),     .din(b_in[pt.XLEN:0]),      .dout(b_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN+1)   i_r_ff    (.*, .clk(clk), .en(rq_enable),    .din(r_in[pt.XLEN:0]),      .dout(r_ff[pt.XLEN:0]));
+   rvdffe #(pt.XLEN)     i_q_ff    (.*, .clk(clk), .en(rq_enable),    .din(q_in[pt.XLEN-1:0]),    .dout(q_ff[pt.XLEN-1:0]));
 
 
 
@@ -1436,8 +1449,8 @@ module eh2_exu_div_new_4bit_fullshortq
 
    assign valid_ff_in            =  valid_in  & ~cancel;
 
-   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[31]);
-   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[31]);
+   assign control_in[2]          = (~valid_in & control_ff[2]) | (valid_in & signed_in  & dividend_in[pt.XLEN-1]);
+   assign control_in[1]          = (~valid_in & control_ff[1]) | (valid_in & signed_in  &  divisor_in[pt.XLEN-1]);
    assign control_in[0]          = (~valid_in & control_ff[0]) | (valid_in & rem_in);
 
    assign dividend_sign_ff       =  control_ff[2];
@@ -1445,35 +1458,35 @@ module eh2_exu_div_new_4bit_fullshortq
    assign rem_ff                 =  control_ff[0];
 
 
-   assign by_zero_case           =  valid_ff & (b_ff[31:0] == 32'b0);
+   assign by_zero_case           =  valid_ff & (b_ff[pt.XLEN-1:0] == {pt.XLEN{1'b0}});
 
    assign misc_enable            =  valid_in | valid_ff | cancel | running_state | finish_ff;
-   assign running_state          = (| count_ff[6:0]) | shortq_enable_ff;
+   assign running_state          = (| count_ff[pt.XLENW+1:0]) | shortq_enable_ff;
    assign finish_raw             =   special_ff[3] |
-                                    (count_ff[6:0] == 7'd32);
+                                    (count_ff[pt.XLENW+1:0] == (pt.XLENW+2)'(pt.XLEN));
 
 
    assign finish                 =  finish_raw & ~cancel;
    assign count_enable           = (valid_ff | running_state) & ~finish & ~finish_ff & ~cancel & ~shortq_enable;
-   assign count_in[6:0]          = {7{count_enable}} & (count_ff[6:0] + 7'd4 + {2'b0,shortq_shift_ff[4:0]});
+   assign count_in[pt.XLENW+1:0]   = {pt.XLENW+2{count_enable}} & (count_ff[pt.XLENW+1:0] + (pt.XLENW+2)'('d4) + {2'b0,shortq_shift_ff[4:0]});
 
 
    assign a_enable               =  valid_in | running_state;
    assign a_shift                =  running_state & ~shortq_enable_ff;
 
-   assign ar_shifted[64:0]       = { {33{dividend_sign_ff}} , a_ff[31:0]} << {shortq_shift_ff[4:0]};
+   assign ar_shifted[2*pt.XLEN:0] = { {pt.XLEN+1{dividend_sign_ff}} , a_ff[pt.XLEN-1:0]} << {shortq_shift_ff[4:0]};
 
-   assign a_in[31:0]             = ( {32{~a_shift & ~shortq_enable_ff}} &  dividend_in[31:0] ) |
-                                   ( {32{ a_shift                    }} & {a_ff[27:0],4'b0}  ) |
-                                   ( {32{            shortq_enable_ff}} &  ar_shifted[31:0]  );
+   assign a_in[pt.XLEN-1:0]      = ( {pt.XLEN{~a_shift & ~shortq_enable_ff}} & dividend_in[pt.XLEN-1:0]  ) |
+                                   ( {pt.XLEN{ a_shift                    }} & {a_ff[pt.XLEN-5:0], 4'b0} ) |
+                                   ( {pt.XLEN{            shortq_enable_ff}} &  ar_shifted[pt.XLEN-1:0]  );
 
 
 
    assign b_enable               =    valid_in | b_twos_comp;
    assign b_twos_comp            =    valid_ff & ~(dividend_sign_ff ^ divisor_sign_ff);
 
-   assign b_in[32:0]             = ( {33{~b_twos_comp}} & { (signed_in & divisor_in[31]),divisor_in[31:0] } ) |
-                                   ( {33{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[31:0] } );
+   assign b_in[pt.XLEN:0]        = ( {pt.XLEN+1{~b_twos_comp}} & { (signed_in & divisor_in[pt.XLEN-1]),divisor_in[pt.XLEN-1:0] } ) |
+                                   ( {pt.XLEN+1{ b_twos_comp}} & {~divisor_sign_ff,twos_comp_out[pt.XLEN-1:0] } );
 
 
    assign rq_enable              =  valid_in | valid_ff | running_state & ~(| special_ff[3:1]);
@@ -1495,66 +1508,66 @@ module eh2_exu_div_new_4bit_fullshortq
    assign r_adder14_sel          =  running_state & (quotient_new[3:0] == 4'd14) & ~shortq_enable_ff;
    assign r_adder15_sel          =  running_state & (quotient_new[3:0] == 4'd15) & ~shortq_enable_ff;
 
-   assign r_in[32:0]             = ( {33{r_sign_sel      }} & {33{1'b1}}               ) |
-                                   ( {33{r_restore_sel   }} & {r_ff[28:0],a_ff[31:28]} ) |
-                                   ( {33{r_adder01_sel   }} &  adder01_out[32:0]       ) |
-                                   ( {33{r_adder02_sel   }} &  adder02_out[32:0]       ) |
-                                   ( {33{r_adder03_sel   }} &  adder03_out[32:0]       ) |
-                                   ( {33{r_adder04_sel   }} &  adder04_out[32:0]       ) |
-                                   ( {33{r_adder05_sel   }} &  adder05_out[32:0]       ) |
-                                   ( {33{r_adder06_sel   }} &  adder06_out[32:0]       ) |
-                                   ( {33{r_adder07_sel   }} &  adder07_out[32:0]       ) |
-                                   ( {33{r_adder08_sel   }} &  adder08_out[32:0]       ) |
-                                   ( {33{r_adder09_sel   }} &  adder09_out[32:0]       ) |
-                                   ( {33{r_adder10_sel   }} &  adder10_out[32:0]       ) |
-                                   ( {33{r_adder11_sel   }} &  adder11_out[32:0]       ) |
-                                   ( {33{r_adder12_sel   }} &  adder12_out[32:0]       ) |
-                                   ( {33{r_adder13_sel   }} &  adder13_out[32:0]       ) |
-                                   ( {33{r_adder14_sel   }} &  adder14_out[32:0]       ) |
-                                   ( {33{r_adder15_sel   }} &  adder15_out[32:0]       ) |
-                                   ( {33{shortq_enable_ff}} &  ar_shifted[64:32]       ) |
-                                   ( {33{by_zero_case    }} & {1'b0,a_ff[31:0]}        );
+   assign r_in[pt.XLEN:0]        = ( {pt.XLEN+1{r_sign_sel      }} & {pt.XLEN+1{1'b1}}                             ) |
+                                   ( {pt.XLEN+1{r_restore_sel   }} & {r_ff[pt.XLEN-4:0],a_ff[pt.XLEN-1:pt.XLEN-4]} ) |
+                                   ( {pt.XLEN+1{r_adder01_sel   }} &  adder01_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder02_sel   }} &  adder02_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder03_sel   }} &  adder03_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder04_sel   }} &  adder04_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder05_sel   }} &  adder05_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder06_sel   }} &  adder06_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder07_sel   }} &  adder07_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder08_sel   }} &  adder08_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder09_sel   }} &  adder09_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder10_sel   }} &  adder10_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder11_sel   }} &  adder11_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder12_sel   }} &  adder12_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder13_sel   }} &  adder13_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder14_sel   }} &  adder14_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{r_adder15_sel   }} &  adder15_out[pt.XLEN:0]                       ) |
+                                   ( {pt.XLEN+1{shortq_enable_ff}} &  ar_shifted[2*pt.XLEN:pt.XLEN]                ) |
+                                   ( {pt.XLEN+1{by_zero_case    }} & {1'b0,a_ff[pt.XLEN-1:0]}                      );
 
 
-   assign q_in[31:0]             = ( {32{~valid_ff     }} & {q_ff[27:0], quotient_new[3:0]} ) |
-                                   ( {32{ smallnum_case}} & {28'b0     , smallnum[3:0]}     ) |
-                                   ( {32{ by_zero_case }} & {32{1'b1}}                      );
+   assign q_in[pt.XLEN-1:0]      = ( {pt.XLEN{~valid_ff       }} & {q_ff[pt.XLEN-5:0], quotient_new[3:0]}  ) |
+                                   ( {pt.XLEN{ smallnum_case  }} & {{pt.XLEN-4{1'b0}}, smallnum[3:0]}      ) |
+                                   ( {pt.XLEN{ by_zero_case   }} & {pt.XLEN{1'b1}}                         );
 
 
-   assign b_ff[37:33]            = {b_ff[32],b_ff[32],b_ff[32],b_ff[32],b_ff[32]};
+   assign b_ff[pt.XLEN+5:pt.XLEN+1] = {b_ff[pt.XLEN],b_ff[pt.XLEN],b_ff[pt.XLEN],b_ff[pt.XLEN],b_ff[pt.XLEN]};
 
 
-   assign adder01_out[34:0]      = {         r_ff[30:0],a_ff[31:28]}  +                                                                   b_ff[34:0];
-   assign adder02_out[35:0]      = {         r_ff[31:0],a_ff[31:28]}  +                                             {b_ff[34:0],1'b0};
-   assign adder03_out[36:0]      = {         r_ff[32:0],a_ff[31:28]}  +                                             {b_ff[35:0],1'b0}  +  b_ff[36:0];
-   assign adder04_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +                       {b_ff[35:0],2'b0};
-   assign adder05_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +                       {b_ff[35:0],2'b0}  +                        b_ff[37:0];
-   assign adder06_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +                       {b_ff[35:0],2'b0}  +  {b_ff[36:0],1'b0};
-   assign adder07_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +                       {b_ff[35:0],2'b0}  +  {b_ff[36:0],1'b0}  +  b_ff[37:0];
-   assign adder08_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0};
-   assign adder09_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +                                              b_ff[37:0];
-   assign adder10_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +                        {b_ff[36:0],1'b0};
-   assign adder11_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +                        {b_ff[36:0],1'b0}  +  b_ff[37:0];
-   assign adder12_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +  {b_ff[35:0],2'b0};
-   assign adder13_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +  {b_ff[35:0],2'b0}  +                        b_ff[37:0];
-   assign adder14_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +  {b_ff[35:0],2'b0}  +  {b_ff[36:0],1'b0};
-   assign adder15_out[37:0]      = {r_ff[32],r_ff[32:0],a_ff[31:28]}  +  {b_ff[34:0],3'b0} +  {b_ff[35:0],2'b0}  +  {b_ff[36:0],1'b0}  +  b_ff[37:0];
+   assign adder01_out[pt.XLEN+2:0]      = {              r_ff[pt.XLEN-2:0], a_ff[pt.XLEN-1:pt.XLEN-4]}  +                                                                                        b_ff[pt.XLEN+2:0];
+   assign adder02_out[pt.XLEN+3:0]      = {              r_ff[pt.XLEN-1:0], a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],1'b0};
+   assign adder03_out[pt.XLEN+4:0]      = {              r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +                                                           {b_ff[pt.XLEN+3:0],1'b0}  +  b_ff[pt.XLEN+4:0];
+   assign adder04_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +                              {b_ff[pt.XLEN+3:0],2'b0};
+   assign adder05_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +                              {b_ff[pt.XLEN+3:0],2'b0}  +                               b_ff[pt.XLEN+5:0];
+   assign adder06_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +                              {b_ff[pt.XLEN+3:0],2'b0}  +  {b_ff[pt.XLEN+4:0],1'b0};
+   assign adder07_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +                              {b_ff[pt.XLEN+3:0],2'b0}  +  {b_ff[pt.XLEN+4:0],1'b0}  +  b_ff[pt.XLEN+5:0];
+   assign adder08_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0};
+   assign adder09_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +                                                            b_ff[pt.XLEN+5:0];
+   assign adder10_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +                               {b_ff[pt.XLEN+4:0],1'b0};
+   assign adder11_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +                               {b_ff[pt.XLEN+4:0],1'b0}  +  b_ff[pt.XLEN+5:0];
+   assign adder12_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +  {b_ff[pt.XLEN+3:0],2'b0};
+   assign adder13_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +  {b_ff[pt.XLEN+3:0],2'b0}  +                               b_ff[pt.XLEN+5:0];
+   assign adder14_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +  {b_ff[pt.XLEN+3:0],2'b0}  +  {b_ff[pt.XLEN+4:0],1'b0};
+   assign adder15_out[pt.XLEN+5:0]      = {r_ff[pt.XLEN],r_ff[pt.XLEN:0],   a_ff[pt.XLEN-1:pt.XLEN-4]}  +  {b_ff[pt.XLEN+2:0],3'b0} +  {b_ff[pt.XLEN+3:0],2'b0}  +  {b_ff[pt.XLEN+4:0],1'b0}  +  b_ff[pt.XLEN+5:0];
 
-   assign quotient_raw[01]       = (~adder01_out[34] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder01_out[34:0] == 35'b0) );
-   assign quotient_raw[02]       = (~adder02_out[35] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder02_out[35:0] == 36'b0) );
-   assign quotient_raw[03]       = (~adder03_out[36] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder03_out[36:0] == 37'b0) );
-   assign quotient_raw[04]       = (~adder04_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder04_out[37:0] == 38'b0) );
-   assign quotient_raw[05]       = (~adder05_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder05_out[37:0] == 38'b0) );
-   assign quotient_raw[06]       = (~adder06_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder06_out[37:0] == 38'b0) );
-   assign quotient_raw[07]       = (~adder07_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder07_out[37:0] == 38'b0) );
-   assign quotient_raw[08]       = (~adder08_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder08_out[37:0] == 38'b0) );
-   assign quotient_raw[09]       = (~adder09_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder09_out[37:0] == 38'b0) );
-   assign quotient_raw[10]       = (~adder10_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder10_out[37:0] == 38'b0) );
-   assign quotient_raw[11]       = (~adder11_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder11_out[37:0] == 38'b0) );
-   assign quotient_raw[12]       = (~adder12_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder12_out[37:0] == 38'b0) );
-   assign quotient_raw[13]       = (~adder13_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder13_out[37:0] == 38'b0) );
-   assign quotient_raw[14]       = (~adder14_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder14_out[37:0] == 38'b0) );
-   assign quotient_raw[15]       = (~adder15_out[37] ^ dividend_sign_ff) | ( (a_ff[27:0] == 28'b0) & (adder15_out[37:0] == 38'b0) );
+   assign quotient_raw[01]       = (~adder01_out[pt.XLEN+2] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder01_out[pt.XLEN+2:0] == {pt.XLEN+3{1'b0}}) );
+   assign quotient_raw[02]       = (~adder02_out[pt.XLEN+3] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder02_out[pt.XLEN+3:0] == {pt.XLEN+4{1'b0}}) );
+   assign quotient_raw[03]       = (~adder03_out[pt.XLEN+4] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder03_out[pt.XLEN+4:0] == {pt.XLEN+5{1'b0}}) );
+   assign quotient_raw[04]       = (~adder04_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder04_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[05]       = (~adder05_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder05_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[06]       = (~adder06_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder06_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[07]       = (~adder07_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder07_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[08]       = (~adder08_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder08_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[09]       = (~adder09_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder09_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[10]       = (~adder10_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder10_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[11]       = (~adder11_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder11_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[12]       = (~adder12_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder12_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[13]       = (~adder13_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder13_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[14]       = (~adder14_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder14_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
+   assign quotient_raw[15]       = (~adder15_out[pt.XLEN+5] ^ dividend_sign_ff) | ( (a_ff[pt.XLEN-5:0] == {pt.XLEN-4{1'b0}}) & (adder15_out[pt.XLEN+5:0] == {pt.XLEN+6{1'b0}}) );
 
 
    assign quotient_new[0]        = ( quotient_raw[15:01] == 15'b000_0000_0000_0001 ) |  //  1
@@ -1597,26 +1610,26 @@ module eh2_exu_div_new_4bit_fullshortq
    assign twos_comp_b_sel        =  valid_ff           & ~(dividend_sign_ff ^ divisor_sign_ff);
    assign twos_comp_q_sel        = ~valid_ff & ~rem_ff &  (dividend_sign_ff ^ divisor_sign_ff) & ~special_ff[4];
 
-   assign twos_comp_in[31:0]     = ( {32{twos_comp_q_sel}} & q_ff[31:0] ) |
-                                   ( {32{twos_comp_b_sel}} & b_ff[31:0] );
+   assign twos_comp_in[pt.XLEN-1:0] = ( {pt.XLEN{twos_comp_q_sel}} & q_ff[pt.XLEN-1:0] ) |
+                                      ( {pt.XLEN{twos_comp_b_sel}} & b_ff[pt.XLEN-1:0] );
 
-   rvtwoscomp #(32) i_twos_comp  (.din(twos_comp_in[31:0]), .dout(twos_comp_out[31:0]));
+   rvtwoscomp #(pt.XLEN) i_twos_comp  (.din(twos_comp_in[pt.XLEN-1:0]), .dout(twos_comp_out[pt.XLEN-1:0]));
 
 
 
    assign valid_out              =  finish_ff & ~cancel;
 
-   assign data_out[31:0]         = ( {32{~rem_ff & ~twos_comp_q_sel}} & q_ff[31:0]          ) |
-                                   ( {32{ rem_ff                   }} & r_ff[31:0]          ) |
-                                   ( {32{           twos_comp_q_sel}} & twos_comp_out[31:0] );
+   assign data_out[pt.XLEN-1:0]  = ( {pt.XLEN{~rem_ff & ~twos_comp_q_sel}} & q_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{ rem_ff                   }} & r_ff[pt.XLEN-1:0]          ) |
+                                   ( {pt.XLEN{           twos_comp_q_sel}} & twos_comp_out[pt.XLEN-1:0] );
 
 
 
 
    // *** *** *** START : SMALLNUM {{
 
-   assign smallnum_case          = ( (a_ff[31:4]  == 28'b0) & (b_ff[31:4] == 28'b0) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0) |
-                                   ( (a_ff[31:0]  == 32'b0) &                         ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0);
+   assign smallnum_case          = ( (a_ff[pt.XLEN-1:4]  == {pt.XLEN-4{1'b0}}) & (b_ff[pt.XLEN-1:4] == {pt.XLEN-4{1'b0}}) & ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0) |
+                                   ( (a_ff[pt.XLEN-1:0]  == {pt.XLEN{1'b0}})   &                                            ~by_zero_case & ~rem_ff & valid_ff & ~cancel & 1'b0);
 
    assign smallnum[3]            = ( a_ff[3] &                                  ~b_ff[3] & ~b_ff[2] & ~b_ff[1]           );
 
@@ -1668,11 +1681,11 @@ module eh2_exu_div_new_4bit_fullshortq
 
    // *** *** *** Start : Short Q {{
 
-   assign shortq_dividend[32:0]   = {dividend_sign_ff,a_ff[31:0]};
+   assign shortq_dividend[pt.XLEN:0]   = {dividend_sign_ff,a_ff[pt.XLEN-1:0]};
 
 
-   parameter shortq_a_width = 33;
-   parameter shortq_b_width = 33;
+   parameter shortq_a_width = pt.XLEN + 1;
+   parameter shortq_b_width = pt.XLEN + 1;
 
    logic [5:0]  dw_a_enc;
    logic [5:0]  dw_b_enc;
@@ -1680,12 +1693,12 @@ module eh2_exu_div_new_4bit_fullshortq
 
 
    eh2_exu_div_cls i_a_cls  (
-       .operand  ( shortq_dividend[32:0]  ),
-       .cls      ( dw_a_enc[4:0]          ));
+       .operand  ( shortq_dividend[pt.XLEN:0]  ),
+       .cls      ( dw_a_enc[4:0]               ));
 
    eh2_exu_div_cls i_b_cls  (
-       .operand  ( b_ff[32:0]             ),
-       .cls      ( dw_b_enc[4:0]          ));
+       .operand  ( b_ff[pt.XLEN:0]             ),
+       .cls      ( dw_b_enc[4:0]               ));
 
    assign dw_a_enc[5]             =  1'b0;
    assign dw_b_enc[5]             =  1'b0;

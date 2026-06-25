@@ -118,7 +118,7 @@ module tb_top;
 
     logic [1:0]                 wb_valid;
     logic [1:0][4:0]            wb_dest;
-    logic [1:0][31:0]           wb_data;
+    logic [1:0][`RV_XLEN-1:0]   wb_data;
     logic [1:0]                 wb_tid;
 
    //-------------------------- LSU AXI signals--------------------------
@@ -447,8 +447,9 @@ module tb_top;
                             commit_count[t]++;
                             $fwrite (el, "%10d : %8s %0d %h %h %h%13s ; %s\n",cycleCnt, $sformatf("#%0d",commit_count[t]), t,
                                     trace_rv_i_address_ip[t][63+i*64 -:32], trace_rv_i_address_ip[t][31+i*64 -:32], trace_rv_i_insn_ip[t][31+i*32-:32],
-                                    (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("%s=%h", abi_reg[wb_dest[i0]], wb_data[i0]) : "             ",
-                                    dasm(trace_rv_i_insn_ip[t][31+i*32 -:32], trace_rv_i_address_ip[t][31+i*32-:32], wb_dest[i0] & {5{wb_valid[i0]}}, wb_data[i0], t)
+                                    (wb_dest[i0] !=0 && wb_valid[i0]) ?  $sformatf("%s=%h %h", abi_reg[wb_dest[i0]], wb_data[i0][63:32], wb_data[i0][31:0]) : "             ",
+                                    // TODO: Add support for dasm64
+                                    dasm(trace_rv_i_insn_ip[t][31+i*32 -:32], trace_rv_i_address_ip[t][31+i*32-:32], wb_dest[i0] & {5{wb_valid[i0]}}, wb_data[i0][31:0], t)
                                     );
                         end
                 end

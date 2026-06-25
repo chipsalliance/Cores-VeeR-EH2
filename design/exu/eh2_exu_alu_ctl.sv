@@ -30,44 +30,44 @@ import eh2_pkg::*;
    input  logic                          d_enable,          // Clock enable - data
    input  logic                          valid,             // Valid
    input  logic                          ap_in_tid,         // predecodes
-   input  eh2_alu_pkt_t                 ap,                // predecodes
-   input  logic [31:0]                   a,                 // A operand
-   input  logic [31:0]                   b,                 // B operand
-   input  logic [31:1]                   pc,                // for pc=pc+2,4 calculations
-   input  eh2_predict_pkt_t             predict_p,         // Predicted branch structure
+   input  eh2_alu_pkt_t                  ap,                // predecodes
+   input  logic [pt.XLEN-1:0]            a,                 // A operand
+   input  logic [pt.XLEN-1:0]            b,                 // B operand
+   input  logic [pt.XLEN-1:1]            pc,                // for pc=pc+2,4 calculations
+   input  eh2_predict_pkt_t              predict_p,         // Predicted branch structure
    input  logic [pt.BTB_TOFFSET_SIZE:1]  brimm,             // Branch offset
 
 
-   output logic [31:0]                   out,               // final result
+   output logic [pt.XLEN-1:0]            out,               // final result
    output logic [pt.NUM_THREADS-1:0]     flush_upper,       // Branch flush
-   output logic [31:1]                   flush_path,        // Branch flush PC
-   output logic [31:1]                   pc_ff,             // flopped PC
+   output logic [pt.XLEN-1:1]            flush_path,        // Branch flush PC
+   output logic [pt.XLEN-1:1]            pc_ff,             // flopped PC
    output logic                          pred_correct,      // NPC control
-   output eh2_predict_pkt_t             predict_p_ff       // Predicted branch structure
+   output eh2_predict_pkt_t              predict_p_ff       // Predicted branch structure
   );
 
 
-   logic        [31:0]                   zba_a_ff;
-   logic        [31:0]                   aout;
+   logic        [pt.XLEN-1:0]            zba_a_ff;
+   logic        [pt.XLEN-1:0]            aout;
    logic                                 cout,ov,neg;
-   logic        [31:0]                   lout;
-   logic        [31:0]                   sout;
+   logic        [pt.XLEN-1:0]            lout;
+   logic        [pt.XLEN-1:0]            sout;
    logic                                 sel_shift,sel_adder;
    logic                                 slt_one;
    logic                                 actual_taken;
-   logic signed [31:0]                   a_ff;
-   logic        [31:0]                   b_ff;
+   logic signed [pt.XLEN-1:0]            a_ff;
+   logic        [pt.XLEN-1:0]            b_ff;
    logic        [pt.BTB_TOFFSET_SIZE:1]  brimm_ff;
-   logic        [31:1]                   pcout;
+   logic        [pt.XLEN-1:1]            pcout;
    logic                                 valid_ff;
    logic                                 cond_mispredict;
    logic                                 target_mispredict;
    logic                                 eq, ne, lt, ge;
-   eh2_predict_pkt_t                    pp_ff;
+   eh2_predict_pkt_t                     pp_ff;
    logic                                 any_jal;
    logic        [1:0]                    newhist;
    logic                                 sel_pc;
-   logic        [31:0]                   csr_write_data;
+   logic        [pt.XLEN-1:0]            csr_write_data;
 
 
 
@@ -198,11 +198,11 @@ import eh2_pkg::*;
 
 
 
-   rvdffie  #(1,1)                     validff         (.*, .clk(clk),                               .din(valid & ~flush[ap_in_tid]),    .dout(valid_ff));
-   rvdffe #(32)                        aff             (.*, .clk(clk),        .en(d_enable & valid), .din(a[31:0]),                      .dout(a_ff[31:0]));
-   rvdffe #(32)                        bff             (.*, .clk(clk),        .en(d_enable & valid), .din(b[31:0]),                      .dout(b_ff[31:0]));
-   rvdffpcie #(31)                     pcff            (.*, .clk(clk),        .en(d_enable),         .din(pc[31:1]),                     .dout(pc_ff[31:1]));   // all PCs run through here
-   rvdffe #(pt.BTB_TOFFSET_SIZE)       brimmff         (.*, .clk(clk),        .en(d_enable),         .din(brimm[pt.BTB_TOFFSET_SIZE:1]), .dout(brimm_ff[pt.BTB_TOFFSET_SIZE:1]));
+   rvdffie  #(1,1)               validff         (.*, .clk(clk),                               .din(valid & ~flush[ap_in_tid]),    .dout(valid_ff));
+   rvdffe #(pt.XLEN)             aff             (.*, .clk(clk),        .en(d_enable & valid), .din(a[pt.XLEN-1:0]),               .dout(a_ff[pt.XLEN-1:0]));
+   rvdffe #(pt.XLEN)             bff             (.*, .clk(clk),        .en(d_enable & valid), .din(b[pt.XLEN-1:0]),               .dout(b_ff[pt.XLEN-1:0]));
+   rvdffpcie #(pt.XLEN-1)        pcff            (.*, .clk(clk),        .en(d_enable),         .din(pc[pt.XLEN-1:1]),              .dout(pc_ff[pt.XLEN-1:1]));   // all PCs run through here
+   rvdffe #(pt.BTB_TOFFSET_SIZE) brimmff         (.*, .clk(clk),        .en(d_enable),         .din(brimm[pt.BTB_TOFFSET_SIZE:1]), .dout(brimm_ff[pt.BTB_TOFFSET_SIZE:1]));
    rvdffppie #(.WIDTH($bits(eh2_predict_pkt_t)),.LEFT(19),.RIGHT(9)) predictpacketff (.*, .clk(clk), .en(c_enable), .den(b_enable & d_enable),  .din(predict_p),  .dout(pp_ff));
 
 
@@ -221,40 +221,40 @@ import eh2_pkg::*;
    // blt    =>  bctl=2; add; add x0, pc, sext(offset[12:1])
    // bge    =>  bctl=1; add; add x0, pc, sext(offset[12:1])
 
-   // jal    =>  rs1=pc {pc[31:1],1'b0},  rs2=sext(offset20:1]);   rd=pc+[2,4]
+   // jal    =>  rs1=pc {pc[pt.XLEN-1:1],1'b0},  rs2=sext(offset20:1]);   rd=pc+[2,4]
    // jalr   =>  rs1=rs1,                 rs2=sext(offset20:1]);   rd=pc+[2,4]
 
 
 
-   assign zba_a_ff[31:0]      = ( {32{ ap_sh1add}} & {a_ff[30:0],1'b0} ) |
-                                ( {32{ ap_sh2add}} & {a_ff[29:0],2'b0} ) |
-                                ( {32{ ap_sh3add}} & {a_ff[28:0],3'b0} ) |
-                                ( {32{~ap_zba   }} &  a_ff[31:0]       );
+   assign zba_a_ff[pt.XLEN-1:0] = ( {pt.XLEN{ ap_sh1add}} & {a_ff[pt.XLEN-2:0],1'b0} ) |
+                                  ( {pt.XLEN{ ap_sh2add}} & {a_ff[pt.XLEN-3:0],2'b0} ) |
+                                  ( {pt.XLEN{ ap_sh3add}} & {a_ff[pt.XLEN-4:0],3'b0} ) |
+                                  ( {pt.XLEN{~ap_zba   }} &  a_ff[pt.XLEN-1:0]       );
 
 
-   logic        [31:0]    bm;
+   logic        [pt.XLEN-1:0]    bm;
 
-   assign bm[31:0]            = ( ap.sub )  ?  ~b_ff[31:0]  :  b_ff[31:0];
+   assign bm[pt.XLEN-1:0]     = ( ap.sub )  ?  ~b_ff[pt.XLEN-1:0]  :  b_ff[pt.XLEN-1:0];
 
-   assign {cout, aout[31:0]}  = {1'b0, zba_a_ff[31:0]} + {1'b0, bm[31:0]} + {32'b0, ap.sub};
+   assign {cout, aout[pt.XLEN-1:0]}  = {1'b0, zba_a_ff[pt.XLEN-1:0]} + {1'b0, bm[pt.XLEN-1:0]} + {{pt.XLEN{1'b0}}, ap.sub};
 
-   assign ov                  = (~a_ff[31] & ~bm[31] &  aout[31]) |
-                                ( a_ff[31] &  bm[31] & ~aout[31] );
+   assign ov                  = (~a_ff[pt.XLEN-1] & ~bm[pt.XLEN-1] &  aout[pt.XLEN-1]) |
+                                ( a_ff[pt.XLEN-1] &  bm[pt.XLEN-1] & ~aout[pt.XLEN-1] );
 
    assign lt                  = (~ap.unsign & (neg ^ ov)) |
                                 ( ap.unsign & ~cout);
 
-   assign eq                  = (a_ff[31:0] == b_ff[31:0]);
+   assign eq                  = (a_ff[pt.XLEN-1:0] == b_ff[pt.XLEN-1:0]);
    assign ne                  = ~eq;
-   assign neg                 =  aout[31];
+   assign neg                 =  aout[pt.XLEN-1];
    assign ge                  = ~lt;
 
-   assign lout[31:0]          =  ( {32{ap.land & ~ap_zbb}} &  a_ff[31:0] &  b_ff[31:0]  ) |
-                                 ( {32{ap.lor  & ~ap_zbb}} & (a_ff[31:0] |  b_ff[31:0]) ) |
-                                 ( {32{ap.lxor & ~ap_zbb}} & (a_ff[31:0] ^  b_ff[31:0]) ) |
-                                 ( {32{ap.land &  ap_zbb}} &  a_ff[31:0] & ~b_ff[31:0]  ) |
-                                 ( {32{ap.lor  &  ap_zbb}} & (a_ff[31:0] | ~b_ff[31:0]) ) |
-                                 ( {32{ap.lxor &  ap_zbb}} & (a_ff[31:0] ^ ~b_ff[31:0]) );
+   assign lout[pt.XLEN-1:0]   =  ( {pt.XLEN{ap.land & ~ap_zbb}} &  a_ff[pt.XLEN-1:0] &  b_ff[pt.XLEN-1:0]  ) |
+                                 ( {pt.XLEN{ap.lor  & ~ap_zbb}} & (a_ff[pt.XLEN-1:0] |  b_ff[pt.XLEN-1:0]) ) |
+                                 ( {pt.XLEN{ap.lxor & ~ap_zbb}} & (a_ff[pt.XLEN-1:0] ^  b_ff[pt.XLEN-1:0]) ) |
+                                 ( {pt.XLEN{ap.land &  ap_zbb}} &  a_ff[pt.XLEN-1:0] & ~b_ff[pt.XLEN-1:0]  ) |
+                                 ( {pt.XLEN{ap.lor  &  ap_zbb}} & (a_ff[pt.XLEN-1:0] | ~b_ff[pt.XLEN-1:0]) ) |
+                                 ( {pt.XLEN{ap.lxor &  ap_zbb}} & (a_ff[pt.XLEN-1:0] ^ ~b_ff[pt.XLEN-1:0]) );
 
 
 
@@ -262,34 +262,34 @@ import eh2_pkg::*;
    // * * * * * * * * * * * * * * * * * *  BitManip  :  ROL,ROR      * * * * * * * * * * * * * * * * * *
    // * * * * * * * * * * * * * * * * * *  BitManip  :  ZBEXT        * * * * * * * * * * * * * * * * * *
 
-   logic        [5:0]     shift_amount;
-   logic        [31:0]    shift_mask;
-   logic        [62:0]    shift_extend;
-   logic        [62:0]    shift_long;
+   logic        [pt.XLENW:0]      shift_amount;
+   logic        [pt.XLEN-1:0]     shift_mask;
+   logic        [2*(pt.XLEN-1):0] shift_extend;
+   logic        [2*(pt.XLEN-1):0] shift_long;
 
 
-   assign shift_amount[5:0]            = ( { 6{ap.sll}}   & (6'd32 - {1'b0,b_ff[4:0]}) ) |   // [5] unused
-                                         ( { 6{ap.srl}}   &          {1'b0,b_ff[4:0]}  ) |
-                                         ( { 6{ap.sra}}   &          {1'b0,b_ff[4:0]}  ) |
-                                         ( { 6{ap_rol}}   & (6'd32 - {1'b0,b_ff[4:0]}) ) |
-                                         ( { 6{ap_ror}}   &          {1'b0,b_ff[4:0]}  ) |
-                                         ( { 6{ap_bext}}  &          {1'b0,b_ff[4:0]}  );
+   assign shift_amount[pt.XLENW:0]     = ( { pt.XLENW+1{ap.sll}}   & ({pt.XLENW{pt.XLEN}} - {1'b0,b_ff[pt.XLENW-1:0]}) ) |   // [pt.XLENW] unused
+                                         ( { pt.XLENW+1{ap.srl}}   &                        {1'b0,b_ff[pt.XLENW-1:0]}  ) |
+                                         ( { pt.XLENW+1{ap.sra}}   &                        {1'b0,b_ff[pt.XLENW-1:0]}  ) |
+                                         ( { pt.XLENW+1{ap_rol}}   & ({pt.XLENW{pt.XLEN}} - {1'b0,b_ff[pt.XLENW-1:0]}) ) |
+                                         ( { pt.XLENW+1{ap_ror}}   &                        {1'b0,b_ff[pt.XLENW-1:0]}  ) |
+                                         ( { pt.XLENW+1{ap_bext}}  &                        {1'b0,b_ff[pt.XLENW-1:0]}  );
 
 
-   assign shift_mask[31:0]             = ( 32'hffffffff << ({5{ap.sll}} & b_ff[4:0]) );
+   assign shift_mask[pt.XLEN-1:0]      = ( {pt.XLEN{1'b1}} << ({pt.XLENW{ap.sll}} & b_ff[pt.XLENW-1:0]) );
 
 
-   assign shift_extend[31:0]           =  a_ff[31:0];
+   assign shift_extend[pt.XLEN-1:0]    =  a_ff[pt.XLEN-1:0];
 
-   assign shift_extend[62:32]          = ( {31{ap.sra}} & {31{a_ff[31]}} ) |
-                                         ( {31{ap.sll}} &     a_ff[30:0] ) |
-                                         ( {31{ap_rol}} &     a_ff[30:0] ) |
-                                         ( {31{ap_ror}} &     a_ff[30:0] );
+   assign shift_extend[2*(pt.XLEN-1):pt.XLEN] = ( {pt.XLEN-1{ap.sra}} & {pt.XLEN-1{a_ff[pt.XLEN-1]}} ) |
+                                                ( {pt.XLEN-1{ap.sll}} &            a_ff[pt.XLEN-2:0] ) |
+                                                ( {pt.XLEN-1{ap_rol}} &            a_ff[pt.XLEN-2:0] ) |
+                                                ( {pt.XLEN-1{ap_ror}} &            a_ff[pt.XLEN-2:0] );
 
 
-   assign shift_long[62:0]    = ( shift_extend[62:0] >> shift_amount[4:0] );   // 62-32 unused
+   assign shift_long[2*(pt.XLEN-1):0] = ( shift_extend[2*(pt.XLEN-1):0] >> shift_amount[pt.XLENW-1:0] );   // 2*(pt.XLEN-1)-pt.XLEN unused
 
-   assign sout[31:0]          =   shift_long[31:0] & shift_mask[31:0];
+   assign sout[pt.XLEN-1:0]           =   shift_long[pt.XLEN-1:0] & shift_mask[pt.XLEN-1:0];
 
 
 
@@ -297,35 +297,34 @@ import eh2_pkg::*;
    // * * * * * * * * * * * * * * * * * *  BitManip  :  CLZ,CTZ      * * * * * * * * * * * * * * * * * *
 
    logic                  bitmanip_clz_ctz_sel;
-   logic        [31:0]    bitmanip_a_reverse_ff;
-   logic        [31:0]    bitmanip_lzd_ff;
-   logic        [5:0]     bitmanip_dw_lzd_enc;
-   logic        [5:0]     bitmanip_clz_ctz_result;
+   logic        [pt.XLEN-1:0]    bitmanip_a_reverse_ff;
+   logic        [pt.XLEN-1:0]    bitmanip_lzd_ff;
+   logic        [pt.XLENW:0]     bitmanip_dw_lzd_enc;
+   logic        [pt.XLENW:0]     bitmanip_clz_ctz_result;
 
    assign bitmanip_clz_ctz_sel         =  ap_clz | ap_ctz;
 
-   assign bitmanip_a_reverse_ff[31:0]  = {a_ff[0],  a_ff[1],  a_ff[2],  a_ff[3],  a_ff[4],  a_ff[5],  a_ff[6],  a_ff[7],
-                                          a_ff[8],  a_ff[9],  a_ff[10], a_ff[11], a_ff[12], a_ff[13], a_ff[14], a_ff[15],
-                                          a_ff[16], a_ff[17], a_ff[18], a_ff[19], a_ff[20], a_ff[21], a_ff[22], a_ff[23],
-                                          a_ff[24], a_ff[25], a_ff[26], a_ff[27], a_ff[28], a_ff[29], a_ff[30], a_ff[31]};
+   for (genvar i = 0; i < pt.XLEN; i++) begin
+     assign bitmanip_a_reverse_ff[i] = a_ff[pt.XLEN-i-1];
+   end
 
-   assign bitmanip_lzd_ff[31:0]        = ( {32{ap_clz}} & a_ff[31:0]                 ) |
-                                         ( {32{ap_ctz}} & bitmanip_a_reverse_ff[31:0]);
+   assign bitmanip_lzd_ff[pt.XLEN-1:0] = ( {pt.XLEN{ap_clz}} & a_ff[pt.XLEN-1:0]                 ) |
+                                         ( {pt.XLEN{ap_ctz}} & bitmanip_a_reverse_ff[pt.XLEN-1:0]);
 
-   logic        [31:0]    bitmanip_lzd_os;
+   logic    [pt.XLEN-1:0] bitmanip_lzd_os;
    integer                bitmanip_clzctz_i;
    logic                  found;
 
    always_comb
      begin
-        bitmanip_lzd_os[31:0]   =  bitmanip_lzd_ff[31:0];
-        bitmanip_dw_lzd_enc[5:0]=  6'b0;
+        bitmanip_lzd_os[pt.XLEN-1:0]   =  bitmanip_lzd_ff[pt.XLEN-1:0];
+        bitmanip_dw_lzd_enc[pt.XLENW:0]=  {pt.XLEN+1{1'b0}};
         found = 1'b0;
 
-        for (int bitmanip_clzctz_i=0; bitmanip_clzctz_i<32 && found==0; bitmanip_clzctz_i++) begin
-           if (bitmanip_lzd_os[31] == 1'b0) begin
-              bitmanip_dw_lzd_enc[5:0]=  bitmanip_dw_lzd_enc[5:0] + 6'b00_0001;
-              bitmanip_lzd_os[31:0]   =  bitmanip_lzd_os[31:0] << 1;
+        for (int bitmanip_clzctz_i=0; bitmanip_clzctz_i<pt.XLEN && found==0; bitmanip_clzctz_i++) begin
+           if (bitmanip_lzd_os[pt.XLEN-1] == 1'b0) begin
+              bitmanip_dw_lzd_enc[pt.XLENW:0] =  bitmanip_dw_lzd_enc[pt.XLENW:0] + {{pt.XLENW{1'b0}}, 1'b1};
+              bitmanip_lzd_os[pt.XLEN-1:0]    =  bitmanip_lzd_os[pt.XLEN-1:0] << 1;
            end
            else
               found=1'b1;
@@ -333,41 +332,41 @@ import eh2_pkg::*;
      end
 
 
-   assign bitmanip_clz_ctz_result[5:0] = {6{bitmanip_clz_ctz_sel}} & {bitmanip_dw_lzd_enc[5],( {5{~bitmanip_dw_lzd_enc[5]}} & bitmanip_dw_lzd_enc[4:0] )};
+   assign bitmanip_clz_ctz_result[pt.XLENW:0] = {pt.XLENW+1{bitmanip_clz_ctz_sel}} & {bitmanip_dw_lzd_enc[pt.XLENW],( {pt.XLENW{~bitmanip_dw_lzd_enc[pt.XLENW]}} & bitmanip_dw_lzd_enc[pt.XLENW-1:0] )};
 
 
 
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  CPOP         * * * * * * * * * * * * * * * * * *
 
-   logic        [5:0]     bitmanip_cpop;
-   logic        [5:0]     bitmanip_cpop_result;
+   logic        [pt.XLENW:0]     bitmanip_cpop;
+   logic        [pt.XLENW:0]     bitmanip_cpop_result;
 
 
    integer                bitmanip_cpop_i;
 
    always_comb
      begin
-       bitmanip_cpop[5:0]               =  6'b0;
+       bitmanip_cpop[pt.XLENW:0]               =  {pt.XLENW{1'b0}};
 
-       for (bitmanip_cpop_i=0; bitmanip_cpop_i<32; bitmanip_cpop_i++)
+       for (bitmanip_cpop_i=0; bitmanip_cpop_i<pt.XLEN; bitmanip_cpop_i++)
          begin
-            bitmanip_cpop[5:0]          =  bitmanip_cpop[5:0] + {5'b0,a_ff[bitmanip_cpop_i]};
+            bitmanip_cpop[pt.XLENW:0]          =  bitmanip_cpop[pt.XLENW:0] + {{pt.XLENW{1'b0}},a_ff[bitmanip_cpop_i]};
          end      // FOR    bitmanip_cpop_i
      end          // ALWAYS_COMB
 
 
-   assign bitmanip_cpop_result[5:0]    =  {6{ap_cpop}} & bitmanip_cpop[5:0];
+   assign bitmanip_cpop_result[pt.XLENW:0]    =  {pt.XLENW+1{ap_cpop}} & bitmanip_cpop[pt.XLENW:0];
 
 
 
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  SEXT_B,SEXT_H  * * * * * * * * * * * * * * * * *
 
-   logic       [31:0]     bitmanip_sext_result;
+   logic       [pt.XLEN-1:0]     bitmanip_sext_result;
 
-   assign bitmanip_sext_result[31:0]   = ( {32{ap_sext_b}} & { {24{a_ff[7]}} ,a_ff[7:0]  } ) |
-                                         ( {32{ap_sext_h}} & { {16{a_ff[15]}},a_ff[15:0] } );
+   assign bitmanip_sext_result[pt.XLEN-1:0]   = ( {pt.XLEN{ap_sext_b}} & { {pt.XLEN-8{a_ff[7]}},  a_ff[7:0]  } ) |
+                                                ( {pt.XLEN{ap_sext_h}} & { {pt.XLEN-16{a_ff[15]}},a_ff[15:0] } );
 
 
   // * * * * * * * * * * * * * * * * * *  BitManip  :  ZEXT_H  * * * * * * * * * * * * * * * * *
@@ -380,7 +379,7 @@ import eh2_pkg::*;
    // * * * * * * * * * * * * * * * * * *  BitManip  :  MIN,MAX,MINU,MAXU  * * * * * * * * * * * * * * *
 
    logic                  bitmanip_minmax_sel;
-   logic        [31:0]    bitmanip_minmax_result;
+   logic [pt.XLEN-1:0]    bitmanip_minmax_result;
 
    assign bitmanip_minmax_sel          =  ap_min | ap_max;
 
@@ -388,28 +387,30 @@ import eh2_pkg::*;
 
    assign bitmanip_minmax_sel_a        =  ge  ^ ap_min;
 
-   assign bitmanip_minmax_result[31:0] = ({32{bitmanip_minmax_sel &  bitmanip_minmax_sel_a}}  &  a_ff[31:0]) |
-                                         ({32{bitmanip_minmax_sel & ~bitmanip_minmax_sel_a}}  &  b_ff[31:0]);
+   assign bitmanip_minmax_result[pt.XLEN-1:0] = ({pt.XLEN{bitmanip_minmax_sel &  bitmanip_minmax_sel_a}}  &  a_ff[pt.XLEN-1:0]) |
+                                                ({pt.XLEN{bitmanip_minmax_sel & ~bitmanip_minmax_sel_a}}  &  b_ff[pt.XLEN-1:0]);
 
 
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  PACK, PACKU, PACKH * * * * * * * * * * * * * * *
+   logic        [pt.XLEN-1:0]    bitmanip_pack_result;
+   logic        [pt.XLEN-1:0]    bitmanip_packh_result;
 
-   logic        [31:0]    bitmanip_pack_result;
-   logic        [31:0]    bitmanip_packh_result;
-
-   assign bitmanip_pack_result[31:0]   = {32{ap_pack}}  & {b_ff[15:0], a_ff[15:0]};
-   assign bitmanip_packh_result[31:0]  = {32{ap_packh}} & {16'b0,b_ff[7:0],a_ff[7:0]};
-
-
+   assign bitmanip_pack_result[pt.XLEN-1:0]   = {pt.XLEN{ap_pack}}  & {b_ff[(pt.XLEN/2)-1:0], a_ff[(pt.XLEN/2)-1:0]};
+   assign bitmanip_packh_result[pt.XLEN-1:0]  = {pt.XLEN{ap_packh}} & {{pt.XLEN-16{1'b0}},b_ff[7:0],a_ff[7:0]};
 
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  REV8   * * * * * * * * * * * * * * * * * * * * *
 
-   logic        [31:0]    bitmanip_rev8_result;
-   logic        [31:0]    bitmanip_orc_b_result;
+   logic        [pt.XLEN-1:0]    bitmanip_rev8_result;
+   logic        [pt.XLEN-1:0]    bitmanip_orc_b_result;
 
-   assign bitmanip_rev8_result[31:0]   = {32{ap_rev8}}  & {a_ff[7:0],a_ff[15:8],a_ff[23:16],a_ff[31:24]};
+   if (pt.XLEN == 32) begin
+     assign bitmanip_rev8_result[31:0] = {32{ap_rev8}}  & {a_ff[7:0],a_ff[15:8],a_ff[23:16],a_ff[31:24]};
+   end else if (pt.XLEN == 64) begin
+     assign bitmanip_rev8_result[63:0] = {64{ap_rev8}}  & {a_ff[7:0],  a_ff[15:8], a_ff[23:16],a_ff[31:24],
+                                                           a_ff[39:32],a_ff[47:40],a_ff[55:48],a_ff[63:56]};
+   end
 
 
 // uint32_t gorc32(uint32_t rs1, uint32_t rs2)
@@ -434,21 +435,26 @@ import eh2_pkg::*;
 //            =   b31   |   b29    |    b27   |   b25;
 //            = a31|a30 | a29|a28  |  a27|a26 | a25|a24
 
-   assign bitmanip_orc_b_result[31:0]  = {32{ap_orc_b}} & { {8{| a_ff[31:24]}}, {8{| a_ff[23:16]}}, {8{| a_ff[15:8]}}, {8{| a_ff[7:0]}} };
+   if (pt.XLEN == 32) begin
+     assign bitmanip_orc_b_result[31:0]  = {32{ap_orc_b}} & { {8{| a_ff[31:24]}}, {8{| a_ff[23:16]}}, {8{| a_ff[15:8]}}, {8{| a_ff[7:0]}} };
+   end else if (pt.XLEN == 64) begin
+     assign bitmanip_orc_b_result[63:0]  = {64{ap_orc_b}} & { {8{| a_ff[63:56]}}, {8{| a_ff[55:48]}}, {8{| a_ff[47:40]}}, {8{| a_ff[39:32]}},
+                                                              {8{| a_ff[31:24]}}, {8{| a_ff[23:16]}}, {8{| a_ff[15:8]}},  {8{| a_ff[7:0]}} };
+   end
 
 
 
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  ZBSET, ZBCLR, ZBINV  * * * * * * * * * * * * * *
 
-   logic        [31:0]    bitmanip_sb_1hot;
-   logic        [31:0]    bitmanip_sb_data;
+   logic        [pt.XLEN-1:0]    bitmanip_sb_1hot;
+   logic        [pt.XLEN-1:0]    bitmanip_sb_data;
 
-   assign bitmanip_sb_1hot[31:0]       = ( 32'h00000001 << b_ff[4:0] );
+   assign bitmanip_sb_1hot[pt.XLEN-1:0] = ( {{pt.XLEN-1{1'b0}}, 1'b1} << b_ff[pt.XLENW-1:0] );
 
-   assign bitmanip_sb_data[31:0]       = ( {32{ap_bset}} & ( a_ff[31:0] |  bitmanip_sb_1hot[31:0]) ) |
-                                         ( {32{ap_bclr}} & ( a_ff[31:0] & ~bitmanip_sb_1hot[31:0]) ) |
-                                         ( {32{ap_binv}} & ( a_ff[31:0] ^  bitmanip_sb_1hot[31:0]) );
+   assign bitmanip_sb_data[pt.XLEN-1:0] = ( {pt.XLEN{ap_bset}} & ( a_ff[pt.XLEN-1:0] |  bitmanip_sb_1hot[pt.XLEN-1:0]) ) |
+                                          ( {pt.XLEN{ap_bclr}} & ( a_ff[pt.XLEN-1:0] & ~bitmanip_sb_1hot[pt.XLEN-1:0]) ) |
+                                          ( {pt.XLEN{ap_binv}} & ( a_ff[pt.XLEN-1:0] ^  bitmanip_sb_1hot[pt.XLEN-1:0]) );
 
 
 
@@ -461,29 +467,29 @@ import eh2_pkg::*;
    assign sel_shift           =  ap.sll  | ap.srl | ap.sra | ap_rol | ap_ror;
    assign sel_adder           = (ap.add  | ap.sub | ap_zba) & ~ap.slt & ~ap_min & ~ap_max;
    assign sel_pc              =  ap.jal  | pp_ff.pcall | pp_ff.pja | pp_ff.pret;
-   assign csr_write_data[31:0]= (ap.csr_imm)  ?  b_ff[31:0]  :  a_ff[31:0];
+   assign csr_write_data[pt.XLEN-1:0]= (ap.csr_imm)  ?  b_ff[pt.XLEN-1:0]  :  a_ff[pt.XLEN-1:0];
 
    assign slt_one             =  ap.slt & lt;
 
 
 
-   assign out[31:0]           =                        lout[31:0]             |
-                                ({32{sel_shift}}    &  sout[31:0]           ) |
-                                ({32{sel_adder}}    &  aout[31:0]           ) |
-                                ({32{sel_pc}}       & {pcout[31:1],1'b0}    ) |
-                                ({32{ap.csr_write}} &  csr_write_data[31:0] ) |
-                                                      {31'b0, slt_one}        |
-                                ({32{ap_bext}}      & {31'b0, sout[0]}      ) |
-                                                      {26'b0, bitmanip_clz_ctz_result[5:0]} |
-                                                      {26'b0, bitmanip_cpop_result[5:0]}    |
-                                                       bitmanip_sext_result[31:0]    |
-                                                       bitmanip_zexth_result[31:0]   |
-                                                       bitmanip_minmax_result[31:0]  |
-                                                       bitmanip_pack_result[31:0]    |
-                                                       bitmanip_packh_result[31:0]   |
-                                                       bitmanip_rev8_result[31:0]    |
-                                                       bitmanip_orc_b_result[31:0]   |
-                                                       bitmanip_sb_data[31:0];
+   assign out[pt.XLEN-1:0]    =                              lout[pt.XLEN-1:0]             |
+                                ({pt.XLEN{sel_shift}}    &   sout[pt.XLEN-1:0]           ) |
+                                ({pt.XLEN{sel_adder}}    &   aout[pt.XLEN-1:0]           ) |
+                                ({pt.XLEN{sel_pc}}       &  {pcout[pt.XLEN-1:1],1'b0}    ) |
+                                ({pt.XLEN{ap.csr_write}} &   csr_write_data[pt.XLEN-1:0] ) |
+                                                            {{pt.XLEN-1{1'b0}}, slt_one}   |
+                                ({pt.XLEN{ap_bext}}      &  {{pt.XLEN-1{1'b0}}, sout[0]} ) |
+                                                            {{pt.XLEN+1-pt.XLENW{1'b0}}, bitmanip_clz_ctz_result[pt.XLENW:0]} |
+                                                            {{pt.XLEN+1-pt.XLENW{1'b0}}, bitmanip_cpop_result[pt.XLENW:0]}    |
+                                                             bitmanip_sext_result[pt.XLEN-1:0]    |
+                                                             bitmanip_zexth_result[31:0]          |
+                                                             bitmanip_minmax_result[pt.XLEN-1:0]  |
+                                                             bitmanip_pack_result[pt.XLEN-1:0]    |
+                                                             bitmanip_packh_result[pt.XLEN-1:0]   |
+                                                             bitmanip_rev8_result[pt.XLEN-1:0]    |
+                                                             bitmanip_orc_b_result[pt.XLEN-1:0]   |
+                                                             bitmanip_sb_data[pt.XLEN-1:0];
 
 
 
@@ -504,9 +510,9 @@ import eh2_pkg::*;
    // for jal or pcall, it will be the link address pc+2 or pc+4
 
    rvbradder ibradder (
-                     .pc     ( pc_ff[31:1]    ),
+                     .pc     ( pc_ff[pt.XLEN-1:1]    ),
                      .offset ( brimm_ff[pt.BTB_TOFFSET_SIZE:1] ),
-                     .dout   ( pcout[31:1]    ));
+                     .dout   ( pcout[pt.XLEN-1:1]    ));
 
 
    // pred_correct is for the npc logic
@@ -518,7 +524,7 @@ import eh2_pkg::*;
 
 
    // for any_jal adder output is the flush path
-   assign flush_path[31:1]    = (any_jal) ? aout[31:1] : pcout[31:1];
+   assign flush_path[pt.XLEN-1:1]    = (any_jal) ? aout[pt.XLEN-1:1] : pcout[pt.XLEN-1:1];
 
 
    // pcall and pret are included here
@@ -528,7 +534,7 @@ import eh2_pkg::*;
 
    // target mispredicts on ret's
 
-   assign target_mispredict   =  pp_ff.pret & (pp_ff.prett[31:1] != aout[31:1]);
+   assign target_mispredict   =  pp_ff.pret & (pp_ff.prett[pt.XLEN-1:1] != aout[pt.XLEN-1:1]);
 
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin
      assign flush_upper[i]    = ( ap.jal | cond_mispredict | target_mispredict) & valid_ff & (i == ap.tid) & ~flush[i];

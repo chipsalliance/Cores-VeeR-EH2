@@ -317,10 +317,15 @@ module tb_top;
 
     always @(negedge core_clk) begin
         cycleCnt <= cycleCnt+1;
-        // Test timeout monitor
+        // Timeout monitor
         if(cycleCnt == MAX_CYCLES) begin
-            $display ("Hit max cycle count (%0d) .. stopping",cycleCnt);
-            $finish;
+            $display ("Hit max cycle count (%0d) .. stopping", cycleCnt);
+            $display("TEST_FAILED");
+            `ifdef TB_SILENT_FAIL
+                $finish;
+            `else
+                $fatal;
+            `endif // TB_SILENT_FAIL
         end
         // console Monitor
         if( mailbox_data_val & mailbox_write) begin
@@ -338,7 +343,11 @@ module tb_top;
         end
         else if(mailbox_write && WriteData[7:0] == 8'h1) begin
             $display("TEST_FAILED");
-            $finish;
+            `ifdef TB_SILENT_FAIL
+                $finish;
+            `else
+                $fatal;
+            `endif // TB_SILENT_FAIL
         end
     end
 
@@ -1025,7 +1034,11 @@ if ( (saddr < `RV_ICCM_SADR) || (saddr > `RV_ICCM_EADR)) return;
     $display("********************************************************");
     $display("ICCM preload: there is no ICCM in VeeR, terminating !!!");
     $display("********************************************************");
-    $finish;
+    `ifdef TB_SILENT_FAIL
+        $finish;
+    `else
+        $fatal;
+    `endif // TB_SILENT_FAIL
 `endif
 addr += 4;
 eaddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};
@@ -1059,7 +1072,11 @@ if (saddr < `RV_DCCM_SADR || saddr > `RV_DCCM_EADR) return;
     $display("********************************************************");
     $display("DCCM preload: there is no DCCM in VeeR, terminating !!!");
     $display("********************************************************");
-    $finish;
+    `ifdef TB_SILENT_FAIL
+        $finish;
+    `else
+        $fatal;
+    `endif // TB_SILENT_FAIL
 `endif
 addr += 4;
 eaddr = {lmem.mem[addr+3],lmem.mem[addr+2],lmem.mem[addr+1],lmem.mem[addr]};

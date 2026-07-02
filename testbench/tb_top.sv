@@ -68,10 +68,32 @@ module tb_top;
     logic                       o_cpu_run_ack;
 
     logic                       mailbox_write;
-    logic        [63:0]         dma_hrdata;
-    logic        [63:0]         dma_hwdata;
+
+    logic [63:0]                lmem_hrdata;
+    logic [63:0]                lmem_hwdata;
+    logic                       lmem_hready;
+    logic                       lmem_hresp;
+    logic [31:0]                lmem_haddr;
+    logic [2:0]                 lmem_hburst;
+    logic                       lmem_hmastlock;
+    logic [3:0]                 lmem_hprot;
+    logic [2:0]                 lmem_hsize;
+    logic [1:0]                 lmem_htrans;
+    logic                       lmem_hwrite;
+    logic                       lmem_hsel;
+
+    logic [63:0]                dma_hrdata;
+    logic [63:0]                dma_hwdata;
     logic                       dma_hready;
     logic                       dma_hresp;
+    logic [31:0]                dma_haddr;
+    logic [2:0]                 dma_hburst;
+    logic                       dma_hmastlock;
+    logic [3:0]                 dma_hprot;
+    logic [2:0]                 dma_hsize;
+    logic [1:0]                 dma_htrans;
+    logic                       dma_hwrite;
+    logic                       dma_hsel;
 
     logic                       mpc_debug_halt_req;
     logic                       mpc_debug_run_req;
@@ -83,7 +105,6 @@ module tb_top;
     bit        [31:0]           cycleCnt;
     logic                       mailbox_data_val;
 
-    wire                        dma_hready_out;
     int                         commit_count[2];
 
     logic [1:0]                 wb_valid;
@@ -510,20 +531,20 @@ eh2_veer_wrapper rvtop (
     //---------------------------------------------------------------
     // DMA Slave
     //---------------------------------------------------------------
-    .dma_haddr              ( '0 ),
-    .dma_hburst             ( '0 ),
-    .dma_hmastlock          ( '0 ),
-    .dma_hprot              ( '0 ),
-    .dma_hsize              ( '0 ),
-    .dma_htrans             ( '0 ),
-    .dma_hwrite             ( '0 ),
-    .dma_hwdata             ( '0 ),
+    .dma_haddr              ( dma_haddr      ),
+    .dma_hburst             ( dma_hburst     ),
+    .dma_hmastlock          ( dma_hmastlock  ),
+    .dma_hprot              ( dma_hprot      ),
+    .dma_hsize              ( dma_hsize      ),
+    .dma_htrans             ( dma_htrans     ),
+    .dma_hwrite             ( dma_hwrite     ),
+    .dma_hwdata             ( dma_hwdata     ),
 
-    .dma_hrdata             (),
-    .dma_hresp              (),
-    .dma_hsel               ( 1'b1 ),
-    .dma_hreadyin           ( 1'b1 ),
-    .dma_hreadyout          (),
+    .dma_hrdata             ( dma_hrdata     ),
+    .dma_hresp              ( dma_hresp      ),
+    .dma_hsel               ( dma_hsel       ),
+    .dma_hreadyin           ( dma_hready     ),
+    .dma_hreadyout          ( dma_hready     ),
 `endif
 `ifdef RV_BUILD_AXI4
 //-------------------------- LSU AXI signals--------------------------
@@ -843,22 +864,67 @@ ahb_sif imem (
 
 ahb_sif lmem (
      // Inputs
-     .HWDATA(lsu_hwdata),
+     .HWDATA(lmem_hwdata),
      .HCLK(core_clk),
-     .HSEL(1'b1),
-     .HPROT(lsu_hprot),
-     .HWRITE(lsu_hwrite),
-     .HTRANS(lsu_htrans),
-     .HSIZE(lsu_hsize),
-     .HREADY(lsu_hready),
+     .HSEL(lmem_hsel),
+     .HPROT(lmem_hprot),
+     .HWRITE(lmem_hwrite),
+     .HTRANS(lmem_htrans),
+     .HSIZE(lmem_hsize),
+     .HREADY(lmem_hready),
      .HRESETn(rst_l),
-     .HADDR(lsu_haddr),
-     .HBURST(lsu_hburst),
+     .HADDR(lmem_haddr),
+     .HBURST(lmem_hburst),
 
      // Outputs
-     .HREADYOUT(lsu_hready),
-     .HRESP(lsu_hresp),
-     .HRDATA(lsu_hrdata)
+     .HREADYOUT(lmem_hready),
+     .HRESP(lmem_hresp),
+     .HRDATA(lmem_hrdata)
+);
+
+ahb_lsu_dma_bridge bridge (
+    .clk(core_clk),
+    .reset_l(rst_l),
+
+    .m_ahb_haddr(lsu_haddr),
+    .m_ahb_hburst(lsu_hburst),
+    .m_ahb_hmastlock(),
+    .m_ahb_hprot(lsu_hprot),
+    .m_ahb_hsize(lsu_hsize),
+    .m_ahb_htrans(lsu_htrans),
+    .m_ahb_hwrite(lsu_hwrite),
+    .m_ahb_hwdata(lsu_hwdata),
+    .m_ahb_hsel(1'b1),
+    .m_ahb_hreadyin(lsu_hready),
+    .m_ahb_hrdata(lsu_hrdata),
+    .m_ahb_hreadyout(lsu_hready),
+    .m_ahb_hresp(lsu_hresp),
+
+    .s0_ahb_hsel(lmem_hsel),
+    .s0_ahb_haddr(lmem_haddr),
+    .s0_ahb_hburst(lmem_hburst),
+    .s0_ahb_hmastlock(lmem_hmastlock),
+    .s0_ahb_hprot(lmem_hprot),
+    .s0_ahb_hsize(lmem_hsize),
+    .s0_ahb_htrans(lmem_htrans),
+    .s0_ahb_hwrite(lmem_hwrite),
+    .s0_ahb_hwdata(lmem_hwdata),
+    .s0_ahb_hrdata(lmem_hrdata),
+    .s0_ahb_hready(lmem_hready),
+    .s0_ahb_hresp(lmem_hresp),
+
+    .s1_ahb_hsel(dma_hsel),
+    .s1_ahb_haddr(dma_haddr),
+    .s1_ahb_hburst(dma_hburst),
+    .s1_ahb_hmastlock(dma_hmastlock),
+    .s1_ahb_hprot(dma_hprot),
+    .s1_ahb_hsize(dma_hsize),
+    .s1_ahb_htrans(dma_htrans),
+    .s1_ahb_hwrite(dma_hwrite),
+    .s1_ahb_hwdata(dma_hwdata),
+    .s1_ahb_hrdata(dma_hrdata),
+    .s1_ahb_hready(dma_hready),
+    .s1_ahb_hresp(dma_hresp)
 );
 
 `endif

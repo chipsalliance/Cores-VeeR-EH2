@@ -55,7 +55,7 @@ wire [7:0] strb =  HSIZE == 3'b000 ? 8'h1 << HADDR[2:0] :
                    HSIZE == 3'b010 ? 8'hf << {HADDR[2],2'b0} : 8'hff;
 
 
-wire mailbox_write = write && laddr==MAILBOX_ADDR;
+wire mailbox_write = write && HSEL && HREADY && laddr==MAILBOX_ADDR;
 
 
 initial begin
@@ -226,4 +226,3 @@ assign rlast   = 1'b1;
 
 endmodule
 `endif
-

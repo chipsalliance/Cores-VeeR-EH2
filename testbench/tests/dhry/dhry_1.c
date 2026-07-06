@@ -313,9 +313,8 @@ main ()
   {
 #ifdef VEER
     printf ("Run time = %d clocks for %d Dhrystones\n", User_Time, Number_Of_Runs );
-    printf ("Dhrystones per Second per MHz: %6.2f\n", 1000000.0*Number_Of_Runs/User_Time);
-    printf ("Dhrystone score per Second per MHz: %2.2f\n", 1000000.0/1757.0*Number_Of_Runs/User_Time);
-    printf ("To get CPU absolute score multiply previous number by CPU fequency in MHz.\n");
+    printf ("Dhrystones per Second per MHz: ");
+    printf ("%d.%02d", 1000000*Number_Of_Runs/User_Time,(100000000*Number_Of_Runs/User_Time) % 100);
 #else
 #ifdef TIME
     Microseconds = (float) User_Time * Mic_secs_Per_Second
@@ -337,6 +336,7 @@ main ()
     printf ("\n");
   }
 
+  return 0;
 }
 
 

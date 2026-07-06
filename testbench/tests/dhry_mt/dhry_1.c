@@ -324,10 +324,13 @@ if(hartid == 0) {
   {
 #ifdef VEER
     Number_Of_Runs *=2; // 2harts
-    printf ("Run time = %llu clocks for %d Dhrystones\n", globals->User_Time, Number_Of_Runs );
-    printf ("Dhrystones per Second per MHz: %6.2f\n", 1000000.0*Number_Of_Runs/globals->User_Time);
-    printf ("Dhrystone score per Second per MHz: %2.2f\n", 1000000.0/1757.0*Number_Of_Runs/globals->User_Time);
-    printf ("To get CPU absolute score multiply previous number by CPU fequency in MHz.\n");
+    uint64_t dhrystones_per_mhz_x100 =
+      (100000000ULL * (uint64_t) Number_Of_Runs) / globals->User_Time;
+    printf ("Run time = %llu clocks for %d Dhrystones\n", globals->User_Time, Number_Of_Runs);
+    printf ("Dhrystones per Second per MHz: ");
+    printf ("%d.%02d", (int) (dhrystones_per_mhz_x100 / 100),
+            (dhrystones_per_mhz_x100 % 100));
+    printf ("\nTo get CPU absolute score multiply previous number by CPU frequency in MHz.\n");
 #else
 #ifdef TIME
     Microseconds = (float) User_Time * Mic_secs_Per_Second
@@ -347,6 +350,7 @@ if(hartid == 0) {
 #endif
   }
 }
+return 0;
 }
 
 

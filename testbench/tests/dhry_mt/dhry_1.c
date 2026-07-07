@@ -136,6 +136,7 @@ driver (struct Globals* globals)
   REG   int             Number_Of_Runs;
 
   unsigned hartid = getHartId();
+  Number_Of_Runs = 1000;
   /* Initializations */
 
   Rec_Type rec0;
@@ -169,11 +170,6 @@ if(hartid == 0) {
     printf ("Program compiled without 'register' attribute\n");
   }
 //  printf ("Please give the number of runs through the benchmark: ");
-  {
-    int n = 1000;
-    // scanf ("%d", &n);
-    Number_Of_Runs = n;
-  }
   printf ("Execution starts, %d runs through Dhrystone\n", Number_Of_Runs);
 }
   /***************/

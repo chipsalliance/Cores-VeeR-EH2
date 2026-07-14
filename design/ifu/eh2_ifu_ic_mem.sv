@@ -30,10 +30,10 @@ import eh2_pkg::*;
       input logic                                   clk_override,
       input logic                                   dec_tlu_core_ecc_disable,
 
-      input logic [31:1]                            ic_rw_addr,
+      input logic [pt.XLEN-1:1]                     ic_rw_addr,
       input logic [pt.ICACHE_NUM_WAYS-1:0]          ic_wr_en  ,         // Which way to write
       input logic                                   ic_rd_en  ,         // Read enable
-       input logic [pt.ICACHE_INDEX_HI:3]           ic_debug_addr,      // Read/Write addresss to the Icache.
+      input logic [pt.ICACHE_INDEX_HI:3]            ic_debug_addr,      // Read/Write addresss to the Icache.
       input logic                                   ic_debug_rd_en,     // Icache debug rd
       input logic                                   ic_debug_wr_en,     // Icache debug wr
       input logic                                   ic_debug_tag_array, // Debug tag array
@@ -42,9 +42,9 @@ import eh2_pkg::*;
       input logic                                   ic_sel_premux_data, // Select the pre_muxed data
 
       input  logic [pt.ICACHE_BANKS_WAY-1:0][70:0]  ic_wr_data,         // Data to fill to the Icache. With ECC
-      output logic [63:0]                           ic_rd_data ,        // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
-      output logic [70:0]                           ic_debug_rd_data ,  // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
-      output logic [25:0]                           ictag_debug_rd_data,// Debug icache tag.
+      output logic [63:0]                           ic_rd_data ,        // Data read from Icache. 2x32bits. F2 stage
+      output logic [70:0]                           ic_debug_rd_data ,  // Data read from Icache. 2x32bits + parity bits. F2 stage. With ECC
+      output logic [pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]  ictag_debug_rd_data,// Debug icache tag.
       input logic  [70:0]                           ic_debug_wr_data,   // Debug wr cache.
 
       output logic [pt.ICACHE_BANKS_WAY-1:0]        ic_eccerr,                 // ecc error per bank
@@ -65,7 +65,7 @@ import eh2_pkg::*;
            .*,
            .ic_wr_en     (ic_wr_en[pt.ICACHE_NUM_WAYS-1:0]),
            .ic_debug_addr(ic_debug_addr[pt.ICACHE_INDEX_HI:3]),
-           .ic_rw_addr   (ic_rw_addr[31:3])
+           .ic_rw_addr   (ic_rw_addr[pt.XLEN-1:3])
            ) ;
 
    EH2_IC_DATA #(.pt(pt)) ic_data_inst
@@ -73,7 +73,7 @@ import eh2_pkg::*;
            .*,
            .ic_wr_en     (ic_wr_en[pt.ICACHE_NUM_WAYS-1:0]),
            .ic_debug_addr(ic_debug_addr[pt.ICACHE_INDEX_HI:3]),
-           .ic_rw_addr   (ic_rw_addr[31:1])
+           .ic_rw_addr   (ic_rw_addr[pt.XLEN-1:1])
            ) ;
 
  endmodule
@@ -94,14 +94,14 @@ import eh2_pkg::*;
       input logic clk_override,
 
 
-      input logic [31:1]  ic_rw_addr,
+      input logic [pt.XLEN-1:1]  ic_rw_addr,
       input logic [pt.ICACHE_NUM_WAYS-1:0]ic_wr_en,
       input logic                          ic_rd_en,           // Read enable
 
       input  logic [pt.ICACHE_BANKS_WAY-1:0][70:0]    ic_wr_data,         // Data to fill to the Icache. With ECC
-      output logic [63:0]                             ic_rd_data ,                                 // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
+      output logic [63:0]                             ic_rd_data,         // Data read from Icache. 2x32bits. F2 stage
       input  logic [70:0]                             ic_debug_wr_data,   // Debug wr cache.
-      output logic [70:0]                             ic_debug_rd_data ,  // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
+      output logic [70:0]                             ic_debug_rd_data ,  // Data read from Icache. 2x32bits + parity bits. F2 stage. With ECC
       output logic [pt.ICACHE_BANKS_WAY-1:0] ic_parerr,
       output logic [pt.ICACHE_BANKS_WAY-1:0] ic_eccerr,    // ecc error per bank
       input logic [pt.ICACHE_INDEX_HI:3]     ic_debug_addr,     // Read/Write addresss to the Icache.
@@ -153,7 +153,7 @@ import eh2_pkg::*;
       logic [pt.ICACHE_BANKS_WAY-1:0]                                                ic_b_sram_en;
       logic [pt.ICACHE_BANKS_WAY-1:0]                                                ic_b_read_en;
       logic [pt.ICACHE_BANKS_WAY-1:0]                                                ic_b_write_en;
-      logic [pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0] [31 : pt.ICACHE_DATA_INDEX_LO]  wb_index_hold;
+      logic [pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0] [pt.XLEN-1 : pt.ICACHE_DATA_INDEX_LO]  wb_index_hold;
       logic [pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 write_bypass_en;     //bank
       logic [pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 write_bypass_en_ff;  //bank
       logic [pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 index_valid;  //bank
@@ -164,7 +164,7 @@ import eh2_pkg::*;
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                                                ic_b_sram_en_up;
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                                                ic_b_read_en_up;
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                                                ic_b_write_en_up;
-      logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0] [31 : pt.ICACHE_DATA_INDEX_LO]  wb_index_hold_up;
+      logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0] [pt.XLEN-1 : pt.ICACHE_DATA_INDEX_LO]  wb_index_hold_up;
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 write_bypass_en_up;     //bank
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 write_bypass_en_ff_up;  //bank
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 index_valid_up;  //bank
@@ -173,11 +173,11 @@ import eh2_pkg::*;
       logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0][pt.ICACHE_NUM_BYPASS-1:0]                                 ic_b_addr_match_index_only_up;
 
 
-   logic [pt.ICACHE_BANKS_WAY-1:0]                 [31 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr;
-   logic [pt.ICACHE_BANKS_WAY-1:0]                 [31 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr_index_only;
+   logic [pt.ICACHE_BANKS_WAY-1:0]                 [pt.XLEN-1 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr;
+   logic [pt.ICACHE_BANKS_WAY-1:0]                 [pt.XLEN-1 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr_index_only;
 
-   logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                 [31 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr_up;
-   logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                 [31 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr_index_only_up;
+   logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                 [pt.XLEN-1 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr_up;
+   logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_BANKS_WAY-1:0]                 [pt.XLEN-1 : pt.ICACHE_DATA_INDEX_LO] ic_b_rw_addr_index_only_up;
 
 
 
@@ -292,7 +292,7 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                  assign ic_b_read_en_up[i][k]              =  ic_b_sram_en_up[i][k]  &  ic_b_sb_rden[k][i];       \
                  assign ic_b_write_en_up[i][k]             =  ic_b_sram_en_up[i][k] &   ic_b_sb_wren[k][i];       \
                  assign ic_bank_way_clken_final_up[i][k]   =  ic_b_sram_en_up[i][k] &    ~(|sel_bypass_up[i][k]); \
-                 assign ic_b_rw_addr_up[i][k] = {ic_rw_addr[31:pt.ICACHE_INDEX_HI+1],ic_rw_addr_bank_q[k]};       \
+                 assign ic_b_rw_addr_up[i][k] = {ic_rw_addr[pt.XLEN-1:pt.ICACHE_INDEX_HI+1],ic_rw_addr_bank_q[k]};       \
                  assign ic_b_rw_addr_index_only_up[i][k] = {ic_rw_addr_bank_q[k]};                                \
                  always_comb begin                                                                                \
                     any_addr_match_up[i][k] = '0;                                                                 \
@@ -302,7 +302,7 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                  end                                                                                              \
                 // it is an error to ever have 2 entries with the same index and both valid                       \
                 for (genvar l=0; l<pt.ICACHE_NUM_BYPASS; l++) begin: BYPASS                                       \
-                   // full match up to bit 31                                                                     \
+                   // full match up to bit XLEN-1                                                                     \
                    assign ic_b_addr_match_up[i][k][l] = (wb_index_hold_up[i][k][l] ==  ic_b_rw_addr_up[i][k]) & index_valid_up[i][k][l];            \
                    assign ic_b_addr_match_index_only_up[i][k][l] = (wb_index_hold_up[i][k][l][pt.ICACHE_INDEX_HI:pt.ICACHE_DATA_INDEX_LO] ==  ic_b_rw_addr_index_only_up[i][k]) & index_valid_up[i][k][l];            \
                                                                                                                                                     \
@@ -315,7 +315,7 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                    rvdff  #(1)  write_bypass_ff (.*, .clk(active_clk),                                                                 .din(write_bypass_en_up[i][k][l]), .dout(write_bypass_en_ff_up[i][k][l])) ; \
                    rvdffs #(1)  index_val_ff    (.*, .clk(active_clk), .en(write_bypass_en_up[i][k][l] | ic_b_clear_en_up[i][k][l]),   .din(~ic_b_clear_en_up[i][k][l]),  .dout(index_valid_up[i][k][l])) ;       \
                    rvdff  #(1)  sel_hold_ff     (.*, .clk(active_clk),                                                                 .din(sel_bypass_up[i][k][l]),      .dout(sel_bypass_ff_up[i][k][l])) ;     \
-                   rvdffe #((31-pt.ICACHE_DATA_INDEX_LO+1)) ic_addr_index    (.*, .en(write_bypass_en_up[i][k][l]),    .din (ic_b_rw_addr_up[i][k]), .dout(wb_index_hold_up[i][k][l]));         \
+                   rvdffe #((pt.XLEN-pt.ICACHE_DATA_INDEX_LO)) ic_addr_index    (.*, .en(write_bypass_en_up[i][k][l]),    .din (ic_b_rw_addr_up[i][k]), .dout(wb_index_hold_up[i][k][l]));         \
                    rvdffe #(``width)                             rd_data_hold_ff  (.*, .en(write_bypass_en_ff_up[i][k][l]), .din (wb_dout_pre_up[i][k][``width-1:0]),  .dout(wb_dout_hold_up[i][k][l]));     \
                 end                                                                                                                       \
                 always_comb begin                                                                                                         \
@@ -454,7 +454,7 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                  assign ic_b_write_en[k]             =  ic_b_sram_en[k] &   (|ic_b_sb_wren[k]);                                                                                                       \
                  assign ic_bank_way_clken_final[k]   =  ic_b_sram_en[k] &    ~(|sel_bypass[k]);                                                                                                       \
                                                                                                                                                                                                       \
-                 assign ic_b_rw_addr[k] = {ic_rw_addr[31:pt.ICACHE_INDEX_HI+1],ic_rw_addr_bank_q[k]};                                                                                                 \
+                 assign ic_b_rw_addr[k] = {ic_rw_addr[pt.XLEN-1:pt.ICACHE_INDEX_HI+1],ic_rw_addr_bank_q[k]};                                                                                                 \
                  assign ic_b_rw_addr_index_only[k] = {ic_rw_addr_bank_q[k]};                                                                                                  \
                                                                                                                                                                                                       \
                  always_comb begin                                                                                                                                                                    \
@@ -468,7 +468,7 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                 // it is an error to ever have 2 entries with the same index and both valid                                                                                                           \
                 for (genvar l=0; l<pt.ICACHE_NUM_BYPASS; l++) begin: BYPASS                                                                                                                           \
                                                                                                                                                                                                       \
-                   // full match up to bit 31                                                                                                                                                         \
+                   // full match up to bit pt.XLEN-1                                                                                                                                                         \
                    assign ic_b_addr_match[k][l] = (wb_index_hold[k][l] ==  ic_b_rw_addr[k]) & index_valid[k][l];                                                                                      \
                    assign ic_b_addr_match_index_only[k][l] = (wb_index_hold[k][l][pt.ICACHE_INDEX_HI:pt.ICACHE_DATA_INDEX_LO] ==  ic_b_rw_addr_index_only[k]) & index_valid[k][l];                                                                                    \
                                                                                                                                                                                                       \
@@ -482,7 +482,7 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                    rvdffs #(1)  index_val_ff    (.*, .clk(active_clk), .en(write_bypass_en[k][l] | ic_b_clear_en[k][l]),   .din(~ic_b_clear_en[k][l]),  .dout(index_valid[k][l])) ;                   \
                    rvdff  #(1)  sel_hold_ff     (.*, .clk(active_clk),                                                     .din(sel_bypass[k][l]),      .dout(sel_bypass_ff[k][l])) ;                 \
                                                                                                                                                                                                       \
-                   rvdffe #((31-pt.ICACHE_DATA_INDEX_LO+1)) ic_addr_index    (.*, .en(write_bypass_en[k][l]),    .din (ic_b_rw_addr[k]),      .dout(wb_index_hold[k][l]));                            \
+                   rvdffe #((pt.XLEN-pt.ICACHE_DATA_INDEX_LO)) ic_addr_index    (.*, .en(write_bypass_en[k][l]),    .din (ic_b_rw_addr[k]),      .dout(wb_index_hold[k][l]));                            \
                    rvdffe #((``waywidth*pt.ICACHE_NUM_WAYS))        rd_data_hold_ff  (.*, .en(write_bypass_en_ff[k][l]), .din (wb_packeddout_pre[k]), .dout(wb_packeddout_hold[k][l]));               \
                                                                                                                                                                                                       \
                 end // block: BYPASS                                                                                                                                                                  \
@@ -854,7 +854,7 @@ import eh2_pkg::*;
       input logic                                               dec_tlu_core_ecc_disable,
 
 
-      input logic [31:3]                                        ic_rw_addr,
+      input logic [pt.XLEN-1:3]                                ic_rw_addr,
 
 
       input logic [pt.ICACHE_NUM_WAYS-1:0]                     ic_wr_en,  // way
@@ -866,38 +866,38 @@ import eh2_pkg::*;
       input logic                                              ic_debug_wr_en,     // Icache debug wr
       input logic                                              ic_debug_tag_array, // Debug tag array
       input logic [pt.ICACHE_NUM_WAYS-1:0]                     ic_debug_way,       // Debug way. Rd or Wr.
-      input eh2_ic_tag_ext_in_pkt_t   [pt.ICACHE_NUM_WAYS-1:0]ic_tag_ext_in_pkt,
+      input eh2_ic_tag_ext_in_pkt_t   [pt.ICACHE_NUM_WAYS-1:0] ic_tag_ext_in_pkt,
 
-      output logic [25:0]                                       ictag_debug_rd_data,
+      output logic [pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]          ictag_debug_rd_data,
       input  logic [70:0]                                       ic_debug_wr_data,   // Debug wr cache.
 
-      output logic [pt.ICACHE_NUM_WAYS-1:0]                    ic_rd_hit,
+      output logic [pt.ICACHE_NUM_WAYS-1:0]                     ic_rd_hit,
       output logic                                              ic_tag_perr,
       input  logic                                              scan_mode
    ) ;
 
 
-   logic [pt.ICACHE_NUM_WAYS-1:0] [25:0]                           ic_tag_data_raw;
-   logic [pt.ICACHE_NUM_WAYS-1:0] [25:0]                           ic_tag_data_raw_ff;
-   logic [pt.ICACHE_NUM_WAYS-1:0] [25:0]                           ic_tag_data_raw_pre;
+   logic [pt.ICACHE_NUM_WAYS-1:0] [pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]                           ic_tag_data_raw;
+   logic [pt.ICACHE_NUM_WAYS-1:0] [pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]                           ic_tag_data_raw_ff;
+   logic [pt.ICACHE_NUM_WAYS-1:0] [pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]                           ic_tag_data_raw_pre;
 
 
-   logic [pt.ICACHE_NUM_WAYS-1:0] [32:pt.ICACHE_TAG_LO]            w_tout;
-   logic [pt.ICACHE_NUM_WAYS-1:0] [32:pt.ICACHE_TAG_LO]            w_tout_ff;
+   logic [pt.ICACHE_NUM_WAYS-1:0] [pt.XLEN:pt.ICACHE_TAG_LO]            w_tout;
+   logic [pt.ICACHE_NUM_WAYS-1:0] [pt.XLEN:pt.ICACHE_TAG_LO]            w_tout_ff;
 
-   logic [25:0]                                 ic_tag_wr_data ;
-   logic [pt.ICACHE_NUM_WAYS-1:0] [31:0]                           ic_tag_corrected_data_unc;
+   logic [pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]                       ic_tag_wr_data ;
+   logic [pt.ICACHE_NUM_WAYS-1:0] [pt.XLEN-1:0]                    ic_tag_corrected_data_unc;
    logic [pt.ICACHE_NUM_WAYS-1:0] [06:0]                           ic_tag_corrected_ecc_unc;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_tag_single_ecc_error;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_tag_double_ecc_error;
-   logic [6:0]                                  ic_tag_ecc;
+   logic [6:0]                                                     ic_tag_ecc;
 
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_tag_way_perr ;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_debug_rd_way_en ;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_debug_rd_way_en_ff ;
 
    logic [pt.ICACHE_INDEX_HI: pt.ICACHE_TAG_INDEX_LO] ic_rw_addr_q;
-   logic [31:pt.ICACHE_DATA_INDEX_LO]              ic_rw_addr_ff;
+   logic [pt.XLEN-1:pt.ICACHE_DATA_INDEX_LO]          ic_rw_addr_ff;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_tag_wren;          // way
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_tag_wren_q;        // way
    logic [pt.ICACHE_NUM_WAYS-1:0]                                  ic_tag_rden_q;        // way
@@ -918,10 +918,10 @@ import eh2_pkg::*;
    assign  ic_tag_wren [pt.ICACHE_NUM_WAYS-1:0]  = ic_wr_en[pt.ICACHE_NUM_WAYS-1:0] & {pt.ICACHE_NUM_WAYS{(ic_rw_addr[pt.ICACHE_BEAT_ADDR_HI:4] == {pt.ICACHE_BEAT_BITS-1{1'b1}})}} ;
    assign  ic_tag_clken[pt.ICACHE_NUM_WAYS-1:0]  = {pt.ICACHE_NUM_WAYS{ic_rd_en | clk_override}} | ic_wr_en[pt.ICACHE_NUM_WAYS-1:0] | ic_debug_wr_way_en[pt.ICACHE_NUM_WAYS-1:0] | ic_debug_rd_way_en[pt.ICACHE_NUM_WAYS-1:0];
 
-   rvdff #(32-pt.ICACHE_TAG_LO) adr_ff (.*,
+   rvdff #(pt.XLEN-pt.ICACHE_TAG_LO) adr_ff (.*,
                                         .clk(active_clk),
-                                        .din ({ic_rw_addr[31:pt.ICACHE_TAG_LO]}),
-                                        .dout({ic_rw_addr_ff[31:pt.ICACHE_TAG_LO]})
+                                        .din ({ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
+                                        .dout({ic_rw_addr_ff[pt.XLEN-1:pt.ICACHE_TAG_LO]})
                                         );
 
    rvdff #(pt.ICACHE_NUM_WAYS) tg_val_ff (.*,
@@ -930,7 +930,8 @@ import eh2_pkg::*;
                                           .dout(ic_tag_valid_ff[pt.ICACHE_NUM_WAYS-1:0])
                                           );
 
-   localparam PAD_BITS = 21 - (32 - pt.ICACHE_TAG_LO);  // sizing for a max tag width.
+   localparam PAD_BITS = pt.ICACHE_TAG_MAX_FDATA_WIDTH - pt.ICACHE_TAG_FDATA_WIDTH;  // sizing for a max tag width.
+   localparam TAG_WITH_PARITY_WIDTH = pt.ICACHE_TAG_MAX_FDATA_WIDTH - pt.ICACHE_TAG_ECC_WIDTH + 1;
 
    // tags
    assign  ic_debug_rd_way_en[pt.ICACHE_NUM_WAYS-1:0] =  {pt.ICACHE_NUM_WAYS{ic_debug_rd_en & ic_debug_tag_array}} & ic_debug_way[pt.ICACHE_NUM_WAYS-1:0] ;
@@ -940,24 +941,30 @@ import eh2_pkg::*;
    assign  ic_tag_rden_q[pt.ICACHE_NUM_WAYS-1:0]  =  ({pt.ICACHE_NUM_WAYS{ic_rd_en }}  | ic_debug_rd_way_en[pt.ICACHE_NUM_WAYS-1:0] ) &  {pt.ICACHE_NUM_WAYS{~(|ic_wr_en)  & ~ic_debug_wr_en}};
 
 
-if (pt.ICACHE_TAG_LO == 11) begin: SMALLEST
+if (pt.ICACHE_TAG_LO == pt.ICACHE_TAG_MIN_LO) begin: SMALLEST
  if (pt.ICACHE_ECC) begin : ECC1_W
-           rvecc_encode  tag_ecc_encode (
-                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[31:pt.ICACHE_TAG_LO]}),
+   if (pt.XLEN == 32) begin
+           rvecc_encode     tag_ecc_encode (
+                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
                                   .ecc_out({ ic_tag_ecc[6:0]}));
+   end else if (pt.XLEN == 64) begin
+           rvecc_encode_64  tag_ecc_encode (
+                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
+                                  .ecc_out({ ic_tag_ecc[6:0]}));
+   end
 
-   assign  ic_tag_wr_data[25:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
-                                  {ic_debug_wr_data[68:64], ic_debug_wr_data[31:11]} :
-                                  {ic_tag_ecc[4:0], ic_rw_addr[31:pt.ICACHE_TAG_LO]} ;
+   assign  ic_tag_wr_data[pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
+                                  {ic_debug_wr_data[68:64], ic_debug_wr_data[pt.XLEN-1:pt.ICACHE_TAG_MIN_LO]} :
+                                  {ic_tag_ecc[pt.ICACHE_TAG_ECC_WIDTH-1:0], ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]} ;
  end
 
  else begin : ECC0_W
-           rveven_paritygen #(32-pt.ICACHE_TAG_LO) pargen  (.data_in   (ic_rw_addr[31:pt.ICACHE_TAG_LO]),
-                                                 .parity_out(ic_tag_parity));
+           rveven_paritygen #(pt.XLEN-pt.ICACHE_TAG_LO) pargen  (.data_in   (ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]),
+                                                                 .parity_out(ic_tag_parity));
 
-   assign  ic_tag_wr_data[21:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
-                                  {ic_debug_wr_data[64], ic_debug_wr_data[31:11]} :
-                                  {ic_tag_parity, ic_rw_addr[31:pt.ICACHE_TAG_LO]} ;
+   assign  ic_tag_wr_data[TAG_WITH_PARITY_WIDTH-1:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
+                                  {ic_debug_wr_data[64], ic_debug_wr_data[pt.XLEN-1:pt.ICACHE_TAG_MIN_LO]} :
+                                  {ic_tag_parity, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]} ;
  end // else: !if(pt.ICACHE_ECC)
 
 end // block: SMALLEST
@@ -965,22 +972,28 @@ end // block: SMALLEST
 
 else begin: OTHERS
   if(pt.ICACHE_ECC) begin : ECC1_W
-           rvecc_encode  tag_ecc_encode (
-                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[31:pt.ICACHE_TAG_LO]}),
+   if (pt.XLEN == 32) begin
+           rvecc_encode     tag_ecc_encode (
+                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
                                   .ecc_out({ ic_tag_ecc[6:0]}));
+   end else if (pt.XLEN == 64) begin
+           rvecc_encode_64  tag_ecc_encode (
+                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
+                                  .ecc_out({ ic_tag_ecc[6:0]}));
+   end
 
-   assign  ic_tag_wr_data[25:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
-                                  {ic_debug_wr_data[68:64],ic_debug_wr_data[31:11]} :
-                                  {ic_tag_ecc[4:0], {PAD_BITS{1'b0}},ic_rw_addr[31:pt.ICACHE_TAG_LO]} ;
+   assign  ic_tag_wr_data[pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
+                                  {ic_debug_wr_data[68:64],ic_debug_wr_data[pt.XLEN-1:11]} :
+                                  {ic_tag_ecc[pt.ICACHE_TAG_ECC_WIDTH-1:0], {PAD_BITS{1'b0}},ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]} ;
 
   end
   else  begin : ECC0_W
    logic   ic_tag_parity ;
-           rveven_paritygen #(32-pt.ICACHE_TAG_LO) pargen  (.data_in   (ic_rw_addr[31:pt.ICACHE_TAG_LO]),
+           rveven_paritygen #(pt.XLEN-pt.ICACHE_TAG_LO) pargen  (.data_in   (ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]),
                                                  .parity_out(ic_tag_parity));
-   assign  ic_tag_wr_data[21:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
-                                  {ic_debug_wr_data[64], ic_debug_wr_data[31:11]} :
-                                  {ic_tag_parity, {PAD_BITS{1'b0}},ic_rw_addr[31:pt.ICACHE_TAG_LO]} ;
+   assign  ic_tag_wr_data[TAG_WITH_PARITY_WIDTH-1:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
+                                  {ic_debug_wr_data[64], ic_debug_wr_data[pt.XLEN-1:11]} :
+                                  {ic_tag_parity, {PAD_BITS{1'b0}},ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]} ;
   end // else: !if(pt.ICACHE_ECC)
 
 end // block: OTHERS
@@ -1041,7 +1054,7 @@ if (pt.ICACHE_WAYPACK == 0 ) begin : PACKED_0
 
 
 
-    logic [pt.ICACHE_NUM_WAYS-1:0][25:0]  sel_bypass_data;
+    logic [pt.ICACHE_NUM_WAYS-1:0][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]  sel_bypass_data;
     logic [pt.ICACHE_NUM_WAYS-1:0]        any_bypass;
     logic [pt.ICACHE_NUM_WAYS-1:0]        any_addr_match;
     logic [pt.ICACHE_NUM_WAYS-1:0]        ic_tag_clken_final;
@@ -1137,100 +1150,113 @@ if (pt.ICACHE_WAYPACK == 0 ) begin : PACKED_0
 
 
    if (pt.ICACHE_ECC) begin  : ECC1
-      logic [pt.ICACHE_NUM_WAYS-1:0] [pt.ICACHE_TAG_NUM_BYPASS-1:0][25 :0] wb_dout_hold;
+      logic [pt.ICACHE_NUM_WAYS-1:0] [pt.ICACHE_TAG_NUM_BYPASS-1:0][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1 :0] wb_dout_hold;
 
       if (pt.ICACHE_TAG_DEPTH == 32)   begin : size_32
-                 `EH2_IC_TAG_SRAM(32,26)
+                 `EH2_IC_TAG_SRAM(32,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
       end // if (pt.ICACHE_TAG_DEPTH == 32)
       if (pt.ICACHE_TAG_DEPTH == 64)   begin : size_64
-                 `EH2_IC_TAG_SRAM(64,26)
+                 `EH2_IC_TAG_SRAM(64,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
       end // if (pt.ICACHE_TAG_DEPTH == 64)
       if (pt.ICACHE_TAG_DEPTH == 128)   begin : size_128
-                 `EH2_IC_TAG_SRAM(128,26)
+                 `EH2_IC_TAG_SRAM(128,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
       end // if (pt.ICACHE_TAG_DEPTH == 128)
        if (pt.ICACHE_TAG_DEPTH == 256)   begin : size_256
-                 `EH2_IC_TAG_SRAM(256,26)
+                 `EH2_IC_TAG_SRAM(256,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 256)
        if (pt.ICACHE_TAG_DEPTH == 512)   begin : size_512
-                 `EH2_IC_TAG_SRAM(512,26)
+                 `EH2_IC_TAG_SRAM(512,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 512)
        if (pt.ICACHE_TAG_DEPTH == 1024)   begin : size_1024
-                 `EH2_IC_TAG_SRAM(1024,26)
+                 `EH2_IC_TAG_SRAM(1024,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 1024)
        if (pt.ICACHE_TAG_DEPTH == 2048)   begin : size_2048
-                 `EH2_IC_TAG_SRAM(2048,26)
+                 `EH2_IC_TAG_SRAM(2048,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 2048)
        if (pt.ICACHE_TAG_DEPTH == 4096)   begin  : size_4096
-                 `EH2_IC_TAG_SRAM(4096,26)
+                 `EH2_IC_TAG_SRAM(4096,`RV_ICACHE_TAG_MAX_FDATA_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 4096)
 
 
-         assign w_tout[i][31:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][31-pt.ICACHE_TAG_LO:0] ;
-         assign w_tout[i][32]                  =  1'b0 ; // Unused in this context
+         assign w_tout[i][pt.XLEN-1:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][pt.XLEN-1-pt.ICACHE_TAG_LO:0] ;
+         assign w_tout[i][pt.XLEN]                    =  1'b0 ; // Unused in this context
 
 
-      rvdffe #(26) tg_data_raw_ff (.*,
+      rvdffe #(pt.ICACHE_TAG_MAX_FDATA_WIDTH) tg_data_raw_ff (.*,
                                    .en(ic_rd_en_ff),
-                                   .din ({ic_tag_data_raw[i][25:0]}),
-                                   .dout({ic_tag_data_raw_ff[i][25:0]})
+                                   .din ({ic_tag_data_raw[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]}),
+                                   .dout({ic_tag_data_raw_ff[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]})
                                    );
 
 
-      rvecc_decode  ecc_decode (
-                                .en(ecc_decode_enable),
-                                .sed_ded ( 1'b1 ),                                      // 1 : means only detection
-                                .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][20:0]}:32'd0),
-                                .ecc_in((ecc_decode_enable)?{2'b0, ic_tag_data_raw_ff[i][25:21]}:7'd0),
-                                .dout(ic_tag_corrected_data_unc[i][31:0]),
-                                .ecc_out(ic_tag_corrected_ecc_unc[i][6:0]),
-                                .single_ecc_error(ic_tag_single_ecc_error[i]),
-                                .double_ecc_error(ic_tag_double_ecc_error[i]));
+      logic [pt.ICACHE_NUM_WAYS-1:0] ic_tag_error;
 
-        assign ic_tag_way_perr[i]= ic_tag_single_ecc_error[i] | ic_tag_double_ecc_error[i]  ;
+         if (pt.XLEN == 32) begin
+            rvecc_decode  ecc_decode (
+                                    .en(ecc_decode_enable),
+                                    .sed_ded ( 1'b1 ),                                      // 1 : means only detection
+                                    .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][20:0]}:32'd0),
+                                    .ecc_in((ecc_decode_enable)?{2'b0, ic_tag_data_raw_ff[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:21]}:7'd0),
+                                    .dout(ic_tag_corrected_data_unc[i][pt.XLEN-1:0]),
+                                    .ecc_out(ic_tag_corrected_ecc_unc[i][6:0]),
+                                    .single_ecc_error(ic_tag_single_ecc_error[i]),
+                                    .double_ecc_error(ic_tag_double_ecc_error[i]));
+            assign ic_tag_error = ic_tag_single_ecc_error[i] | ic_tag_double_ecc_error[i];
+         end else if (pt.XLEN == 64) begin
+            rvecc_decode_64  ecc_decode (
+                                    .en(ecc_decode_enable),
+                                    .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][52:0]}:64'd0),
+                                    .ecc_in((ecc_decode_enable)?{1'b0, ic_tag_data_raw_ff[i][58:53]}:7'd0),
+                                    .ecc_error(ic_tag_error[i]));
+         end
+
+        assign ic_tag_way_perr[i] = ic_tag_error[i];
       end
       else  begin : ECC0
 
 
       logic [pt.ICACHE_NUM_WAYS-1:0] [pt.ICACHE_TAG_NUM_BYPASS-1:0][21 :0] wb_dout_hold;
-      assign ic_tag_data_raw_pre[i][25:22] = '0 ;
+      assign ic_tag_data_raw_pre[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:(pt.ICACHE_TAG_MAX_WIDTH+1)] = '0 ;
+
+      localparam unsigned ICACHE_TAG_MAX_WIDTH = `RV_ICACHE_TAG_MAX_WIDTH+1;
 
       if (pt.ICACHE_TAG_DEPTH == 32)   begin : size_32
-                 `EH2_IC_TAG_SRAM(32,22)
+                 `EH2_IC_TAG_SRAM(32,ICACHE_TAG_MAX_WIDTH)
       end // if (pt.ICACHE_TAG_DEPTH == 32)
       if (pt.ICACHE_TAG_DEPTH == 64)   begin : size_64
-                 `EH2_IC_TAG_SRAM(64,22)
+                 `EH2_IC_TAG_SRAM(64,ICACHE_TAG_MAX_WIDTH)
       end // if (pt.ICACHE_TAG_DEPTH == 64)
       if (pt.ICACHE_TAG_DEPTH == 128)   begin : size_128
-                 `EH2_IC_TAG_SRAM(128,22)
+                 `EH2_IC_TAG_SRAM(128,ICACHE_TAG_MAX_WIDTH)
       end // if (pt.ICACHE_TAG_DEPTH == 128)
        if (pt.ICACHE_TAG_DEPTH == 256)   begin : size_256
-                 `EH2_IC_TAG_SRAM(256,22)
+                 `EH2_IC_TAG_SRAM(256,ICACHE_TAG_MAX_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 256)
        if (pt.ICACHE_TAG_DEPTH == 512)   begin : size_512
-                 `EH2_IC_TAG_SRAM(512,22)
+                 `EH2_IC_TAG_SRAM(512,ICACHE_TAG_MAX_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 512)
        if (pt.ICACHE_TAG_DEPTH == 1024)   begin : size_1024
-                 `EH2_IC_TAG_SRAM(1024,22)
+                 `EH2_IC_TAG_SRAM(1024,ICACHE_TAG_MAX_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 1024)
        if (pt.ICACHE_TAG_DEPTH == 2048)   begin : size_2048
-                 `EH2_IC_TAG_SRAM(2048,22)
+                 `EH2_IC_TAG_SRAM(2048,ICACHE_TAG_MAX_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 2048)
        if (pt.ICACHE_TAG_DEPTH == 4096)   begin  : size_4096
-                 `EH2_IC_TAG_SRAM(4096,22)
+                 `EH2_IC_TAG_SRAM(4096,ICACHE_TAG_MAX_WIDTH)
        end // if (pt.ICACHE_TAG_DEPTH == 4096)
 
 
-         assign w_tout[i][31:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][31-pt.ICACHE_TAG_LO:0] ;
-         assign w_tout[i][32]                  = ic_tag_data_raw[i][21] ;
+         assign w_tout[i][pt.XLEN-1:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][pt.XLEN-1-pt.ICACHE_TAG_LO:0] ;
+         assign w_tout[i][pt.XLEN]                  = ic_tag_data_raw[i][21] ;
 
-         rvdff #(33-pt.ICACHE_TAG_LO) tg_data_raw_ff (.*,
+         rvdff #(pt.XLEN+1-pt.ICACHE_TAG_LO) tg_data_raw_ff (.*,
                                                       .clk(active_clk),
-                                                      .din (w_tout[i][32:pt.ICACHE_TAG_LO]),
-                                                      .dout(w_tout_ff[i][32:pt.ICACHE_TAG_LO])
+                                                      .din (w_tout[i][pt.XLEN:pt.ICACHE_TAG_LO]),
+                                                      .dout(w_tout_ff[i][pt.XLEN:pt.ICACHE_TAG_LO])
                                                       );
 
-         rveven_paritycheck #(32-pt.ICACHE_TAG_LO) parcheck(.data_in   (w_tout_ff[i][31:pt.ICACHE_TAG_LO]),
-                                                   .parity_in (w_tout_ff[i][32]),
+         rveven_paritycheck #(pt.XLEN-pt.ICACHE_TAG_LO) parcheck(.data_in(w_tout_ff[i][pt.XLEN-1:pt.ICACHE_TAG_LO]),
+                                                   .parity_in (w_tout_ff[i][pt.XLEN]),
                                                    .parity_err(ic_tag_way_perr[i]));
       end // else: !if(pt.ICACHE_ECC)
 
@@ -1261,7 +1287,7 @@ else begin : PACKED_1
 
 
 
-    logic [(26*pt.ICACHE_NUM_WAYS)-1:0]  sel_bypass_data;
+    logic [(pt.ICACHE_TAG_MAX_FDATA_WIDTH*pt.ICACHE_NUM_WAYS)-1:0]  sel_bypass_data;
     logic                                any_bypass;
     logic                                any_addr_match;
     logic                                ic_tag_clken_final;
@@ -1296,7 +1322,7 @@ else begin : PACKED_1
                                                                                                                                                                                                       \
                  assign wrptr_in = (wrptr == (pt.ICACHE_TAG_NUM_BYPASS-1)) ? '0 : (wrptr + 1'd1);                                                                                                     \
                                                                                                                                                                                                       \
-                 rvdffs  #(pt.ICACHE_TAG_NUM_BYPASS_WIDTH)  wrptr_ff(.*, .clk(active_clk), .en(|write_bypass_en), .din (wrptr_in), .dout(wrptr)) ;                                                                    \
+                 rvdffs  #(pt.ICACHE_TAG_NUM_BYPASS_WIDTH)  wrptr_ff(.*, .clk(active_clk), .en(|write_bypass_en), .din (wrptr_in), .dout(wrptr)) ;                                                    \
                                                                                                                                                                                                       \
                  assign ic_b_sram_en              = |ic_tag_clken;                                                                                                                                    \
                                                                                                                                                                                                       \
@@ -1326,9 +1352,9 @@ else begin : PACKED_1
                                                                                                                                                                                                       \
                    assign write_bypass_en[l] = ic_b_read_en  &  ~any_addr_match & (wrptr == l);                                                                                                       \
                                                                                                                                                                                                       \
-                   rvdff  #(1)  write_bypass_ff (.*, .clk(active_clk),                                                     .din(write_bypass_en[l]), .dout(write_bypass_en_ff[l])) ;                                  \
-                   rvdffs #(1)  index_val_ff    (.*, .clk(active_clk), .en(write_bypass_en[l] | ic_b_clear_en[l]),         .din(~ic_b_clear_en[l]),  .dout(index_valid[l])) ;                                         \
-                   rvdff  #(1)  sel_hold_ff     (.*, .clk(active_clk),                                                     .din(sel_bypass[l]),      .dout(sel_bypass_ff[l])) ;                                               \
+                   rvdff  #(1)  write_bypass_ff (.*, .clk(active_clk),                                                     .din(write_bypass_en[l]), .dout(write_bypass_en_ff[l])) ;                  \
+                   rvdffs #(1)  index_val_ff    (.*, .clk(active_clk), .en(write_bypass_en[l] | ic_b_clear_en[l]),         .din(~ic_b_clear_en[l]),  .dout(index_valid[l])) ;                         \
+                   rvdff  #(1)  sel_hold_ff     (.*, .clk(active_clk),                                                     .din(sel_bypass[l]),      .dout(sel_bypass_ff[l])) ;                       \
                                                                                                                                                                                                       \
                    rvdffs #((pt.ICACHE_INDEX_HI-pt.ICACHE_TAG_INDEX_LO+1))  ic_addr_index    (.*, .clk(active_clk), .en(write_bypass_en[l]),    .din (ic_b_rw_addr),               .dout(wb_index_hold[l]));          \
                    rvdffe #(``width)                                        rd_data_hold_ff  (.*, .en(write_bypass_en_ff[l]), .din (ic_tag_data_raw_packed_pre[``width-1:0]), .dout(wb_packeddout_hold[l]));          \
@@ -1354,10 +1380,10 @@ else begin : PACKED_1
              end
 
    if (pt.ICACHE_ECC) begin  : ECC1
-    logic [(26*pt.ICACHE_NUM_WAYS)-1 :0]  ic_tag_data_raw_packed, ic_tag_wren_biten_vec, ic_tag_data_raw_packed_pre;           // data and its bit enables
-    logic [pt.ICACHE_TAG_NUM_BYPASS-1:0][(26*pt.ICACHE_NUM_WAYS)-1 :0] wb_packeddout_hold;
+    logic [(pt.ICACHE_TAG_MAX_FDATA_WIDTH*pt.ICACHE_NUM_WAYS)-1 :0]  ic_tag_data_raw_packed, ic_tag_wren_biten_vec, ic_tag_data_raw_packed_pre;           // data and its bit enables
+    logic [pt.ICACHE_TAG_NUM_BYPASS-1:0][(pt.ICACHE_TAG_MAX_FDATA_WIDTH*pt.ICACHE_NUM_WAYS)-1 :0] wb_packeddout_hold;
     for (genvar i=0; i<pt.ICACHE_NUM_WAYS; i++) begin: BITEN
-        assign ic_tag_wren_biten_vec[(26*i)+25:26*i] = {26{ic_tag_wren_q[i]}};
+        assign ic_tag_wren_biten_vec[(pt.ICACHE_TAG_MAX_FDATA_WIDTH*i)+pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:pt.ICACHE_TAG_MAX_FDATA_WIDTH*i] = {pt.ICACHE_TAG_MAX_FDATA_WIDTH{ic_tag_wren_q[i]}};
      end
       if (pt.ICACHE_TAG_DEPTH == 32)   begin : size_32
         if (pt.ICACHE_NUM_WAYS == 4) begin : WAYS
@@ -1434,29 +1460,38 @@ else begin : PACKED_1
 
 
         for (genvar i=0; i<pt.ICACHE_NUM_WAYS; i++) begin
-          assign ic_tag_data_raw[i]  = ic_tag_data_raw_packed[(26*i)+25:26*i];
-          assign w_tout[i][31:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][31-pt.ICACHE_TAG_LO:0] ;
-          assign w_tout[i][32]                  =  1'b0 ; // Unused in this context
+          assign ic_tag_data_raw[i]  = ic_tag_data_raw_packed[(pt.ICACHE_TAG_MAX_FDATA_WIDTH*i)+pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:pt.ICACHE_TAG_MAX_FDATA_WIDTH*i];
+          assign w_tout[i][pt.XLEN-1:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][pt.XLEN-1-pt.ICACHE_TAG_LO:0] ;
+          assign w_tout[i][pt.XLEN]                  =  1'b0 ; // Unused in this context
 
-           rvdffe #(26) tg_data_raw_ff (.*,
+           rvdffe #(pt.ICACHE_TAG_MAX_FDATA_WIDTH) tg_data_raw_ff (.*,
                                         .en  (ic_rd_en_ff),
-                                        .din ({ic_tag_data_raw[i][25:0]}),
-                                        .dout({ic_tag_data_raw_ff[i][25:0]})
+                                        .din ({ic_tag_data_raw[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]}),
+                                        .dout({ic_tag_data_raw_ff[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0]})
                                         );
 
+         logic [pt.ICACHE_NUM_WAYS-1:0] ic_tag_error;
 
+         if (pt.XLEN == 32) begin
            rvecc_decode  ecc_decode (
                                      .en(ecc_decode_enable),
                                      .sed_ded ( 1'b1 ),                                      // 1 : means only detection
                                      .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][20:0]}:32'd0),
-                                     .ecc_in((ecc_decode_enable)?{2'b0, ic_tag_data_raw_ff[i][25:21]}:7'd0),
-                                     .dout(ic_tag_corrected_data_unc[i][31:0]),
+                                     .ecc_in((ecc_decode_enable)?{2'b0, ic_tag_data_raw_ff[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:21]}:7'd0),
+                                     .dout(ic_tag_corrected_data_unc[i][pt.XLEN-1:0]),
                                      .ecc_out(ic_tag_corrected_ecc_unc[i][6:0]),
                                      .single_ecc_error(ic_tag_single_ecc_error[i]),
                                      .double_ecc_error(ic_tag_double_ecc_error[i]));
+            assign ic_tag_error = ic_tag_single_ecc_error[i] | ic_tag_double_ecc_error[i];
+         end else if (pt.XLEN == 64) begin
+            rvecc_decode_64  ecc_decode (
+                                    .en(ecc_decode_enable),
+                                    .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][52:0]}:64'd0),
+                                    .ecc_in((ecc_decode_enable)?{1'b0, ic_tag_data_raw_ff[i][58:53]}:7'd0),
+                                    .ecc_error(ic_tag_error[i]));
+         end
 
-
-           assign ic_tag_way_perr[i]= ic_tag_single_ecc_error[i] | ic_tag_double_ecc_error[i]  ;
+         assign ic_tag_way_perr[i]= ic_tag_error[i];
 
         end // for (genvar i=0; i<pt.ICACHE_NUM_WAYS; i++)
 
@@ -1465,10 +1500,10 @@ else begin : PACKED_1
 
    else  begin : ECC0
 
-    logic [(22*pt.ICACHE_NUM_WAYS)-1 :0]  ic_tag_data_raw_packed, ic_tag_wren_biten_vec, ic_tag_data_raw_packed_pre;           // data and its bit enables
-    logic [pt.ICACHE_TAG_NUM_BYPASS-1:0][(22*pt.ICACHE_NUM_WAYS)-1 :0] wb_packeddout_hold;
+    logic [((pt.ICACHE_TAG_MAX_WIDTH+1)*pt.ICACHE_NUM_WAYS)-1 :0]  ic_tag_data_raw_packed, ic_tag_wren_biten_vec, ic_tag_data_raw_packed_pre;           // data and its bit enables
+    logic [pt.ICACHE_TAG_NUM_BYPASS-1:0][((pt.ICACHE_TAG_MAX_WIDTH+1)*pt.ICACHE_NUM_WAYS)-1 :0] wb_packeddout_hold;
     for (genvar i=0; i<pt.ICACHE_NUM_WAYS; i++) begin: BITEN
-        assign ic_tag_wren_biten_vec[(22*i)+21:22*i] = {22{ic_tag_wren_q[i]}};
+        assign ic_tag_wren_biten_vec[((pt.ICACHE_TAG_MAX_WIDTH+1)*i)+21:(pt.ICACHE_TAG_MAX_WIDTH+1)*i] = {(pt.ICACHE_TAG_MAX_WIDTH+1){ic_tag_wren_q[i]}};
      end
       if (pt.ICACHE_TAG_DEPTH == 32)   begin : size_32
         if (pt.ICACHE_NUM_WAYS == 4) begin : WAYS
@@ -1545,18 +1580,18 @@ else begin : PACKED_1
 
 
       for (genvar i=0; i<pt.ICACHE_NUM_WAYS; i++) begin : WAYS
-          assign ic_tag_data_raw[i]  = ic_tag_data_raw_packed[(22*i)+21:22*i];
-          assign w_tout[i][31:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][31-pt.ICACHE_TAG_LO:0] ;
-          assign w_tout[i][32]                 = ic_tag_data_raw[i][21] ;
+          assign ic_tag_data_raw[i]  = ic_tag_data_raw_packed[((pt.ICACHE_TAG_MAX_WIDTH+1)*i)+pt.ICACHE_TAG_MAX_WIDTH:(pt.ICACHE_TAG_MAX_WIDTH+1)*i];
+          assign w_tout[i][pt.XLEN-1:pt.ICACHE_TAG_LO] = ic_tag_data_raw[i][pt.XLEN-1-pt.ICACHE_TAG_LO:0] ;
+          assign w_tout[i][pt.XLEN]                    = ic_tag_data_raw[i][pt.ICACHE_TAG_MAX_WIDTH] ;
 
-          rvdff #(33-pt.ICACHE_TAG_LO) tg_data_raw_ff (.*,
+          rvdff #(pt.XLEN+1-pt.ICACHE_TAG_LO) tg_data_raw_ff (.*,
                                                        .clk(active_clk),
-                                                       .din (w_tout[i][32:pt.ICACHE_TAG_LO]),
-                                                       .dout(w_tout_ff[i][32:pt.ICACHE_TAG_LO])
+                                                       .din (w_tout[i][pt.XLEN:pt.ICACHE_TAG_LO]),
+                                                       .dout(w_tout_ff[i][pt.XLEN:pt.ICACHE_TAG_LO])
                                                        );
 
-          rveven_paritycheck #(32-pt.ICACHE_TAG_LO) parcheck(.data_in   (w_tout_ff[i][31:pt.ICACHE_TAG_LO]),
-                                                   .parity_in (w_tout_ff[i][32]),
+          rveven_paritycheck #(pt.XLEN-pt.ICACHE_TAG_LO) parcheck(.data_in   (w_tout_ff[i][pt.XLEN-1:pt.ICACHE_TAG_LO]),
+                                                   .parity_in (w_tout_ff[i][pt.XLEN]),
                                                    .parity_err(ic_tag_way_perr[i]));
       end // block: WAYS
 
@@ -1567,15 +1602,15 @@ end // block: PACKED_1
 
 
    always_comb begin : tag_rd_out
-      ictag_debug_rd_data[25:0] = '0;
+      ictag_debug_rd_data[pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0] = '0;
       for ( int j=0; j<pt.ICACHE_NUM_WAYS; j++) begin: debug_rd_out
-         ictag_debug_rd_data[25:0] |=  pt.ICACHE_ECC ? ({26{ic_debug_rd_way_en_ff[j]}} & ic_tag_data_raw[j] ) : {4'b0, ({22{ic_debug_rd_way_en_ff[j]}} & ic_tag_data_raw[j][21:0])};
+         ictag_debug_rd_data[pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0] |=  pt.ICACHE_ECC ? ({pt.ICACHE_TAG_MAX_FDATA_WIDTH{ic_debug_rd_way_en_ff[j]}} & ic_tag_data_raw[j] ) : {4'b0, ({pt.ICACHE_TAG_MAX_WIDTH+1{ic_debug_rd_way_en_ff[j]}} & ic_tag_data_raw[j][pt.ICACHE_TAG_MAX_WIDTH:0])};
       end
    end
 
 
    for ( genvar i=0; i<pt.ICACHE_NUM_WAYS; i++) begin : ic_rd_hit_loop
-      assign ic_rd_hit[i] = (w_tout[i][31:pt.ICACHE_TAG_LO] == ic_rw_addr_ff[31:pt.ICACHE_TAG_LO]) & ic_tag_valid[i] & ~ic_wr_en_ff;
+      assign ic_rd_hit[i] = (w_tout[i][pt.XLEN-1:pt.ICACHE_TAG_LO] == ic_rw_addr_ff[pt.XLEN-1:pt.ICACHE_TAG_LO]) & ic_tag_valid[i] & ~ic_wr_en_ff;
    end
 
    assign  ic_tag_perr  = | (ic_tag_way_perr[pt.ICACHE_NUM_WAYS-1:0] & ic_tag_valid_ff[pt.ICACHE_NUM_WAYS-1:0] ) ;

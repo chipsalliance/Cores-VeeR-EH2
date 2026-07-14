@@ -35,7 +35,7 @@ import eh2_pkg::*;
    input logic [1:0]  ic_access_fault_type_f2,                     // Instruction access fault types
 
    input logic [pt.BHT_GHR_SIZE-1:0]  ifu_bp_fghr_f2,              // fetch GHR
-   input logic [31:1] ifu_bp_btb_target_f2,                        //  predicted RET target
+   input logic [pt.XLEN-1:1] ifu_bp_btb_target_f2,                 //  predicted RET target
    input logic [pt.BTB_TOFFSET_SIZE-1:0] ifu_bp_poffset_f2,        //  predicted target offset
 
    input logic [3:0]  ifu_bp_hist0_f2,                             // history counters for all 4 potential branches, bit 1, right justified
@@ -58,7 +58,7 @@ import eh2_pkg::*;
    input logic [63:0] ifu_fetch_data,                              // fetch data in memory format - not right justified
 
    input logic [3:0]   ifu_fetch_val,                              // valids on a 2B boundary, right justified
-   input logic [31:1]  ifu_fetch_pc,                               // starting pc of fetch
+   input logic [pt.XLEN-1:1]  ifu_fetch_pc,                        // starting pc of fetch
 
 
    input logic   rst_l,
@@ -74,8 +74,8 @@ import eh2_pkg::*;
    output logic i0_dbecc,                                      // Instruction 0 has double bit ecc error
    output logic [31:0] i0_instr,                               // Instruction 0
    output logic [31:0] i1_instr,                               // Instruction 1
-   output logic [31:1] i0_pc,                                  // Instruction 0 PC
-   output logic [31:1] i1_pc,                                  // Instruction 1 PC
+   output logic [pt.XLEN-1:1] i0_pc,                           // Instruction 0 PC
+   output logic [pt.XLEN-1:1] i1_pc,                           // Instruction 1 PC
    output logic i0_pc4,
    output logic i1_pc4,
    output eh2_predecode_pkt_t i0_predecode,
@@ -111,7 +111,7 @@ import eh2_pkg::*;
    );
 
    logic [31:0]    i1instr, i0instr;
-   logic [31:1]    i1pc,    i0pc;
+   logic [pt.XLEN-1:1]    i1pc,    i0pc;
    logic [15:0]    i1cinst, i0cinst;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]  i1_bpindex,    i0_bpindex;
    logic [pt.BHT_GHR_SIZE-1:0]            i1_bpfghr,     i0_bpfghr;
@@ -149,11 +149,11 @@ import eh2_pkg::*;
    logic         f1_shift_2B, f1_shift_4B, f1_shift_6B;
    logic         f2_valid, sf1_valid, sf0_valid;
 
-   logic [31:0]  ifirst, isecond, ithird;
-   logic [31:1]  f0pc_plus1, f0pc_plus2, f0pc_plus3, f0pc_plus4;
-   logic [31:1]  f1pc_plus1, f1pc_plus2, f1pc_plus3;
-   logic [3:0]   alignval;
-   logic [31:1]  firstpc, secondpc, thirdpc, fourthpc;
+   logic [31:0]         ifirst, isecond, ithird;
+   logic [pt.XLEN-1:1]  f0pc_plus1, f0pc_plus2, f0pc_plus3, f0pc_plus4;
+   logic [pt.XLEN-1:1]  f1pc_plus1, f1pc_plus2, f1pc_plus3;
+   logic [3:0]          alignval;
+   logic [pt.XLEN-1:1]  firstpc, secondpc, thirdpc, fourthpc;
 
    logic [pt.BTB_TOFFSET_SIZE-1:0]  f1poffset;
    logic [pt.BTB_TOFFSET_SIZE-1:0]  f0poffset;
@@ -197,8 +197,8 @@ import eh2_pkg::*;
    logic         i0_ends_f1, i1_ends_f1;
    logic         i0_br_start_error, i1_br_start_error;
 
-   logic [31:1]  f1prett;
-   logic [31:1]  f0prett;
+   logic [pt.XLEN-1:1]  f1prett;
+   logic [pt.XLEN-1:1]  f0prett;
 
    logic [3:0]   aligndbecc;
    logic [3:0]   alignicaf;
@@ -395,7 +395,7 @@ import eh2_pkg::*;
 
    assign misc_data_in[MHI:0] = {
                                   ic_access_fault_type_f2[1:0],
-                                  ifu_bp_btb_target_f2[31:1],
+                                  ifu_bp_btb_target_f2[pt.XLEN-1:1],
                                   ifu_bp_poffset_f2[pt.BTB_TOFFSET_SIZE-1:0],
                                   ifu_bp_fghr_f2[pt.BHT_GHR_SIZE-1:0]
                                   };
@@ -413,14 +413,14 @@ import eh2_pkg::*;
 
    assign {
             f1ictype[1:0],
-            f1prett[31:1],
+            f1prett[pt.XLEN-1:1],
             f1poffset[pt.BTB_TOFFSET_SIZE-1:0],
             f1fghr[pt.BHT_GHR_SIZE-1:0]
             } = misc1eff[MHI:0];
 
    assign {
             f0ictype[1:0],
-            f0prett[31:1],
+            f0prett[pt.XLEN-1:1],
             f0poffset[pt.BTB_TOFFSET_SIZE-1:0],
             f0fghr[pt.BHT_GHR_SIZE-1:0]
             } = misc0eff[MHI:0];
@@ -590,30 +590,30 @@ import eh2_pkg::*;
 
 
 
-   logic [31:1] q3pc, q2pc, q1pc, q0pc;
+   logic [pt.XLEN-1:1] q3pc, q2pc, q1pc, q0pc;
 
-   rvdffe #(31)           q3pcff        (.*, .clk(clk), .en(qwen[3]),        .din(ifu_fetch_pc[31:1]),     .dout(q3pc[31:1]));
-   rvdffe #(31)           q2pcff        (.*, .clk(clk), .en(qwen[2]),        .din(ifu_fetch_pc[31:1]),     .dout(q2pc[31:1]));
-   rvdffe #(31)           q1pcff        (.*, .clk(clk), .en(qwen[1]),        .din(ifu_fetch_pc[31:1]),     .dout(q1pc[31:1]));
-   rvdffe #(31)           q0pcff        (.*, .clk(clk), .en(qwen[0]),        .din(ifu_fetch_pc[31:1]),     .dout(q0pc[31:1]));
+   rvdffe #(pt.XLEN-1)           q3pcff        (.*, .clk(clk), .en(qwen[3]),        .din(ifu_fetch_pc[pt.XLEN-1:1]),     .dout(q3pc[pt.XLEN-1:1]));
+   rvdffe #(pt.XLEN-1)           q2pcff        (.*, .clk(clk), .en(qwen[2]),        .din(ifu_fetch_pc[pt.XLEN-1:1]),     .dout(q2pc[pt.XLEN-1:1]));
+   rvdffe #(pt.XLEN-1)           q1pcff        (.*, .clk(clk), .en(qwen[1]),        .din(ifu_fetch_pc[pt.XLEN-1:1]),     .dout(q1pc[pt.XLEN-1:1]));
+   rvdffe #(pt.XLEN-1)           q0pcff        (.*, .clk(clk), .en(qwen[0]),        .din(ifu_fetch_pc[pt.XLEN-1:1]),     .dout(q0pc[pt.XLEN-1:1]));
 
-   logic [31:1] q0pceff, q0pcfinal;
-   logic [31:1] q1pceff, q1pcfinal;
+   logic [pt.XLEN-1:1] q0pceff, q0pcfinal;
+   logic [pt.XLEN-1:1] q1pceff, q1pcfinal;
 
-   assign {q1pceff[31:1],q0pceff[31:1]} = (({62{qren[0]}} & {q1pc[31:1],q0pc[31:1]}) |
-                                           ({62{qren[1]}} & {q2pc[31:1],q1pc[31:1]}) |
-                                           ({62{qren[2]}} & {q3pc[31:1],q2pc[31:1]}) |
-                                           ({62{qren[3]}} & {q0pc[31:1],q3pc[31:1]}));
+   assign {q1pceff[pt.XLEN-1:1],q0pceff[pt.XLEN-1:1]} = (({(pt.XLEN-1)*2{qren[0]}} & {q1pc[pt.XLEN-1:1],q0pc[pt.XLEN-1:1]}) |
+                                                         ({(pt.XLEN-1)*2{qren[1]}} & {q2pc[pt.XLEN-1:1],q1pc[pt.XLEN-1:1]}) |
+                                                         ({(pt.XLEN-1)*2{qren[2]}} & {q3pc[pt.XLEN-1:1],q2pc[pt.XLEN-1:1]}) |
+                                                         ({(pt.XLEN-1)*2{qren[3]}} & {q0pc[pt.XLEN-1:1],q3pc[pt.XLEN-1:1]}));
 
-   assign q0pcfinal[31:1]      = ({31{q0sel[0]}} & ( q0pceff[31:1])) |
-                                 ({31{q0sel[1]}} & ( q0pceff[31:1] + 31'd1)) |
-                                 ({31{q0sel[2]}} & ( q0pceff[31:1] + 31'd2)) |
-                                 ({31{q0sel[3]}} & ( q0pceff[31:1] + 31'd3));
+   assign q0pcfinal[pt.XLEN-1:1] = ({pt.XLEN-1{q0sel[0]}} & ( q0pceff[pt.XLEN-1:1])) |
+                                   ({pt.XLEN-1{q0sel[1]}} & ( q0pceff[pt.XLEN-1:1] + (pt.XLEN-1)'('d1))) |
+                                   ({pt.XLEN-1{q0sel[2]}} & ( q0pceff[pt.XLEN-1:1] + (pt.XLEN-1)'('d2))) |
+                                   ({pt.XLEN-1{q0sel[3]}} & ( q0pceff[pt.XLEN-1:1] + (pt.XLEN-1)'('d3)));
 
-   assign q1pcfinal[31:1]      = ({31{q1sel[0]}} & ( q1pceff[31:1])) |
-                                 ({31{q1sel[1]}} & ( q1pceff[31:1] + 31'd1)) |
-                                 ({31{q1sel[2]}} & ( q1pceff[31:1] + 31'd2)) |
-                                 ({31{q1sel[3]}} & ( q1pceff[31:1] + 31'd3));
+   assign q1pcfinal[pt.XLEN-1:1] = ({pt.XLEN-1{q1sel[0]}} & ( q1pceff[pt.XLEN-1:1])) |
+                                   ({pt.XLEN-1{q1sel[1]}} & ( q1pceff[pt.XLEN-1:1] + (pt.XLEN-1)'('d1))) |
+                                   ({pt.XLEN-1{q1sel[2]}} & ( q1pceff[pt.XLEN-1:1] + (pt.XLEN-1)'('d2))) |
+                                   ({pt.XLEN-1{q1sel[3]}} & ( q1pceff[pt.XLEN-1:1] + (pt.XLEN-1)'('d3)));
 
    // on flush_final all valids go to 0
 
@@ -745,22 +745,22 @@ import eh2_pkg::*;
 
 
 
-   assign { secondpc[31:1],
-            thirdpc[31:1],
-            fourthpc[31:1] } =   ({3*31{(f0val[3])}}           & {31'(q0pcfinal[31:1] + 31'd1), 31'(q0pcfinal[31:1] + 31'd2), 31'(q0pcfinal[31:1] + 31'd3)}) |
-                                 ({3*31{(f0val[2]&~f0val[3])}} & {31'(q0pcfinal[31:1] + 31'd1), 31'(q0pcfinal[31:1] + 31'd2),     q1pcfinal[31:1]}) |
-                                 ({3*31{(f0val[1]&~f0val[2])}} & {31'(q0pcfinal[31:1] + 31'd1),     q1pcfinal[31:1],          31'(q1pcfinal[31:1] + 31'd1)})   |
-                                 ({3*31{(f0val[0]&~f0val[1])}} & {    q1pcfinal[31:1],          31'(q1pcfinal[31:1] + 31'd1), 31'(q1pcfinal[31:1] + 31'd2)});
+   assign { secondpc[pt.XLEN-1:1],
+            thirdpc[pt.XLEN-1:1],
+            fourthpc[pt.XLEN-1:1] } =   ({3*pt.XLEN-1{(f0val[3])}}           & {(pt.XLEN-1)'(q0pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d1)), (pt.XLEN-1)'(q0pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d2)), (pt.XLEN-1)'(q0pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d3))}) |
+                                        ({3*pt.XLEN-1{(f0val[2]&~f0val[3])}} & {(pt.XLEN-1)'(q0pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d1)), (pt.XLEN-1)'(q0pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d2)),              q1pcfinal[pt.XLEN-1:1]}) |
+                                        ({3*pt.XLEN-1{(f0val[1]&~f0val[2])}} & {(pt.XLEN-1)'(q0pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d1)),              q1pcfinal[pt.XLEN-1:1],                      (pt.XLEN-1)'(q1pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d1))}) |
+                                        ({3*pt.XLEN-1{(f0val[0]&~f0val[1])}} & {             q1pcfinal[pt.XLEN-1:1],                      (pt.XLEN-1)'(q1pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d1)), (pt.XLEN-1)'(q1pcfinal[pt.XLEN-1:1] + (pt.XLEN-1)'('d2))});
 
 
-   assign i0pc[31:1] = q0pcfinal[31:1];
+   assign i0pc[pt.XLEN-1:1] = q0pcfinal[pt.XLEN-1:1];
 
-   assign firstpc[31:1] = q0pcfinal[31:1];
+   assign firstpc[pt.XLEN-1:1] = q0pcfinal[pt.XLEN-1:1];
 
-   assign i1pc[31:1] = (first2B) ? secondpc[31:1] : thirdpc[31:1];
+   assign i1pc[pt.XLEN-1:1] = (first2B) ? secondpc[pt.XLEN-1:1] : thirdpc[pt.XLEN-1:1];
 
-   assign i0_pc[31:1] = (i0_shift) ? i0pc : '0;
-   assign i1_pc[31:1] = (i1_shift) ? i1pc : '0;
+   assign i0_pc[pt.XLEN-1:1] = (i0_shift) ? i0pc : '0;
+   assign i1_pc[pt.XLEN-1:1] = (i1_shift) ? i1pc : '0;
 
    assign i0_pc4 = first4B;
 
@@ -836,13 +836,13 @@ import eh2_pkg::*;
 
 
    assign i0instr[31:0] = ({32{first4B}} & ifirst[31:0]) |
-                           ({32{first2B}} & uncompress0[31:0]);
+                          ({32{first2B}} & uncompress0[31:0]);
 
 
    assign i1instr[31:0] = ({32{first4B & third4B}} & ithird[31:0]) |
-                           ({32{first4B & third2B}} & uncompress2[31:0]) |
-                           ({32{first2B & second4B}} & isecond[31:0]) |
-                           ({32{first2B & second2B}} & uncompress1[31:0]);
+                          ({32{first4B & third2B}} & uncompress2[31:0]) |
+                          ({32{first2B & second4B}} & isecond[31:0]) |
+                          ({32{first2B & second2B}} & uncompress1[31:0]);
 
    assign i0_instr[31:0] = (i0_shift) ? i0instr : '0;
    assign i1_instr[31:0] = (i1_shift) ? i1instr : '0;
@@ -930,7 +930,7 @@ end
       i0_ends_f1 = (first4B & alignfromf1[1]);
 
 
-      i0_brp.prett[31:1] = (~i0_brp.ret) ? '0 : (i0_ends_f1) ? f1prett[31:1] : f0prett[31:1];
+      i0_brp.prett[pt.XLEN-1:1] = (~i0_brp.ret) ? '0 : (i0_ends_f1) ? f1prett[pt.XLEN-1:1] : f0prett[pt.XLEN-1:1];
 
       i0_brp.br_start_error = i0_br_start_error;
 
@@ -986,7 +986,7 @@ end
                    (first2B & second4B & alignfromf1[2]);
 
 
-      i1_brp.prett[31:1] = (~i1_brp.ret) ? '0 : (i1_ends_f1) ? f1prett[31:1] : f0prett[31:1];
+      i1_brp.prett[pt.XLEN-1:1] = (~i1_brp.ret) ? '0 : (i1_ends_f1) ? f1prett[pt.XLEN-1:1] : f0prett[pt.XLEN-1:1];
 
       i1_brp.br_start_error = i1_br_start_error;
 

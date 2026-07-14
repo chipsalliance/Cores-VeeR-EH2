@@ -45,16 +45,16 @@ import eh2_pkg::*;
    input logic        exu_i0_br_call_e4, // i0 branch commit is a call
    input logic        exu_i1_br_call_e4, // i1 branch commit is a call
 
-   input logic [pt.NUM_THREADS-1:0][31:1] exu_flush_path_final, // flush fetch address
-   input logic [pt.NUM_THREADS-1:0][31:1] dec_tlu_flush_path_wb, // flush fetch address
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_flush_path_final, // flush fetch address
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] dec_tlu_flush_path_wb, // flush fetch address
 
-   input logic [pt.NUM_THREADS-1:0]             exu_flush_final_early,              // Pipe is being flushed this cycle
-   input logic [pt.NUM_THREADS-1:0][31:1]       exu_flush_path_final_early,         // Target for the oldest flush source
+   input logic [pt.NUM_THREADS-1:0]              exu_flush_final_early,              // Pipe is being flushed this cycle
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_flush_path_final_early,         // Target for the oldest flush source
 
 `ifdef REAL_COMM_RS
-   input logic        exu_flush_upper_e2,    // flush upper, either i0 or i1
+   input logic                exu_flush_upper_e2,    // flush upper, either i0 or i1
 `endif
-   input logic [31:0]  dec_tlu_mrac_ff ,// Side_effect , cacheable for each region
+   input logic [pt.XLEN-1:0]  dec_tlu_mrac_ff ,// Side_effect , cacheable for each region
 
    input logic                         dec_tlu_bpred_disable, // disable all branch prediction
    input logic                         dec_tlu_core_ecc_disable,  // disable ecc checking and flagging
@@ -76,7 +76,7 @@ import eh2_pkg::*;
    // AXI Write Channels
    output logic                            ifu_axi_awvalid,
    output logic [pt.IFU_BUS_TAG-1:0]       ifu_axi_awid,
-   output logic [31:0]                     ifu_axi_awaddr,
+   output logic [pt.XLEN-1:0]              ifu_axi_awaddr,
    output logic [3:0]                      ifu_axi_awregion,
    output logic [7:0]                      ifu_axi_awlen,
    output logic [2:0]                      ifu_axi_awsize,
@@ -97,7 +97,7 @@ import eh2_pkg::*;
    output logic                            ifu_axi_arvalid,
    input  logic                            ifu_axi_arready,
    output logic [pt.IFU_BUS_TAG-1:0]       ifu_axi_arid,
-   output logic [31:0]                     ifu_axi_araddr,
+   output logic [pt.XLEN-1:0]              ifu_axi_araddr,
    output logic [3:0]                      ifu_axi_arregion,
    output logic [7:0]                      ifu_axi_arlen,
    output logic [2:0]                      ifu_axi_arsize,
@@ -113,12 +113,11 @@ import eh2_pkg::*;
    input  logic [63:0]                     ifu_axi_rdata,
    input  logic [1:0]                      ifu_axi_rresp,
 
-
-   input  logic                         ifu_bus_clk_en,
+   input  logic                            ifu_bus_clk_en,
 
    input  logic                      dma_iccm_req,
    input  logic [2:0]                dma_mem_tag,
-   input  logic [31:0]               dma_mem_addr,
+   input  logic [pt.XLEN-1:0]        dma_mem_addr,
    input  logic [2:0]                dma_mem_sz,
    input  logic                      dma_mem_write,
    input  logic [63:0]               dma_mem_wdata,
@@ -137,16 +136,16 @@ import eh2_pkg::*;
    output logic [pt.NUM_THREADS-1:0] ifu_pmu_fetch_stall,
 
 //   I$ & ITAG Ports
-   output logic [31:1]               ic_rw_addr,         // Read/Write addresss to the Icache.
-   output logic [pt.ICACHE_NUM_WAYS-1:0]                ic_wr_en,           // Icache write enable, when filling the Icache.
-   output logic                      ic_rd_en,           // Icache read  enable.
+   output logic [pt.XLEN-1:1]            ic_rw_addr,         // Read/Write addresss to the Icache.
+   output logic [pt.ICACHE_NUM_WAYS-1:0] ic_wr_en,           // Icache write enable, when filling the Icache.
+   output logic                          ic_rd_en,           // Icache read  enable.
 
-   output logic [pt.ICACHE_BANKS_WAY-1:0] [70:0]               ic_wr_data,           // Data to fill to the Icache. With ECC
-   input  logic [63:0]               ic_rd_data ,          // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
-   input  logic [70:0]               ic_debug_rd_data ,    // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
-   input  logic [25:0]               ictag_debug_rd_data,  // Debug icache tag.
+   input  logic [63:0]               ic_rd_data ,          // Data read from Icache. 2x32bits. F2 stage. With ECC
+   input  logic [70:0]               ic_debug_rd_data ,    // Data read from Icache. 2x32bits + parity bits. F2 stage. With ECC
    output logic [70:0]               ic_debug_wr_data,     // Debug wr cache.
    output logic [70:0]               ifu_ic_debug_rd_data, // debug data read
+   output logic [pt.ICACHE_BANKS_WAY-1:0] [70:0] ic_wr_data, // Data to fill to the Icache. With ECC
+   input  logic [25:0]               ictag_debug_rd_data,  // Debug icache tag.
 
    input  logic [pt.ICACHE_BANKS_WAY-1:0] ic_eccerr,    //
    input  logic [pt.ICACHE_BANKS_WAY-1:0] ic_parerr,
@@ -218,8 +217,8 @@ import eh2_pkg::*;
    output logic                     iccm_dma_sb_error,   // Single Bit ECC error from a DMA access
    output logic  [pt.NUM_THREADS-1:0] [31:0] ifu_i0_instr,   // Instruction 0 . From Aligner to Decode
    output logic  [pt.NUM_THREADS-1:0] [31:0] ifu_i1_instr,   // Instruction 1 . From Aligner to Decode
-   output logic  [pt.NUM_THREADS-1:0] [31:1] ifu_i0_pc,      // Instruction 0 pc. From Aligner to Decode
-   output logic  [pt.NUM_THREADS-1:0] [31:1] ifu_i1_pc,      // Instruction 1 pc. From Aligner to Decode
+   output logic  [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] ifu_i0_pc,      // Instruction 0 pc. From Aligner to Decode
+   output logic  [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] ifu_i1_pc,      // Instruction 1 pc. From Aligner to Decode
    output logic  [pt.NUM_THREADS-1:0] ifu_i0_pc4,           // Instruction 0 is 4 byte. From Aligner to Decode
    output logic  [pt.NUM_THREADS-1:0] ifu_i1_pc4,           // Instruction 1 is 4 byte. From Aligner to Decode
    output eh2_predecode_pkt_t  [pt.NUM_THREADS-1:0] ifu_i0_predecode,
@@ -282,9 +281,9 @@ import eh2_pkg::*;
    logic                   ifc_fetch_uncacheable_f1;
 
    logic [3:0]   ifu_fetch_val;  // valids on a 2B boundary, left justified [7] implies valid fetch
-   logic [31:1]  ifu_fetch_pc;   // starting pc of fetch
+   logic [pt.XLEN-1:1]  ifu_fetch_pc;   // starting pc of fetch
 
-   logic [31:1] ifc_fetch_addr_bf, ifc_fetch_addr_f1, ifc_fetch_addr_f2;
+   logic [pt.XLEN-1:1] ifc_fetch_addr_bf, ifc_fetch_addr_f1, ifc_fetch_addr_f2;
 
    logic [pt.NUM_THREADS-1:0]   ic_write_stall_thr;
    logic        ic_dma_active;
@@ -308,7 +307,7 @@ import eh2_pkg::*;
 
 
    // fetch control
-   logic [pt.NUM_THREADS-1:0] [31:1] fetch_addr_bf, fetch_addr_f1, fetch_addr_f2; // fetch address
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] fetch_addr_bf, fetch_addr_f1, fetch_addr_f2; // fetch address
    logic [pt.NUM_THREADS-1:0] fetch_uncacheable_f1, fetch_req_bf, fetch_req_f1, fetch_req_f1_raw, fetch_req_f2,
                               iccm_access_f1, region_acc_fault_f1, dma_access_ok,
                               ifc_ready;
@@ -321,8 +320,8 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0] fb_consume1;                                   // Consumed one buffer. To fetch control fetch for buffer mass balance
    logic [pt.NUM_THREADS-1:0] fb_consume2;                                   // Consumed two buffers.To fetch control fetch for buffer mass balance
 
-logic [pt.NUM_THREADS-1:0] dec_tlu_i0_commit_cmt_thr;
-logic  fetch_tid_f1 ;
+   logic [pt.NUM_THREADS-1:0] dec_tlu_i0_commit_cmt_thr;
+   logic  fetch_tid_f1 ;
    logic [pt.NUM_THREADS-1:0] i0_valid;                                      // Instruction 0 is valid
    logic [pt.NUM_THREADS-1:0] i1_valid;                                      // Instruction 1 is valid
    logic [pt.NUM_THREADS-1:0] i0_icaf;                                       // Instruction 0 has access fault
@@ -331,8 +330,8 @@ logic  fetch_tid_f1 ;
    logic [pt.NUM_THREADS-1:0] i0_dbecc;                                      // Instruction 0 has double bit ecc error
    logic [pt.NUM_THREADS-1:0] [31:0] i0_instr;                               // Instruction 0
    logic [pt.NUM_THREADS-1:0] [31:0] i1_instr;                               // Instruction 1
-   logic [pt.NUM_THREADS-1:0] [31:1] i0_pc;                                  // Instruction 0 PC
-   logic [pt.NUM_THREADS-1:0] [31:1] i1_pc;                                  // Instruction 1 PC
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] i0_pc;                                  // Instruction 0 PC
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] i1_pc;                                  // Instruction 1 PC
    logic [pt.NUM_THREADS-1:0] i0_pc4;
    logic [pt.NUM_THREADS-1:0] i1_pc4;
    eh2_predecode_pkt_t [pt.NUM_THREADS-1:0] i0_predecode;
@@ -359,7 +358,7 @@ logic  fetch_tid_f1 ;
    logic [pt.NUM_THREADS-1:0] [15:0] i1_cinst;                               // 16b compress inst for i1
    logic [3:0]  ifu_bp_way_f2; // way indication; right justified
    logic  ifu_bp_kill_next_f2; // kill next fetch; taken target found
-   logic [31:1] ifu_bp_btb_target_f2; //  predicted target PC
+   logic [pt.XLEN-1:1] ifu_bp_btb_target_f2; //  predicted target PC
    logic [3:1]  ifu_bp_inst_mask_f2; // tell ic which valids to kill because of a taken branch; right justified
 
    logic [3:0]  ifu_bp_hist1_f2; // history counters for all 4 potential branches; right justified
@@ -457,8 +456,8 @@ logic  fetch_tid_f1 ;
 
 
    assign ifc_fetch_uncacheable_f1 = fetch_uncacheable_f1[ifc_select_tid_f1];
-   assign ifc_fetch_addr_f1[31:1]  = fetch_addr_f1[ifc_select_tid_f1];
-   assign ifc_fetch_addr_bf[31:1]  = fetch_addr_bf[ifc_select_tid_bf];
+   assign ifc_fetch_addr_f1[pt.XLEN-1:1]  = fetch_addr_f1[ifc_select_tid_f1];
+   assign ifc_fetch_addr_bf[pt.XLEN-1:1]  = fetch_addr_bf[ifc_select_tid_bf];
    assign ifc_fetch_req_f1 = fetch_req_f1[ifc_select_tid_f1];
    assign ifc_fetch_req_f1_raw = fetch_req_f1_raw[ifc_select_tid_f1];
 
@@ -505,9 +504,9 @@ logic  fetch_tid_f1 ;
      eh2_ifu_aln_ctl #(.pt(pt)) aln (.clk               (active_thread_l2clk[i]),
                                       .ifu_fetch_val           ((ifu_fetch_tid==1'(i))?ifu_fetch_val[3:0]:4'b0),
                                       .ifu_fetch_data          ((ifu_fetch_tid==1'(i))?ifu_fetch_data[63:0]:64'b0),
-                                      .ifu_fetch_pc            (fetch_addr_f2[i][31:1]),
+                                      .ifu_fetch_pc            (fetch_addr_f2[i][pt.XLEN-1:1]),
                                       .ifu_bp_fghr_f2          ((ifu_fetch_tid==1'(i))?ifu_bp_fghr_f2[pt.BHT_GHR_SIZE-1:0]:{pt.BHT_GHR_SIZE{1'b0}}),
-                                      .ifu_bp_btb_target_f2    ((ifu_fetch_tid==1'(i))?ifu_bp_btb_target_f2[31:1]:31'b0),
+                                      .ifu_bp_btb_target_f2    ((ifu_fetch_tid==1'(i))?ifu_bp_btb_target_f2[pt.XLEN-1:1]:{pt.XLEN-1{1'b0}}),
                                       .ifu_bp_poffset_f2       ((ifu_fetch_tid==1'(i))?ifu_bp_poffset_f2[pt.BTB_TOFFSET_SIZE-1:0]:{pt.BTB_TOFFSET_SIZE{1'b0}}),
                                       .ifu_bp_hist0_f2         ((ifu_fetch_tid==1'(i))?ifu_bp_hist0_f2[3:0]:4'b0),
                                       .ifu_bp_hist1_f2         ((ifu_fetch_tid==1'(i))?ifu_bp_hist1_f2[3:0]:4'b0),
@@ -637,8 +636,8 @@ logic  fetch_tid_f1 ;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] exu_mp_addr; // BTB/BHT address
    logic [3:0] ic_rd_hit_f2;
    logic [1:0] tmp_bnk;
-   logic [31:0] mppc_ns0, mppc0;
-   logic [31:0] mppc_ns1, mppc1;
+   logic [pt.XLEN-1:0] mppc_ns0, mppc0;
+   logic [pt.XLEN-1:0] mppc_ns1, mppc1;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] btb_rd_addr_f2, btb_rd_addr_p1_f2;
    logic [pt.BHT_ADDR_HI:pt.BHT_ADDR_LO] bht_rd_addr_f2, bht_rd_addr_p1_f2;
    logic                                 i;
@@ -650,22 +649,22 @@ logic  fetch_tid_f1 ;
    assign mppc_ns0[0] = 1'b0;
    assign mppc_ns1[0] = 1'b0;
 
-   rvdff #(36)  mdseal_ff (.*, .clk(active_clk), .din({mppc_ns0[31:0], mem_ctl.ic_rd_hit[3:0]}), .dout({mppc0[31:0],ic_rd_hit_f2[3:0]}));
-   rvdff #(32)  mdseal1_ff (.*, .clk(active_clk), .din({mppc_ns1[31:0]}), .dout({mppc1[31:0]}));
-   logic [31:0] i0_pc_wb, i1_pc_wb;
+   rvdff #(pt.XLEN+4)  mdseal_ff (.*, .clk(active_clk), .din({mppc_ns0[pt.XLEN-1:0], mem_ctl.ic_rd_hit[3:0]}), .dout({mppc0[pt.XLEN-1:0],ic_rd_hit_f2[3:0]}));
+   rvdff #(pt.XLEN)    mdseal1_ff (.*, .clk(active_clk), .din({mppc_ns1[pt.XLEN-1:0]}), .dout({mppc1[pt.XLEN-1:0]}));
+   logic [pt.XLEN-1:0] i0_pc_wb, i1_pc_wb;
    assign i0_pc_wb[0] = 1'b0;
    assign i1_pc_wb[0] = 1'b0;
 
-   rvdff #(62)  e4pc (.*, .clk(active_clk), .din({`DEC.dec_tlu_i0_pc_e4[31:1],`DEC.dec_tlu_i1_pc_e4[31:1]}), .dout({i0_pc_wb[31:1], i1_pc_wb[31:1]}));
+   rvdff #(62)  e4pc (.*, .clk(active_clk), .din({`DEC.dec_tlu_i0_pc_e4[pt.XLEN-1:1],`DEC.dec_tlu_i1_pc_e4[pt.XLEN-1:1]}), .dout({i0_pc_wb[pt.XLEN-1:1], i1_pc_wb[pt.XLEN-1:1]}));
    rvdff #(2*(pt.BHT_ADDR_HI-pt.BHT_ADDR_LO+1))  bhtff (.*, .clk(active_clk), .din({bp.bht_rd_addr_f1, bp.bht_rd_addr_p1_f1}), .dout({bht_rd_addr_f2, bht_rd_addr_p1_f2}));
 
    assign tmp_bnk[1:0] = encode4_2(bp.btb_sel_f2[3:0]);
-   logic [31:1] flush_path_i0_wb,flush_path_i1_wb;
-   assign flush_path_i0_wb[31:1] = exu_flush_path_final[`DEC.tlu.i0tid_wb][31:1];
-   assign flush_path_i1_wb[31:1] = exu_flush_path_final[`DEC.tlu.i1tid_wb][31:1];
+   logic [pt.XLEN-1:1] flush_path_i0_wb,flush_path_i1_wb;
+   assign flush_path_i0_wb[pt.XLEN-1:1] = exu_flush_path_final[`DEC.tlu.i0tid_wb][pt.XLEN-1:1];
+   assign flush_path_i1_wb[pt.XLEN-1:1] = exu_flush_path_final[`DEC.tlu.i1tid_wb][pt.XLEN-1:1];
 
    always @(negedge clk) begin
-      if(`DEC.tlu.tlumt[0].tlu.mcyclel[31:0] == 32'h0000_0010) begin
+      if(`DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0] == {{pt.XLEN-5{1'b0}}, 5'h10}) begin
          $display("BTB_CONFIG: %d",pt.BTB_ARRAY_DEPTH*4);
          `ifndef BP_NOGSHARE
          $display("BHT_CONFIG: %d gshare: 1",pt.BHT_ARRAY_DEPTH*4);
@@ -676,53 +675,53 @@ logic  fetch_tid_f1 ;
       end
 
 
-      mppc_ns0[31:1] = `EXU.i0_flush_upper_e1[0] ? `DEC.decode.i0_pc_e1[31:1] :
-                      (`EXU.i1_flush_upper_e1[0] ? `DEC.decode.i1_pc_e1[31:1] :
-                       (`EXU.exu_i0_flush_lower_e4[0] ?  `DEC.decode.i0_pc_e4[31:1] :  `DEC.decode.i1_pc_e4[31:1]));
+      mppc_ns0[pt.XLEN-1:1] = `EXU.i0_flush_upper_e1[0] ? `DEC.decode.i0_pc_e1[pt.XLEN-1:1] :
+                      (`EXU.i1_flush_upper_e1[0] ? `DEC.decode.i1_pc_e1[pt.XLEN-1:1] :
+                       (`EXU.exu_i0_flush_lower_e4[0] ?  `DEC.decode.i0_pc_e4[pt.XLEN-1:1] :  `DEC.decode.i1_pc_e4[pt.XLEN-1:1]));
 
 
       if(exu_flush_final[0] & ~(dec_tlu_br0_wb_pkt.br_error | dec_tlu_br0_wb_pkt.br_start_error | dec_tlu_br1_wb_pkt.br_error | dec_tlu_br1_wb_pkt.br_start_error) & (exu_mp_pkt[0].misp | exu_mp_pkt[0].ataken))
         $display("%7d BTB_MP[T0]  : index: %0h bank: %0h call: %b ret: %b ataken: %b hist: %h valid: %b tag: %h targ: %h eghr: %b pred: %b ghr_index: %h brpc: %h way: %h",
-                 `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha, exu_mp_index[0][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO], exu_mp_pkt[0].bank, exu_mp_pkt[0].pcall, exu_mp_pkt[0].pret,
+                 `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha}, exu_mp_index[0][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO], exu_mp_pkt[0].bank, exu_mp_pkt[0].pcall, exu_mp_pkt[0].pret,
                  exu_mp_pkt[0].ataken, exu_mp_pkt[0].hist[1:0],
-                 exu_mp_pkt[0].misp, exu_mp_btag[0][pt.BTB_BTAG_SIZE-1:0], {exu_flush_path_final[0][31:1], 1'b0}, exu_mp_eghr[0][pt.BHT_GHR_SIZE-1:0], exu_mp_pkt[0].misp,
-                 bp.mp_hashed[0], mppc0[31:0], exu_mp_pkt[0].way);
+                 exu_mp_pkt[0].misp, exu_mp_btag[0][pt.BTB_BTAG_SIZE-1:0], {exu_flush_path_final[0][pt.XLEN-1:1], 1'b0}, exu_mp_eghr[0][pt.BHT_GHR_SIZE-1:0], exu_mp_pkt[0].misp,
+                 bp.mp_hashed[0], mppc0[pt.XLEN-1:0], exu_mp_pkt[0].way);
       for(int i = 0; i < 4; i++) begin
          if(ifu_bp_valid_f2[i] & ifc_fetch_req_f2)
            $display("%7d BTB_HIT[T%b] : index: %0h bank: %0h call: %b ret: %b taken: %b strength: %b tag: %h targ: %0h ghr: %4b ghr_index: %h way: %h",
-                    `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha, bp.ifc_select_tid_f2, btb_rd_addr_f2[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],encode4_2(bp.btb_sel_f2[3:0]), bp.btb_rd_call_f2, bp.btb_rd_ret_f2,
-                    ifu_bp_hist1_f2[tmp_bnk], ifu_bp_hist0_f2[tmp_bnk], bp.fetch_rd_tag_f2[pt.BTB_BTAG_SIZE-1:0], {ifu_bp_btb_target_f2[31:1], 1'b0},
+                    `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha}, bp.ifc_select_tid_f2, btb_rd_addr_f2[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],encode4_2(bp.btb_sel_f2[3:0]), bp.btb_rd_call_f2, bp.btb_rd_ret_f2,
+                    ifu_bp_hist1_f2[tmp_bnk], ifu_bp_hist0_f2[tmp_bnk], bp.fetch_rd_tag_f2[pt.BTB_BTAG_SIZE-1:0], {ifu_bp_btb_target_f2[pt.XLEN-1:1], 1'b0},
                     bp.fghr[0][pt.BHT_GHR_SIZE-1:0], use_p1 ? bht_rd_addr_p1_f2 : bht_rd_addr_f2, ifu_bp_way_f2[tmp_bnk]);
       end
 
 
-         mppc_ns1[31:1] = `EXU.i0_flush_upper_e1[1] ? `DEC.decode.i0_pc_e1[31:1] :
-                         (`EXU.i1_flush_upper_e1[1] ? `DEC.decode.i1_pc_e1[31:1] :
-                          (`EXU.exu_i0_flush_lower_e4[1] ?  `DEC.decode.i0_pc_e4[31:1] :  `DEC.decode.i1_pc_e4[31:1]));
+         mppc_ns1[pt.XLEN-1:1] = `EXU.i0_flush_upper_e1[1] ? `DEC.decode.i0_pc_e1[pt.XLEN-1:1] :
+                         (`EXU.i1_flush_upper_e1[1] ? `DEC.decode.i1_pc_e1[pt.XLEN-1:1] :
+                          (`EXU.exu_i0_flush_lower_e4[1] ?  `DEC.decode.i0_pc_e4[pt.XLEN-1:1] :  `DEC.decode.i1_pc_e4[pt.XLEN-1:1]));
 
 
          if(exu_flush_final[1] & ~(dec_tlu_br0_wb_pkt.br_error | dec_tlu_br0_wb_pkt.br_start_error | dec_tlu_br1_wb_pkt.br_error | dec_tlu_br1_wb_pkt.br_start_error) & (exu_mp_pkt[1].misp | exu_mp_pkt[1].ataken))
            $display("%7d BTB_MP[T1]  : index: %0h bank: %0h call: %b ret: %b ataken: %b hist: %h valid: %b tag: %h targ: %h eghr: %b pred: %b ghr_index: %h brpc: %h way: %h",
-                    `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha, exu_mp_index[1][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO], exu_mp_pkt[1].bank, exu_mp_pkt[1].pcall, exu_mp_pkt[1].pret,
+                    `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha}, exu_mp_index[1][pt.BTB_ADDR_HI:pt.BTB_ADDR_LO], exu_mp_pkt[1].bank, exu_mp_pkt[1].pcall, exu_mp_pkt[1].pret,
                     exu_mp_pkt[1].ataken, exu_mp_pkt[1].hist[1:0],
-                    exu_mp_pkt[1].misp, exu_mp_btag[1][pt.BTB_BTAG_SIZE-1:0], {exu_flush_path_final[1][31:1], 1'b0}, exu_mp_eghr[1][pt.BHT_GHR_SIZE-1:0], exu_mp_pkt[1].misp,
-                    bp.mp_hashed[1], mppc1[31:0], exu_mp_pkt[1].way);
+                    exu_mp_pkt[1].misp, exu_mp_btag[1][pt.BTB_BTAG_SIZE-1:0], {exu_flush_path_final[1][pt.XLEN-1:1], 1'b0}, exu_mp_eghr[1][pt.BHT_GHR_SIZE-1:0], exu_mp_pkt[1].misp,
+                    bp.mp_hashed[1], mppc1[pt.XLEN-1:0], exu_mp_pkt[1].way);
 
       if(dec_tlu_br0_wb_pkt.valid & ~(dec_tlu_br0_wb_pkt.br_error | dec_tlu_br0_wb_pkt.br_start_error))
         $display("%7d BTB_UPD0[T%b]: ghr_index: %0h bank: %0h hist: %h  way: %h brpc: %h",
-                 `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha,`DEC.tlu.i0tid_wb, bp.br0_hashed_wb[pt.BHT_ADDR_HI:pt.BHT_ADDR_LO],{dec_tlu_br0_wb_pkt.bank,dec_tlu_br0_wb_pkt.middle},
+                 `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha},`DEC.tlu.i0tid_wb, bp.br0_hashed_wb[pt.BHT_ADDR_HI:pt.BHT_ADDR_LO],{dec_tlu_br0_wb_pkt.bank,dec_tlu_br0_wb_pkt.middle},
                  dec_tlu_br0_wb_pkt.hist, dec_tlu_br0_wb_pkt.way, i0_pc_wb);
       if(dec_tlu_br1_wb_pkt.valid & ~(dec_tlu_br1_wb_pkt.br_error | dec_tlu_br1_wb_pkt.br_start_error))
         $display("%7d BTB_UPD1[T%b]: ghr_index: %0h bank: %0h hist: %h  way: %h brpc: %h",
-                 `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha,`DEC.tlu.i1tid_wb,bp.br1_hashed_wb[pt.BHT_ADDR_HI:pt.BHT_ADDR_LO],{dec_tlu_br1_wb_pkt.bank,dec_tlu_br1_wb_pkt.middle},
+                 `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha},`DEC.tlu.i1tid_wb,bp.br1_hashed_wb[pt.BHT_ADDR_HI:pt.BHT_ADDR_LO],{dec_tlu_br1_wb_pkt.bank,dec_tlu_br1_wb_pkt.middle},
                  dec_tlu_br1_wb_pkt.hist, dec_tlu_br1_wb_pkt.way, i1_pc_wb);
       if(dec_tlu_br0_wb_pkt.br_error | dec_tlu_br0_wb_pkt.br_start_error)
         $display("%7d BTB_ERR0[T%b]: index: %0h bank: %0h start: %b rfpc: %h way: %h",
-                 `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha,`DEC.tlu.i0tid_wb,dec_tlu_br0_index_wb[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],dec_tlu_br0_wb_pkt.bank, dec_tlu_br0_wb_pkt.br_start_error,
+                 `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha},`DEC.tlu.i0tid_wb,dec_tlu_br0_index_wb[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],dec_tlu_br0_wb_pkt.bank, dec_tlu_br0_wb_pkt.br_start_error,
                  {flush_path_i0_wb, 1'b0}, dec_tlu_br0_wb_pkt.way);
       if(dec_tlu_br1_wb_pkt.br_error | dec_tlu_br1_wb_pkt.br_start_error)
         $display("%7d BTB_ERR1[T%b]: index: %0h bank: %0h start: %b rfpc: %h way: %h",
-                 `DEC.tlu.tlumt[0].tlu.mcyclel[31:0]+32'ha,`DEC.tlu.i1tid_wb,dec_tlu_br1_index_wb[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],dec_tlu_br1_wb_pkt.bank, dec_tlu_br1_wb_pkt.br_start_error,
+                 `DEC.tlu.tlumt[0].tlu.mcyclel[pt.XLEN-1:0]+{{pt.XLEN-4{1'b0}}, 4'ha},`DEC.tlu.i1tid_wb,dec_tlu_br1_index_wb[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO],dec_tlu_br1_wb_pkt.bank, dec_tlu_br1_wb_pkt.br_start_error,
                  {flush_path_i1_wb, 1'b0}, dec_tlu_br1_wb_pkt.way);
    end // always @ (negedge clk)
       function [1:0] encode4_2;

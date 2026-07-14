@@ -43,29 +43,29 @@ import eh2_pkg::*;
    input logic dec_tlu_flush_mp_wb,
    input logic dec_tlu_flush_lower_wb, // Flush
    input logic exu_flush_final, // FLush
-   input logic [31:1] exu_flush_path_final, // Flush path
-   input logic [31:1] dec_tlu_flush_path_wb, // Flush path
+   input logic [pt.XLEN-1:1] exu_flush_path_final, // Flush path
+   input logic [pt.XLEN-1:1] dec_tlu_flush_path_wb, // Flush path
 
    input logic exu_flush_final_early, // FLush
-   input logic [31:1] exu_flush_path_final_early, // Flush path
+   input logic [pt.XLEN-1:1] exu_flush_path_final_early, // Flush path
 
    input logic ifu_bp_kill_next_f2, // kill next fetch, taken target found
-   input logic [31:1] ifu_bp_btb_target_f2, //  predicted target PC
+   input logic [pt.XLEN-1:1] ifu_bp_btb_target_f2, //  predicted target PC
 
    input logic ic_dma_active, // IC DMA active, stop fetching
    input logic ic_write_stall, // IC is writing, stop fetching
    input logic dma_iccm_stall_any, // force a stall in the fetch pipe for DMA ICCM access
 
-   input logic [31:0]  dec_tlu_mrac_ff ,   // side_effect and cacheable for each region
+   input logic [pt.XLEN-1:0]  dec_tlu_mrac_ff ,   // side_effect and cacheable for each region
 
    input logic tid,
    input logic ifc_select_tid_f1,
 
    output logic  fetch_uncacheable_f1, // fetch to uncacheable address as determined by MRAC
 
-   output logic [31:1] fetch_addr_f1, // fetch addr F1
-   output logic [31:1] fetch_addr_bf, // fetch addr F1
-   output logic [31:1] fetch_addr_f2,
+   output logic [pt.XLEN-1:1] fetch_addr_f1, // fetch addr F1
+   output logic [pt.XLEN-1:1] fetch_addr_bf, // fetch addr F1
+   output logic [pt.XLEN-1:1] fetch_addr_f2,
 
    output [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] fetch_btb_rd_addr_f1, // btb read hash
    output [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] fetch_btb_rd_addr_p1_f1, // btb read hash
@@ -84,9 +84,9 @@ import eh2_pkg::*;
    );
 
 
-   logic [31:1]  miss_addr, ifc_fetch_addr_f1_raw;
-   logic [31:3]  fetch_addr_next;
-   logic [31:1]  miss_addr_ns;
+   logic [pt.XLEN-1:1]  miss_addr, ifc_fetch_addr_f1_raw;
+   logic [pt.XLEN-1:3]  fetch_addr_next;
+   logic [pt.XLEN-1:1]  miss_addr_ns;
    logic [4:0]   cacheable_select;
    logic [4:0]   fb_write_f1, fb_write_ns;
 
@@ -112,7 +112,7 @@ import eh2_pkg::*;
    logic         fetch_req_f1_won;
    logic         iccm_acc_in_range_f1;
    logic         iccm_acc_in_region_f1;
-   logic [31:1]  exu_flush_path_final_early_f;
+   logic [pt.XLEN-1:1]  exu_flush_path_final_early_f;
 
    if (pt.ICCM_ENABLE == 1)
      begin
@@ -146,7 +146,7 @@ import eh2_pkg::*;
    assign miss_sel_bf = ~miss_sel_f2 & ~miss_sel_f1 & ~miss_sel_flush;
 
    // pcie too much pressure
-   rvdffe #(31) faddmiss_ff (.*, .en(missff_en), .din(miss_addr_ns[31:1]), .dout(miss_addr[31:1]));
+   rvdffe #(pt.XLEN-1) faddmiss_ff (.*, .en(missff_en), .din(miss_addr_ns[pt.XLEN-1:1]), .dout(miss_addr[pt.XLEN-1:1]));
 
 
    // Fetch address mux
@@ -155,11 +155,11 @@ import eh2_pkg::*;
    // - Sequential
 
 logic dec_tlu_flush_noredir_wb_f, flush_noredir, ic_crit_wd_rdy_qual, flush_lower_qual;
-   logic [31:1] fetch_addr_bf_pre;
+   logic [pt.XLEN-1:1] fetch_addr_bf_pre;
 if(pt.BTB_USE_SRAM) begin
 
    // hold the early flush path
-   rvdffe #(31) faddmiss_ff (.*, .en(exu_flush_final_early), .din(exu_flush_path_final_early[31:1]), .dout(exu_flush_path_final_early_f[31:1]));
+   rvdffe #(pt.XLEN-1) faddmiss_ff (.*, .en(exu_flush_final_early), .din(exu_flush_path_final_early[pt.XLEN-1:1]), .dout(exu_flush_path_final_early_f[pt.XLEN-1:1]));
    assign flush_lower_qual = dec_tlu_flush_lower_wb & ~dec_tlu_flush_mp_wb;
    assign flush_fb = exu_flush_final | flush_lower_qual;
    assign sel_last_addr_bf =  (flush_fb & ~fetch_req_f1_won) | (~fetch_req_f1_won & ~my_bp_kill_next_f2 & fetch_req_f2);
@@ -169,21 +169,21 @@ if(pt.BTB_USE_SRAM) begin
 
    assign miss_sel_flush = flush_fb & (((wfm | idle) & ~fetch_crit_word_d1)  | dma_stall | ic_write_stall | lost_arb);
 
-   assign fetch_addr_bf_pre[31:1] = (({31{ flush_lower_qual}} & dec_tlu_flush_path_wb[31:1]) | // Flush path
-                                     ({31{~flush_lower_qual & sel_miss_addr_bf}} & miss_addr[31:1]) | // MISS path
-                                     ({31{~flush_lower_qual & sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[31:1]})| // BTB target
-                                     ({31{~flush_lower_qual & sel_last_addr_bf}} & {fetch_addr_f1[31:1]})| // Last cycle
-                                     ({31{~flush_lower_qual & sel_next_addr_bf}} & {fetch_addr_next[31:3],fetch_addr_next_2_1[2:1]})); // SEQ path
+   assign fetch_addr_bf_pre[pt.XLEN-1:1] = (({pt.XLEN-1{ flush_lower_qual}} & dec_tlu_flush_path_wb[pt.XLEN-1:1]) | // Flush path
+                                            ({pt.XLEN-1{~flush_lower_qual & sel_miss_addr_bf}} & miss_addr[pt.XLEN-1:1]) | // MISS path
+                                            ({pt.XLEN-1{~flush_lower_qual & sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[pt.XLEN-1:1]})| // BTB target
+                                            ({pt.XLEN-1{~flush_lower_qual & sel_last_addr_bf}} & {fetch_addr_f1[pt.XLEN-1:1]})| // Last cycle
+                                            ({pt.XLEN-1{~flush_lower_qual & sel_next_addr_bf}} & {fetch_addr_next[pt.XLEN-1:3],fetch_addr_next_2_1[2:1]})); // SEQ path
 
-   assign fetch_addr_bf[31:1] = ({31{ exu_flush_final_early}} & exu_flush_path_final_early[31:1]) |
-                                ({31{~exu_flush_final_early}} & fetch_addr_bf_pre[31:1]) ;
+   assign fetch_addr_bf[pt.XLEN-1:1] = ({pt.XLEN-1{ exu_flush_final_early}} & exu_flush_path_final_early[pt.XLEN-1:1]) |
+                                       ({pt.XLEN-1{~exu_flush_final_early}} & fetch_addr_bf_pre[pt.XLEN-1:1]) ;
 
-   assign miss_addr_ns[31:1] = ( ({31{miss_sel_flush}} & (flush_lower_qual ? dec_tlu_flush_path_wb[31:1] : exu_flush_path_final_early_f[31:1])) |
-                                 ({31{miss_sel_f2}} & fetch_addr_f2[31:1]) |
-                                 ({31{miss_sel_f1}} & fetch_addr_f1[31:1]) |
-                                 ({31{miss_sel_bf}} & fetch_addr_bf_pre[31:1]));
+   assign miss_addr_ns[pt.XLEN-1:1] = ( ({pt.XLEN-1{miss_sel_flush}} & (flush_lower_qual ? dec_tlu_flush_path_wb[pt.XLEN-1:1] : exu_flush_path_final_early_f[pt.XLEN-1:1])) |
+                                        ({pt.XLEN-1{miss_sel_f2}} & fetch_addr_f2[pt.XLEN-1:1]) |
+                                        ({pt.XLEN-1{miss_sel_f1}} & fetch_addr_f1[pt.XLEN-1:1]) |
+                                        ({pt.XLEN-1{miss_sel_bf}} & fetch_addr_bf_pre[pt.XLEN-1:1]));
 
-   assign fetch_addr_f1[31:1] = ifc_fetch_addr_f1_raw[31:1];
+   assign fetch_addr_f1[pt.XLEN-1:1] = ifc_fetch_addr_f1_raw[pt.XLEN-1:1];
 
    assign ic_crit_wd_rdy_qual = ic_crit_wd_rdy & ~dec_tlu_flush_noredir_wb;
 
@@ -205,19 +205,19 @@ else begin // NOT SRAM
    assign sel_miss_addr_bf = ~miss_sel_flush & ~my_bp_kill_next_f2 & ~fetch_req_f1_won & ~fetch_req_f2;
    assign sel_btb_addr_bf  = ~miss_sel_flush & my_bp_kill_next_f2;
    assign sel_next_addr_bf = ~miss_sel_flush & fetch_req_f1_won;
-   assign fetch_addr_bf[31:1] = ( ({31{miss_sel_flush}} &  exu_flush_path_final[31:1]) | // FLUSH path
-                                  ({31{sel_miss_addr_bf}} & miss_addr[31:1]) | // MISS path
-                                  ({31{sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[31:1]})| // BTB target
-                                  ({31{sel_last_addr_bf}} & {fetch_addr_f1[31:1]})| // Last cycle
-                                  ({31{sel_next_addr_bf}} & {fetch_addr_next[31:3],fetch_addr_next_2_1[2:1]})); // SEQ path
+   assign fetch_addr_bf[pt.XLEN-1:1] = ( ({pt.XLEN-1{miss_sel_flush}} &  exu_flush_path_final[pt.XLEN-1:1]) | // FLUSH path
+                                         ({pt.XLEN-1{sel_miss_addr_bf}} & miss_addr[pt.XLEN-1:1]) | // MISS path
+                                         ({pt.XLEN-1{sel_btb_addr_bf}} & {ifu_bp_btb_target_f2[pt.XLEN-1:1]})| // BTB target
+                                         ({pt.XLEN-1{sel_last_addr_bf}} & {fetch_addr_f1[pt.XLEN-1:1]})| // Last cycle
+                                         ({pt.XLEN-1{sel_next_addr_bf}} & {fetch_addr_next[pt.XLEN-1:3],fetch_addr_next_2_1[2:1]})); // SEQ path
 
-   assign miss_addr_ns[31:1] = ( ({31{miss_sel_flush}} & exu_flush_path_final[31:1]) |
-                                 ({31{miss_sel_f2}} & fetch_addr_f2[31:1]) |
-                                 ({31{miss_sel_f1}} & fetch_addr_f1[31:1]) |
-                                 ({31{miss_sel_bf}} & fetch_addr_bf[31:1]));
+   assign miss_addr_ns[pt.XLEN-1:1] = ( ({pt.XLEN-1{miss_sel_flush}} & exu_flush_path_final[pt.XLEN-1:1]) |
+                                        ({pt.XLEN-1{miss_sel_f2}} & fetch_addr_f2[pt.XLEN-1:1]) |
+                                        ({pt.XLEN-1{miss_sel_f1}} & fetch_addr_f1[pt.XLEN-1:1]) |
+                                        ({pt.XLEN-1{miss_sel_bf}} & fetch_addr_bf[pt.XLEN-1:1]));
 
-   assign fetch_addr_f1[31:1] = ( ({31{exu_flush_final}} & exu_flush_path_final[31:1]) |
-                                  ({31{~exu_flush_final}} & ifc_fetch_addr_f1_raw[31:1]));
+   assign fetch_addr_f1[pt.XLEN-1:1] = ( ({pt.XLEN-1{exu_flush_final}} & exu_flush_path_final[pt.XLEN-1:1]) |
+                                         ({pt.XLEN-1{~exu_flush_final}} & ifc_fetch_addr_f1_raw[pt.XLEN-1:1]));
    rvdff #(3) iccrit_ff (.*, .clk(active_clk), .din({ic_crit_wd_rdy_mod, fetch_crit_word,    fetch_crit_word_d1}),
                                               .dout({ic_crit_wd_rdy_d1,  fetch_crit_word_d1, fetch_crit_word_d2}));
    assign ic_crit_wd_rdy_f = ic_crit_wd_rdy;
@@ -229,7 +229,7 @@ else begin // NOT SRAM
 
 end // else: !if(pt.BTB_USE_SRAM)
 
-   assign fetch_addr_next[31:3] = fetch_addr_f1[31:3] + 29'b1;
+   assign fetch_addr_next[pt.XLEN-1:3] = fetch_addr_f1[pt.XLEN-1:3] + (pt.XLEN-1)'(1'b1);
 
    assign line_wrap = (fetch_addr_next[pt.ICACHE_TAG_INDEX_LO] ^ fetch_addr_f1[pt.ICACHE_TAG_INDEX_LO]);
 // For verilator.... jb
@@ -348,14 +348,14 @@ end
    assign fetch_req_f2 = ifc_fetch_req_f2_raw & ~flush_fb;
 
    // this flop needs a delayed clock *if* using SRAM btb
-   rvdffe #(31) faddrf1_ff  (.*, .en(fetch_bf_en), .din(fetch_addr_bf[31:1]), .dout(ifc_fetch_addr_f1_raw[31:1]));
+   rvdffe #(pt.XLEN-1) faddrf1_ff  (.*, .en(fetch_bf_en), .din(fetch_addr_bf[pt.XLEN-1:1]), .dout(ifc_fetch_addr_f1_raw[pt.XLEN-1:1]));
 
-   rvdffpcie #(31) faddrf2_ff (.*,  .en(fetch_req_f1_won), .din(fetch_addr_f1[31:1]), .dout(fetch_addr_f2[31:1]));
+   rvdffpcie #(pt.XLEN-1) faddrf2_ff (.*,  .en(fetch_req_f1_won), .din(fetch_addr_f1[pt.XLEN-1:1]), .dout(fetch_addr_f2[pt.XLEN-1:1]));
 
    // timing fix attempt
-   logic [31:3] fetch_addr_p1_f1;
+   logic [pt.XLEN-1:3] fetch_addr_p1_f1;
    eh2_btb_addr_hash #(.pt(pt)) f1hash(.pc(fetch_addr_f1[pt.BTB_INDEX3_HI:pt.BTB_INDEX1_LO]), .hash(fetch_btb_rd_addr_f1[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]));
-   assign fetch_addr_p1_f1[31:3] = fetch_addr_f1[31:3] + 29'b1;
+   assign fetch_addr_p1_f1[pt.XLEN-1:3] = fetch_addr_f1[pt.XLEN-1:3] + (pt.XLEN-3)'(1'b1);
    eh2_btb_addr_hash #(.pt(pt)) f1hash_p1(.pc(fetch_addr_p1_f1[pt.BTB_INDEX3_HI:pt.BTB_INDEX1_LO]), .hash(fetch_btb_rd_addr_p1_f1[pt.BTB_ADDR_HI:pt.BTB_ADDR_LO]));
 
 
@@ -364,7 +364,7 @@ if (pt.ICCM_ENABLE == 1)
  begin
    rvrangecheck #( .CCM_SADR    (pt.ICCM_SADR),
                    .CCM_SIZE    (pt.ICCM_SIZE) ) iccm_rangecheck (
-                                                                     .addr     ({fetch_addr_f1[31:1],1'b0}) ,
+                                                                     .addr     ({fetch_addr_f1[pt.XLEN-1:1],1'b0}) ,
                                                                      .in_range (iccm_acc_in_range_f1) ,
                                                                      .in_region(iccm_acc_in_region_f1)
                                                                      );
@@ -398,8 +398,8 @@ else
  end
 
 
+   // TODO: Add proper logic once we decided how to handle mrac for 64-bit arch
    assign cacheable_select[4:0]    =  {fetch_addr_f1[31:28] , 1'b0 } ;
    assign fetch_uncacheable_f1 =  ~dec_tlu_mrac_ff[cacheable_select]  ; // bit 0 of each region description is the cacheable bit
 
 endmodule // eh2_ifu_ifc_ctl
-

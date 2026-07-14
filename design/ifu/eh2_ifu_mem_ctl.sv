@@ -37,7 +37,7 @@ import eh2_pkg::*;
    input logic  [pt.NUM_THREADS-1:0] dec_tlu_flush_err_wb,          // Flush from the pipeline due to perr.
    input logic  [pt.NUM_THREADS-1:0] dec_tlu_force_halt,            // force halt
 
-   input logic [31:1]                fetch_addr_f1,                 // Fetch Address byte aligned always.      F1 stage.
+   input logic [pt.XLEN-1:1]         fetch_addr_f1,                 // Fetch Address byte aligned always.      F1 stage.
    input logic                       fetch_tid_f1,
    input logic                       ifc_fetch_uncacheable_f1,      // The fetch request is uncacheable space. F1 stage
    input logic                       ifc_fetch_req_f1,              // Fetch request. Comes with the address.  F1 stage
@@ -69,7 +69,7 @@ import eh2_pkg::*;
    // AXI Write Channels
    output logic                            ifu_axi_awvalid,
    output logic [pt.IFU_BUS_TAG-1:0]       ifu_axi_awid,
-   output logic [31:0]                     ifu_axi_awaddr,
+   output logic [pt.XLEN-1:0]              ifu_axi_awaddr,
    output logic [3:0]                      ifu_axi_awregion,
    output logic [7:0]                      ifu_axi_awlen,
    output logic [2:0]                      ifu_axi_awsize,
@@ -90,7 +90,7 @@ import eh2_pkg::*;
    output logic                            ifu_axi_arvalid,
    input  logic                            ifu_axi_arready,
    output logic [pt.IFU_BUS_TAG-1:0]       ifu_axi_arid,
-   output logic [31:0]                     ifu_axi_araddr,
+   output logic [pt.XLEN-1:0]              ifu_axi_araddr,
    output logic [3:0]                      ifu_axi_arregion,
    output logic [7:0]                      ifu_axi_arlen,
    output logic [2:0]                      ifu_axi_arsize,
@@ -110,7 +110,7 @@ import eh2_pkg::*;
 
 
    input  logic                      dma_iccm_req,      //  dma iccm command (read or write)
-   input  logic [31:0]               dma_mem_addr,      //  dma address
+   input  logic [pt.XLEN-1:0]        dma_mem_addr,      //  dma address
    input  logic [2:0]                dma_mem_sz,        //  size
    input  logic                      dma_mem_write,     //  write
    input  logic [63:0]               dma_mem_wdata,     //  write data
@@ -125,25 +125,25 @@ import eh2_pkg::*;
 
 //   I$ & ITAG Ports
    output logic [31:1]               ic_rw_addr,         // Read/Write addresss to the Icache.
-   output logic [pt.ICACHE_NUM_WAYS-1:0]                ic_wr_en,           // Icache write enable, when filling the Icache.
+   output logic [pt.ICACHE_NUM_WAYS-1:0] ic_wr_en,       // Icache write enable, when filling the Icache.
    output logic                      ic_rd_en,           // Icache read  enable.
 
-   output logic [pt.ICACHE_BANKS_WAY-1:0] [70:0]               ic_wr_data,           // Data to fill to the Icache. With ECC
-   input  logic [63:0]               ic_rd_data ,          // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
-   input  logic [70:0]               ic_debug_rd_data ,    // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
+   output logic [pt.ICACHE_BANKS_WAY-1:0] [70:0] ic_wr_data, // Data to fill to the Icache. With ECC
+   input  logic [63:0]               ic_rd_data ,          // Data read from Icache. 2x32bits. F2 stage. With ECC
+   input  logic [70:0]               ic_debug_rd_data ,    // Data read from Icache. 2x32bits + parity bits. F2 stage. With ECC
    input  logic [25:0]               ictag_debug_rd_data,  // Debug icache tag.
    output logic [70:0]               ic_debug_wr_data,     // Debug wr cache.
    output logic [70:0]               ifu_ic_debug_rd_data, // debug data read
 
 
-   input  logic [pt.ICACHE_BANKS_WAY-1:0] ic_eccerr,    //
+   input  logic [pt.ICACHE_BANKS_WAY-1:0] ic_eccerr,
    input  logic [pt.ICACHE_BANKS_WAY-1:0] ic_parerr,
 
-   output logic [pt.ICACHE_INDEX_HI:3]               ic_debug_addr,      // Read/Write addresss to the Icache.
+   output logic [pt.ICACHE_INDEX_HI:3] ic_debug_addr,    // Read/Write addresss to the Icache.
    output logic                      ic_debug_rd_en,     // Icache debug rd
    output logic                      ic_debug_wr_en,     // Icache debug wr
    output logic                      ic_debug_tag_array, // Debug tag array
-   output logic [pt.ICACHE_NUM_WAYS-1:0]                ic_debug_way,       // Debug way. Rd or Wr.
+   output logic [pt.ICACHE_NUM_WAYS-1:0] ic_debug_way,   // Debug way. Rd or Wr.
 
 
    output logic [pt.ICACHE_NUM_WAYS-1:0]                ic_tag_valid,       // Valid bits when accessing the Icache. One valid bit per way. F2 stage
@@ -203,9 +203,9 @@ import eh2_pkg::*;
 
 
 
-   logic [31:3]    ifu_ic_req_addr_f2;
-   logic           bus_ifu_wr_en_ff_q  ;
-   logic           bus_ifu_wr_en_ff_wo_err  ;
+   logic [pt.XLEN-1:3] ifu_ic_req_addr_f2;
+   logic               bus_ifu_wr_en_ff_q  ;
+   logic               bus_ifu_wr_en_ff_wo_err  ;
 
    logic [pt.ICACHE_NUM_WAYS-1:0]     bus_ic_wr_en ;
 
@@ -281,7 +281,7 @@ import eh2_pkg::*;
    logic  [pt.ICACHE_STATUS_BITS-1:0]                             way_status_up;
    logic                                                          ifc_region_acc_fault_f2;
    logic                                                          ifc_region_acc_fault_only_f2;
-   logic  [31:1]                                                  ifu_fetch_addr_int_f2 ;
+   logic  [pt.XLEN-1:1]                                           ifu_fetch_addr_int_f2 ;
    logic                                                          reset_all_tags;
    logic                                                          reset_all_tags_ff;
    logic [pt.IFU_BUS_TAG-1:0]                                     ifu_bus_rid_ff;
@@ -321,7 +321,7 @@ import eh2_pkg::*;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                 replace_way_mb_wr_any;
    logic [pt.ICACHE_NUM_WAYS-1:0]                                 replace_way_mb_ms_any;
    logic                                                          last_beat;
-   logic [31:1]                                                   ifu_ic_rw_int_addr ;
+   logic [pt.XLEN-1:1]                                            ifu_ic_rw_int_addr ;
    logic [79:0]                                                   ic_byp_data_only_new;
    logic [01:0]                                                   ifu_first_err_addr_2_1_f2;
    logic                                                          ic_byp_hit_f2 ;
@@ -330,8 +330,8 @@ import eh2_pkg::*;
    logic [pt.ICACHE_INDEX_HI:pt.ICACHE_TAG_INDEX_LO]              ifu_status_up_addr_ff ;
    logic                                                          reset_ic_in ;
    logic                                                          reset_ic_ff ;
-   logic [31:1]                                                   ifu_status_up_addr;
-   logic [31:1]                                                   ifu_status_wr_addr;
+   logic [pt.XLEN-1:1]                                            ifu_status_up_addr;
+   logic [pt.XLEN-1:1]                                            ifu_status_wr_addr;
    logic                                                          iccm_correct_ecc     ;
    logic                                                          bus_cmd_sent           ;
    logic                                                          bus_last_data_beat     ;
@@ -387,7 +387,7 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]                                             ifu_miss_state_idle_thr;
    logic [pt.NUM_THREADS-1:0]                                             ifu_miss_state_pre_crit_ff_thr;
    logic [pt.NUM_THREADS-1:0] [pt.ICACHE_NUM_WAYS-1:0]                    ic_wr_en_thr;
-   logic [pt.NUM_THREADS-1:0] [31:3]                                      ifu_ic_req_addr_f2_thr;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:3]                               ifu_ic_req_addr_f2_thr;
    logic [pt.NUM_THREADS-1:0]                                             reset_tag_valid_for_miss_thr;
    logic [pt.NUM_THREADS-1:0]  [63:0]                                     ic_miss_buff_half_thr;
    logic [pt.NUM_THREADS-1:0]                                             sel_byp_data_thr;
@@ -402,7 +402,7 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]                                             iccm_correction_state_thr;
    logic [pt.NUM_THREADS-1:0]                                             iccm_corr_scnd_fetch_thr;
 
-   eh2_perr_state_t     [pt.NUM_THREADS-1:0]                             perr_state_thr;
+   eh2_perr_state_t     [pt.NUM_THREADS-1:0]                              perr_state_thr;
    eh2_err_stop_state_t [pt.NUM_THREADS-1:0]                              err_stop_state_thr;
    eh2_err_stop_state_t [pt.NUM_THREADS-1:0]                              err_stop_state_thr_ff;
    logic [pt.NUM_THREADS-1:0]                                             perr_state_idle_thr;
@@ -417,32 +417,32 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0]                                             fetch_f1_f2_c1_clk_thr;
    logic [pt.NUM_THREADS-1:0]                                             ifc_fetch_req_f2_thr;
    logic [pt.NUM_THREADS-1:0]                                             last_beat_thr;
-   logic [pt.NUM_THREADS-1:0] [31:1]                                      ifu_ic_rw_int_addr_thr;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1]                               ifu_ic_rw_int_addr_thr;
    logic [pt.NUM_THREADS-1:0] [79:0]                                      ic_byp_data_only_new_thr;
    logic [pt.NUM_THREADS-1:0] [01:0]                                      ifu_first_err_addr_2_1_f2_thr;
    logic [pt.NUM_THREADS-1:0]                                             ic_byp_hit_f2_thr;
    logic [pt.NUM_THREADS-1:0]                                             reset_ic_in_thr;
    logic [pt.NUM_THREADS-1:0]                                             reset_ic_ff_thr;
-   logic [pt.NUM_THREADS-1:0] [31:1]                                      ifu_status_up_addr_thr;
-   logic [pt.NUM_THREADS-1:0] [31:1]                                      ifu_status_wr_addr_thr;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1]                               ifu_status_up_addr_thr;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1]                               ifu_status_wr_addr_thr;
    logic [pt.NUM_THREADS-1:0]                                             iccm_correct_ecc_thr;
    logic [pt.NUM_THREADS-1:0]                                             bus_last_data_beat_thr;
    logic [pt.NUM_THREADS-1:0]                                             ic_hit_f2_thr;
    logic [pt.NUM_THREADS-1:0]                                             ifu_bus_cmd_valid_thr;
    logic [pt.NUM_THREADS-1:0]                                             miss_done_thr;
    logic [pt.NUM_THREADS-1:0]                                             address_match_thr;
-   logic [pt.NUM_THREADS-1:0] [31:1]                                      miss_address_thr;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1]                               miss_address_thr;
 
    logic [1:0]                miss_done_other;
    logic [1:0]                address_match_other;
-   logic [1:0] [31:1]         miss_address_other;
+   logic [1:0] [pt.XLEN-1:1]  miss_address_other;
 
    logic [1:0]                ifu_bus_cmd_valid_thr_in ;
    logic [pt.NUM_THREADS-1:0] selected_miss_thr_ff;
    logic [1:0]                selected_miss_thr_in, rsp_miss_thr;
-   logic                       arbitter_toggle_en;
+   logic                      arbitter_toggle_en;
    logic                      ic_wr_tid_ff;
-   logic                       ic_reset_tid;
+   logic                      ic_reset_tid;
 
    logic [pt.NUM_THREADS-1:0] [pt.ICCM_BITS-1:2]                          iccm_ecc_corr_index_ff_thr;
    logic [pt.NUM_THREADS-1:0] [38:0]                                      iccm_ecc_corr_data_ff_thr;
@@ -521,10 +521,10 @@ assign debug_c1_clken        = ic_debug_rd_en | ic_debug_wr_en ;
                             );
 
 
-   rvdffpcie #(31) ifu_fetch_addr_f2_ff (.*,
+   rvdffpcie #(pt.XLEN-1) ifu_fetch_addr_f2_ff (.*,
                                          .en(ifc_fetch_req_f1),
-                                         .din ({fetch_addr_f1[31:1]}),
-                                         .dout({ifu_fetch_addr_int_f2[31:1]})
+                                         .din ({fetch_addr_f1[pt.XLEN-1:1]}),
+                                         .dout({ifu_fetch_addr_int_f2[pt.XLEN-1:1]})
                                          );
 
    assign vaddr_f2[pt.ICACHE_BEAT_ADDR_HI:1] = ifu_fetch_addr_int_f2[pt.ICACHE_BEAT_ADDR_HI:1] ;
@@ -719,11 +719,11 @@ assign bus_ifu_bus_clk_en =  ifu_bus_clk_en ;
     assign ifu_axi_arvalid               =  ifu_bus_cmd_valid ;
     assign ifu_axi_arid[pt.IFU_BUS_TAG-1:0] = (pt.ICACHE_BEAT_BITS == 2) ?  ((pt.IFU_BUS_TAG)'({selected_miss_thr,1'b0, bus_rd_addr_count[pt.ICACHE_BEAT_BITS-1:0]})) & ({pt.IFU_BUS_TAG{ifu_bus_cmd_valid}}):
                                                                             ((pt.IFU_BUS_TAG)'({selected_miss_thr,bus_rd_addr_count[pt.ICACHE_BEAT_BITS-1:0]})) & ({pt.IFU_BUS_TAG{ifu_bus_cmd_valid}});
-    assign ifu_axi_araddr[31:0]          =   {ifu_ic_req_addr_f2[31:3],3'b0} & {32{ifu_bus_cmd_valid}} ;
+    assign ifu_axi_araddr[pt.XLEN-1:0]   =   {ifu_ic_req_addr_f2[pt.XLEN-1:3],3'b0} & {pt.XLEN{ifu_bus_cmd_valid}} ;
     assign ifu_axi_arsize[2:0]           =  3'b011;
     assign ifu_axi_arprot[2:0]           = 3'b101;
     assign ifu_axi_arcache[3:0]          = 4'b1111;
-    assign ifu_axi_arregion[3:0]         = ifu_ic_req_addr_f2[31:28];
+    assign ifu_axi_arregion[3:0]         = ifu_ic_req_addr_f2[pt.XLEN-1:pt.XLEN-4];
     assign ifu_axi_arlen[7:0]            = '0;
     assign ifu_axi_arburst[1:0]          = 2'b01;
     assign ifu_axi_arqos[3:0]            = '0;
@@ -733,7 +733,7 @@ assign bus_ifu_bus_clk_en =  ifu_bus_clk_en ;
     //  Write Channel
     assign ifu_axi_awvalid                  = '0 ;
     assign ifu_axi_awid[pt.IFU_BUS_TAG-1:0] = '0 ;
-    assign ifu_axi_awaddr[31:0]             = '0 ;
+    assign ifu_axi_awaddr[pt.XLEN-1:0]      = '0 ;
     assign ifu_axi_awsize[2:0]              = '0 ;
     assign ifu_axi_awprot[2:0]              = '0;
     assign ifu_axi_awcache[3:0]             = '0 ;
@@ -770,7 +770,7 @@ assign bus_ifu_bus_clk_en =  ifu_bus_clk_en ;
 
 
 
-   assign ifu_bus_rvalid            =  ifu_bus_rsp_valid       & bus_ifu_bus_clk_en ;
+   assign ifu_bus_rvalid             =  ifu_bus_rsp_valid      & bus_ifu_bus_clk_en ;
 
    assign ifu_bus_arready_ff         =  ifu_bus_arready_unq_ff & bus_ifu_bus_clk_en_ff ;
    assign ifu_bus_arready            =  ifu_bus_arready_unq    & bus_ifu_bus_clk_en    ;
@@ -786,7 +786,7 @@ assign bus_ifu_bus_clk_en =  ifu_bus_clk_en ;
    rvdff #(1)  dma_ok_prev_ff  (.*, .clk(active_clk), .din(ifc_dma_access_ok_d), .dout(ifc_dma_access_ok_prev));
 
     if (pt.ICCM_ENABLE == 1 ) begin: iccm_enabled
-         logic  [31:0] dma_mem_addr_ff  ;
+         logic  [pt.XLEN-1:0] dma_mem_addr_ff  ;
          logic  iccm_dma_rden    ;
 
          logic  ic_dma_active_in;
@@ -843,8 +843,8 @@ assign bus_ifu_bus_clk_en =  ifu_bus_clk_en ;
          rvdff #(1)           ccm_err_ff       (.*, .clk(active_clk), .din(iccm_dma_ecc_error_in),   .dout(iccm_dma_ecc_error));
          rvdff #(1)           dma_active_ff    (.*, .clk(active_clk), .din(ic_dma_active_in),        .dout(iccm_dma_active));
 
-         rvdffe #(32)         dma_addr_ff      (.*, .din(dma_mem_addr[31:0]),      .dout(dma_mem_addr_ff[31:0]), .en(dma_iccm_req));
-         rvdffe #(64)         dma_data_ff      (.*, .din(iccm_dma_rdata_in[63:0]), .dout(iccm_dma_rdata[63:0]), .en(dma_iccm_req_f2));
+         rvdffe #(pt.XLEN)    dma_addr_ff      (.*, .din(dma_mem_addr[pt.XLEN-1:0]), .dout(dma_mem_addr_ff[pt.XLEN-1:0]), .en(dma_iccm_req));
+         rvdffe #(64)         dma_data_ff      (.*, .din(iccm_dma_rdata_in[63:0]),   .dout(iccm_dma_rdata[63:0]),         .en(dma_iccm_req_f2));
 
          assign iccm_rw_addr[pt.ICCM_BITS-1:1]    = (  ifc_dma_access_q_ok & dma_iccm_req  & ~iccm_correct_ecc) ? dma_mem_addr[pt.ICCM_BITS-1:1] :
                                                  (~(ifc_dma_access_q_ok & dma_iccm_req) &  iccm_correct_ecc) ? {iccm_ecc_corr_index_ff[pt.ICCM_BITS-1:2],1'b0} : fetch_addr_f1[pt.ICCM_BITS-1:1] ;
@@ -905,8 +905,8 @@ assign bus_ifu_bus_clk_en =  ifu_bus_clk_en ;
          assign iccm_dma_rtag[2:0] = '0;
 
          assign iccm_rd_ecc_single_err                   = 1'b0 ;
-         assign ifu_iccm_rd_ecc_single_err               =  '0;
-         assign iccm_rd_ecc_double_err[3:0]                   = '0 ;
+         assign ifu_iccm_rd_ecc_single_err               = '0;
+         assign iccm_rd_ecc_double_err[3:0]              = '0 ;
          assign iccm_rd_ecc_single_err_ff                = 1'b0 ;
          assign iccm_error_start                         = 1'b0;
          assign iccm_ecc_corr_index_in[pt.ICCM_BITS-1:2] = '0;
@@ -1238,14 +1238,14 @@ rvdff #(1) ifu_debug_valid_ff (.*, .clk(active_clk),
 
 // memory protection  - equation to look identical to the LSU equation
    assign ifc_region_acc_okay = (~(|{pt.INST_ACCESS_ENABLE0,pt.INST_ACCESS_ENABLE1,pt.INST_ACCESS_ENABLE2,pt.INST_ACCESS_ENABLE3,pt.INST_ACCESS_ENABLE4,pt.INST_ACCESS_ENABLE5,pt.INST_ACCESS_ENABLE6,pt.INST_ACCESS_ENABLE7})) |
-                               (pt.INST_ACCESS_ENABLE0 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK0)) == (pt.INST_ACCESS_ADDR0 | pt.INST_ACCESS_MASK0)) |
-                               (pt.INST_ACCESS_ENABLE1 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK1)) == (pt.INST_ACCESS_ADDR1 | pt.INST_ACCESS_MASK1)) |
-                               (pt.INST_ACCESS_ENABLE2 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK2)) == (pt.INST_ACCESS_ADDR2 | pt.INST_ACCESS_MASK2)) |
-                               (pt.INST_ACCESS_ENABLE3 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK3)) == (pt.INST_ACCESS_ADDR3 | pt.INST_ACCESS_MASK3)) |
-                               (pt.INST_ACCESS_ENABLE4 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK4)) == (pt.INST_ACCESS_ADDR4 | pt.INST_ACCESS_MASK4)) |
-                               (pt.INST_ACCESS_ENABLE5 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK5)) == (pt.INST_ACCESS_ADDR5 | pt.INST_ACCESS_MASK5)) |
-                               (pt.INST_ACCESS_ENABLE6 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK6)) == (pt.INST_ACCESS_ADDR6 | pt.INST_ACCESS_MASK6)) |
-                               (pt.INST_ACCESS_ENABLE7 & (({fetch_addr_f1[31:1],1'b0} | pt.INST_ACCESS_MASK7)) == (pt.INST_ACCESS_ADDR7 | pt.INST_ACCESS_MASK7));
+                               (pt.INST_ACCESS_ENABLE0 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK0)) == (pt.INST_ACCESS_ADDR0 | pt.INST_ACCESS_MASK0)) |
+                               (pt.INST_ACCESS_ENABLE1 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK1)) == (pt.INST_ACCESS_ADDR1 | pt.INST_ACCESS_MASK1)) |
+                               (pt.INST_ACCESS_ENABLE2 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK2)) == (pt.INST_ACCESS_ADDR2 | pt.INST_ACCESS_MASK2)) |
+                               (pt.INST_ACCESS_ENABLE3 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK3)) == (pt.INST_ACCESS_ADDR3 | pt.INST_ACCESS_MASK3)) |
+                               (pt.INST_ACCESS_ENABLE4 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK4)) == (pt.INST_ACCESS_ADDR4 | pt.INST_ACCESS_MASK4)) |
+                               (pt.INST_ACCESS_ENABLE5 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK5)) == (pt.INST_ACCESS_ADDR5 | pt.INST_ACCESS_MASK5)) |
+                               (pt.INST_ACCESS_ENABLE6 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK6)) == (pt.INST_ACCESS_ADDR6 | pt.INST_ACCESS_MASK6)) |
+                               (pt.INST_ACCESS_ENABLE7 & (({fetch_addr_f1[pt.XLEN-1:1],1'b0} | pt.INST_ACCESS_MASK7)) == (pt.INST_ACCESS_ADDR7 | pt.INST_ACCESS_MASK7));
 
    assign ifc_region_acc_fault_memory   =  ~ifc_iccm_access_f1 & ~ifc_region_acc_okay & ifc_fetch_req_f1;
 
@@ -1333,7 +1333,7 @@ assign  fetch_tid_dec_f2[pt.NUM_THREADS-1:0] = {fetch_tid_f2,~fetch_tid_f2};
     assign  ifu_bus_cmd_valid                                             =     ifu_bus_cmd_valid_thr[selected_miss_thr]  ;
     assign  bus_rd_addr_count[pt.ICACHE_BEAT_BITS-1:0]                    =     bus_rd_addr_count_thr[selected_miss_thr];
 
-    assign  ifu_ic_req_addr_f2[31:3]                                      =     ifu_ic_req_addr_f2_thr[selected_miss_thr];
+    assign  ifu_ic_req_addr_f2[pt.XLEN-1:3]                               =     ifu_ic_req_addr_f2_thr[selected_miss_thr];
     assign  ic_miss_buff_half[63:0]                                       =     ic_miss_buff_half_thr[rsp_tid_ff];
     assign  sel_byp_data                                                  =     sel_byp_data_thr[fetch_tid_f2];
     assign  sel_ic_data                                                   =     sel_ic_data_thr[fetch_tid_f2];
@@ -1364,7 +1364,7 @@ assign  fetch_tid_dec_f2[pt.NUM_THREADS-1:0] = {fetch_tid_f2,~fetch_tid_f2};
     assign  ic_act_hit_f2_ff                                              =     ic_act_hit_f2_ff_thr[fetch_tid_f2_p1];
     assign  ifc_fetch_req_f2                                              =     ifc_fetch_req_f2_thr[fetch_tid_f2];
     assign  last_beat                                                     =     last_beat_thr[rsp_tid_ff];
-    assign  ifu_ic_rw_int_addr [31:1]                                     =     ifu_ic_rw_int_addr_thr[ic_wr_tid_ff][31:1];
+    assign  ifu_ic_rw_int_addr [pt.XLEN-1:1]                              =     ifu_ic_rw_int_addr_thr[ic_wr_tid_ff][pt.XLEN-1:1];
     assign  ic_byp_data_only_new[79:0]                                    =     ic_byp_data_only_new_thr[fetch_tid_f2][79:0];
     assign  ifu_first_err_addr_2_1_f2[1:0]                                =     ifu_first_err_addr_2_1_f2_thr[fetch_tid_f2][1:0];
     assign  ic_byp_hit_f2                                                 =     ic_byp_hit_f2_thr[fetch_tid_f2];
@@ -1378,8 +1378,8 @@ assign  fetch_tid_dec_f2[pt.NUM_THREADS-1:0] = {fetch_tid_f2,~fetch_tid_f2};
 
   assign ifc_bus_acc_fault_f2_thr[pt.NUM_THREADS-1:0]   =  ic_byp_hit_f2_thr[pt.NUM_THREADS-1:0] & ifu_byp_data_err_new_thr[pt.NUM_THREADS-1:0] ;
 
-    assign  ifu_status_up_addr[31:1]                                      =     ifu_status_up_addr_thr[fetch_tid_f2][31:1];
-    assign  ifu_status_wr_addr[31:1]                                      =     ifu_status_wr_addr_thr[rsp_tid_ff][31:1];
+    assign  ifu_status_up_addr[pt.XLEN-1:1]                               =     ifu_status_up_addr_thr[fetch_tid_f2][pt.XLEN-1:1];
+    assign  ifu_status_wr_addr[pt.XLEN-1:1]                               =     ifu_status_wr_addr_thr[rsp_tid_ff][pt.XLEN-1:1];
     assign  iccm_correct_ecc                                              =     |iccm_correct_ecc_thr[pt.NUM_THREADS-1:0];
     assign flush_ic_err_tid =  (pt.NUM_THREADS > 1) &  dec_tlu_flush_err_wb[pt.NUM_THREADS-1] &  perr_state_wff_thr[pt.NUM_THREADS-1]  ;
 
@@ -1433,7 +1433,7 @@ assign  fetch_tid_dec_f2[pt.NUM_THREADS-1:0] = {fetch_tid_f2,~fetch_tid_f2};
    .way_status                                  ( way_status ) ,
    .way_status_rep_new                          ( way_status_rep_new ) ,
    .ifc_region_acc_fault_f2                     ( ifc_region_acc_fault_f2 ) ,
-   .ifu_fetch_addr_int_f2                       ( ifu_fetch_addr_int_f2 ) ,
+   .ifu_fetch_addr_int_f2                       ( ifu_fetch_addr_int_f2[pt.XLEN-1:1] ) ,
    .reset_all_tags                              ( reset_all_tags ) ,
    .ifu_bus_rid_ff                              ( ifu_bus_rid_ff ) ,
    .fetch_req_icache_f2                         ( fetch_req_icache_f2 ) ,
@@ -1561,7 +1561,7 @@ import eh2_pkg::*;
    input  logic                                  two_byte_instr_f2,         //
    input logic                                   ifc_fetch_uncacheable_f1,      //
    input logic [pt.ICACHE_NUM_WAYS-1:0]          ic_rd_hit,          // Compare hits from Icache tags. Per way.  F2 stage
-   input logic [31:1]                            fetch_addr_f1,                 // Fetch Address byte aligned always.      F1 stage.
+   input logic [pt.XLEN-1:1]                     fetch_addr_f1,                 // Fetch Address byte aligned always.      F1 stage.
    input logic                                   iccm_dma_sb_error,      // Single Bit ECC error from a DMA access
    input logic                                   ic_error_start,         // This has any I$ errors ( data/tag/ecc/parity )
    input logic                                   dec_tlu_flush_lower_wb,        // Flush from the pipeline.
@@ -1574,14 +1574,14 @@ import eh2_pkg::*;
    input logic [pt.ICACHE_NUM_WAYS-1:0]          bus_ic_wr_en ,
 
    input  logic                                  selected_miss_thr,       // for incrementing counter
-   input  logic [31:1]                           miss_address_other,          //  Primary miss address for the other thread
+   input  logic [pt.XLEN-1:1]                    miss_address_other,          //  Primary miss address for the other thread
    input  logic                                  miss_done_other ,         //  Primary miss done
    input  logic                                  scnd_miss_req_other,      // Other thread did a secondary miss... needed to detect and make the miss state transition to PRE_CRI
    input  logic                                  address_match_other ,        //  Primary miss done
    input  logic  [pt.ICACHE_STATUS_BITS-1:0]     way_status,
    input  logic  [pt.ICACHE_STATUS_BITS-1:0]     way_status_rep_new,
    input  logic                                  ifc_region_acc_fault_f2,
-   input  logic  [31:1]                          ifu_fetch_addr_int_f2 ,
+   input  logic  [pt.XLEN-1:1]                   ifu_fetch_addr_int_f2 ,
    input  logic                                  reset_all_tags,
    input  logic [pt.IFU_BUS_TAG-1:0]             ifu_bus_rid_ff,
    input  logic                                  fetch_req_icache_f2,
@@ -1623,7 +1623,7 @@ import eh2_pkg::*;
 
    output logic                                             ifu_bus_cmd_valid ,
 
-   output logic [31:1]                                      miss_address,                  //  Primary miss address for this thread.
+   output logic [pt.XLEN-1:1]                               miss_address,                  //  Primary miss address for this thread.
    output logic                                             miss_done,                     //  Primary miss done
    output logic                                             address_match,                 //  miss-address match against primary miss-buffer address
    output logic                                             iccm_buf_correct_ecc,          //
@@ -1637,7 +1637,7 @@ import eh2_pkg::*;
    output logic                                             ifu_miss_state_pre_crit_ff,    // In PRE_CRIRT_BYP state delayed.
    output logic                                             ic_crit_wd_rdy  ,
    output logic [pt.ICACHE_NUM_WAYS-1:0]                    ic_wr_en,           // Icache write enable, when filling the Icache.
-   output logic [31:3]                                      ifu_ic_req_addr_f2,
+   output logic [pt.XLEN-1:3]                               ifu_ic_req_addr_f2,
    output logic                                             reset_tag_valid_for_miss  ,
    output logic  [63:0]                                     ic_miss_buff_half,
    output logic                                             sel_byp_data  ,
@@ -1669,14 +1669,14 @@ import eh2_pkg::*;
    output logic                                             ic_act_hit_f2_ff,
    output logic                                             ifc_fetch_req_f2,
    output logic                                             last_beat,
-   output logic [31:1]                                      ifu_ic_rw_int_addr ,
+   output logic [pt.XLEN-1:1]                               ifu_ic_rw_int_addr ,
    output logic [79:0]                                      ic_byp_data_only_new,
    output logic [1:0]                                       ifu_first_err_addr_2_1_f2 ,
    output logic                                             ic_byp_hit_f2 ,
    output logic                                             reset_ic_in ,
    output logic                                             reset_ic_ff ,
-   output logic [31:1]                                      ifu_status_up_addr,
-   output logic [31:1]                                      ifu_status_wr_addr,
+   output logic [pt.XLEN-1:1]                               ifu_status_up_addr,
+   output logic [pt.XLEN-1:1]                               ifu_status_wr_addr,
    output logic                                             iccm_correct_ecc     ,
    output logic                                             bus_cmd_sent           ,
    output logic                                             bus_last_data_beat  ,
@@ -1715,8 +1715,8 @@ import eh2_pkg::*;
    logic           scnd_miss_index_match ;
    logic           ic_miss_under_miss_f2;
    logic           ic_ignore_2nd_miss_f2;
-   logic [31:1]    imb_in , imb_ff  ;
-   logic [31:pt.ICACHE_BEAT_ADDR_HI+1]    miss_addr_in , miss_addr  ;
+   logic [pt.XLEN-1:1] imb_in, imb_ff  ;
+   logic [pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] miss_addr_in , miss_addr  ;
    logic           miss_wrap_f2 ;
    logic           ifc_fetch_req_f2_raw;
    logic           ifc_fetch_req_qual_f1 ;
@@ -1756,7 +1756,7 @@ import eh2_pkg::*;
    logic          crit_byp_hit_f2 ;
 
    logic [pt.IFU_BUS_TAG-2:0] other_tag ;
-   logic [(2*pt.ICACHE_NUM_BEATS)-1:0] [31:0] ic_miss_buff_data;
+   logic [(2*pt.ICACHE_NUM_BEATS)-1:0] [pt.XLEN-1:0] ic_miss_buff_data;
    logic        scnd_miss_req_q;
    logic        scnd_miss_req_in;
    logic                                dma_sb_err_state_ff;
@@ -1798,8 +1798,8 @@ import eh2_pkg::*;
    logic    sel_hold_imb     ;
 
    logic         sel_hold_imb_scnd;
-   logic  [31:1] imb_scnd_in;
-   logic  [31:1] imb_scnd_ff;
+   logic  [pt.XLEN-1:1] imb_scnd_in;
+   logic  [pt.XLEN-1:1] imb_scnd_ff;
    logic         uncacheable_miss_scnd_in ;
    logic         uncacheable_miss_scnd_ff ;
 
@@ -1940,7 +1940,7 @@ import eh2_pkg::*;
 
    rvdff_fpga #(1)  unc_miss_scnd_ff                         (.*, .clk(fetch_f1_f2_c1_clk), .clken(fetch_f1_f2_c1_clken), .rawclk(clk),  .din (uncacheable_miss_scnd_in), .dout(uncacheable_miss_scnd_ff));
 
-   rvdffpcie  #(31) imb_f2_scnd_ff                           (.*, .en(fetch_f1_f2_c1_clken), .din ({imb_scnd_in[31:1]}), .dout({imb_scnd_ff[31:1]}));
+   rvdffpcie  #(pt.XLEN-1) imb_f2_scnd_ff                    (.*, .en(fetch_f1_f2_c1_clken), .din ({imb_scnd_in[pt.XLEN-1:1]}), .dout({imb_scnd_ff[pt.XLEN-1:1]}));
 
    rvdff_fpga #(pt.ICACHE_STATUS_BITS)  mb_rep_wayf2_scnd_ff (.*, .clk(fetch_f1_f2_c1_clk), .clken(fetch_f1_f2_c1_clken), .rawclk(clk),  .din ({way_status_mb_scnd_in[pt.ICACHE_STATUS_BITS-1:0]}), .dout({way_status_mb_scnd_ff[pt.ICACHE_STATUS_BITS-1:0]}));
    rvdff_fpga #(pt.ICACHE_NUM_WAYS)     mb_tagv_scnd_ff      (.*, .clk(fetch_f1_f2_c1_clk), .clken(fetch_f1_f2_c1_clken), .rawclk(clk),  .din ({tagv_mb_scnd_in[pt.ICACHE_NUM_WAYS-1:0]}), .dout({tagv_mb_scnd_ff[pt.ICACHE_NUM_WAYS-1:0]}));
@@ -1958,10 +1958,10 @@ import eh2_pkg::*;
    assign ic_act_miss_f2_raw    = (((~(|ic_rd_hit[pt.ICACHE_NUM_WAYS-1:0]) | reset_all_tags) & fetch_req_icache_tid_f2 & ~miss_pending & ~ifc_region_acc_fault_f2) | scnd_miss_req)  ;
    assign ic_act_miss_f2        = ic_act_miss_f2_raw & (miss_nxtstate != DUPL_MISS_WAIT);
    assign ic_miss_under_miss_f2 = (~(|ic_rd_hit[pt.ICACHE_NUM_WAYS-1:0]) | reset_all_tags) & fetch_req_icache_tid_f2 & (miss_state == HIT_U_MISS) &
-                                   (imb_ff[31:pt.ICACHE_TAG_INDEX_LO] != ifu_fetch_addr_int_f2[31:pt.ICACHE_TAG_INDEX_LO]) & ~uncacheable_miss_ff & ~sel_mb_addr_ff & ~ifc_region_acc_fault_f2 ;
+                                   (imb_ff[pt.XLEN-1:pt.ICACHE_TAG_INDEX_LO] != ifu_fetch_addr_int_f2[pt.XLEN-1:pt.ICACHE_TAG_INDEX_LO]) & ~uncacheable_miss_ff & ~sel_mb_addr_ff & ~ifc_region_acc_fault_f2 ;
 
   assign ic_ignore_2nd_miss_f2  = (~(|ic_rd_hit[pt.ICACHE_NUM_WAYS-1:0]) | reset_all_tags) & fetch_req_icache_tid_f2 & (miss_state == HIT_U_MISS) &
-                                   ((imb_ff[31:pt.ICACHE_TAG_INDEX_LO] == ifu_fetch_addr_int_f2[31:pt.ICACHE_TAG_INDEX_LO])  |   uncacheable_miss_ff) ;
+                                   ((imb_ff[pt.XLEN-1:pt.ICACHE_TAG_INDEX_LO] == ifu_fetch_addr_int_f2[pt.XLEN-1:pt.ICACHE_TAG_INDEX_LO])  |   uncacheable_miss_ff) ;
 
 
    assign ic_miss_under_miss_killf1_f2 = (~(|ic_rd_hit[pt.ICACHE_NUM_WAYS-1:0]) | reset_all_tags | sel_mb_addr_ff ) & fetch_req_icache_tid_f2 & (miss_state == HIT_U_MISS) ;
@@ -1975,8 +1975,8 @@ import eh2_pkg::*;
                                                          miss_pending ? tagv_mb_ff[pt.ICACHE_NUM_WAYS-1:0]  : ({ic_tag_valid[pt.ICACHE_NUM_WAYS-1:0]} & {pt.ICACHE_NUM_WAYS{~reset_all_tags}}) ;
 
    assign uncacheable_miss_in   = scnd_miss_req ? uncacheable_miss_scnd_ff : sel_hold_imb ? uncacheable_miss_ff : ifc_fetch_uncacheable_f1 ;
-   assign imb_in[31:1]          = scnd_miss_req ? imb_scnd_ff[31:1]        : sel_hold_imb ? imb_ff[31:1] : {fetch_addr_f1[31:1]} ;
-   assign imb_scnd_in[31:1]     = sel_hold_imb_scnd ? imb_scnd_ff[31:1] : {fetch_addr_f1[31:1]} ;
+   assign imb_in[pt.XLEN-1:1]      = scnd_miss_req ? imb_scnd_ff[pt.XLEN-1:1]     : sel_hold_imb ? imb_ff[pt.XLEN-1:1] : {fetch_addr_f1[pt.XLEN-1:1]} ;
+   assign imb_scnd_in[pt.XLEN-1:1] = sel_hold_imb_scnd ? imb_scnd_ff[pt.XLEN-1:1] : {fetch_addr_f1[pt.XLEN-1:1]} ;
    assign mb_ff_en              = fetch_tid_f1 | scnd_miss_req;
 
    assign reset_ic_in           = miss_pending  &  ~scnd_miss_req_q & (reset_all_tags |  reset_ic_ff) ;
@@ -1988,14 +1988,14 @@ import eh2_pkg::*;
 
    rvdff_fpga #(1)  unc_miss_ff      (.*, .clk(fetch_f1_f2_c1_clk),  .clken(fetch_f1_f2_c1_clken), .rawclk(clk),  .din (uncacheable_miss_in), .dout(uncacheable_miss_ff));
 
-   rvdffpcie #(31) imb_f2_ff         (.*,  .en(fetch_f1_f2_c1_clken & mb_ff_en), .din ({imb_in[31:1]}), .dout({imb_ff[31:1]}));   // update the miss buffer only when my thread misses
+   rvdffpcie #(pt.XLEN-1) imb_f2_ff  (.*,  .en(fetch_f1_f2_c1_clken & mb_ff_en), .din ({imb_in[pt.XLEN-1:1]}), .dout({imb_ff[pt.XLEN-1:1]}));   // update the miss buffer only when my thread misses
 
 
 // Add miss address.
-   assign miss_addr_in[31:pt.ICACHE_BEAT_ADDR_HI+1]      = (~miss_pending                    ) ? imb_ff[31:pt.ICACHE_BEAT_ADDR_HI+1] :
-                                                           (                scnd_miss_req_q  ) ? imb_scnd_ff[31:pt.ICACHE_BEAT_ADDR_HI+1] : miss_addr[31:pt.ICACHE_BEAT_ADDR_HI+1] ;
+   assign miss_addr_in[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] = (~miss_pending                    ) ? imb_ff[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] :
+                                                             (                scnd_miss_req_q  ) ? imb_scnd_ff[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] : miss_addr[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] ;
 
-   rvdfflie #(.WIDTH(31-pt.ICACHE_BEAT_ADDR_HI),.LEFT(31-pt.ICACHE_BEAT_ADDR_HI-8)) miss_f_ff       (.*, .en(bus_ifu_bus_clk_en | ic_act_miss_f2 | dec_tlu_force_halt), .din ({miss_addr_in[31:pt.ICACHE_BEAT_ADDR_HI+1]}), .dout({miss_addr[31:pt.ICACHE_BEAT_ADDR_HI+1]}));
+   rvdfflie #(.WIDTH(pt.XLEN-1-pt.ICACHE_BEAT_ADDR_HI),.LEFT(pt.XLEN-1-pt.ICACHE_BEAT_ADDR_HI-8)) miss_f_ff       (.*, .en(bus_ifu_bus_clk_en | ic_act_miss_f2 | dec_tlu_force_halt), .din ({miss_addr_in[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1]}), .dout({miss_addr[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1]}));
 
 
 
@@ -2017,19 +2017,19 @@ import eh2_pkg::*;
    rvdff #(1) precrit_byp_ff         (.*, .clk(active_clk),  .din (ifu_miss_state_pre_crit), .dout(ifu_miss_state_pre_crit_ff));
 
    assign sel_mb_addr  = ((miss_pending & write_ic_16_bytes & ~uncacheable_miss_ff) | reset_tag_valid_for_miss) ;
-   assign ifu_ic_rw_int_addr[31:1] = ({31{ sel_mb_addr}}  &  {imb_ff[31:pt.ICACHE_BEAT_ADDR_HI+1] , ic_wr_addr_bits_hi_3[pt.ICACHE_BEAT_ADDR_HI:3] , imb_ff[2:1]})  |
-                                     ({31{~sel_mb_addr}}  &  fetch_addr_f1[31:1] )   ;
+   assign ifu_ic_rw_int_addr[pt.XLEN-1:1] = ({pt.XLEN-1{ sel_mb_addr}}  &  {imb_ff[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] , ic_wr_addr_bits_hi_3[pt.ICACHE_BEAT_ADDR_HI:3] , imb_ff[2:1]})  |
+                                            ({pt.XLEN-1{~sel_mb_addr}}  &  fetch_addr_f1[pt.XLEN-1:1] )   ;
 
    assign sel_mb_status_addr  = ((miss_pending & write_ic_16_bytes & ~uncacheable_miss_ff & last_beat & bus_ifu_wr_en_ff_q) | reset_tag_valid_for_miss) ;
-   assign ifu_status_wr_addr[31:1] = {imb_ff[31:pt.ICACHE_BEAT_ADDR_HI+1], ic_wr_addr_bits_hi_3[pt.ICACHE_BEAT_ADDR_HI:3], imb_ff[2:1]};
-   assign ifu_status_up_addr[31:1] = ifu_fetch_addr_int_f2[31:1];
+   assign ifu_status_wr_addr[pt.XLEN-1:1] = {imb_ff[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1], ic_wr_addr_bits_hi_3[pt.ICACHE_BEAT_ADDR_HI:3], imb_ff[2:1]};
+   assign ifu_status_up_addr[pt.XLEN-1:1] = ifu_fetch_addr_int_f2[pt.XLEN-1:1];
 
 
 
 
-   assign ifu_ic_req_addr_f2[31:3]  = {miss_addr[31:pt.ICACHE_BEAT_ADDR_HI+1] , ic_req_addr_bits_hi_3[pt.ICACHE_BEAT_ADDR_HI:3] };
+   assign ifu_ic_req_addr_f2[pt.XLEN-1:3]  = {miss_addr[pt.XLEN-1:pt.ICACHE_BEAT_ADDR_HI+1] , ic_req_addr_bits_hi_3[pt.ICACHE_BEAT_ADDR_HI:3] };
   // Please keep this for reference
-  assign  miss_address[31:1]  = (((miss_state==HIT_U_MISS)  & ~(bus_ifu_wr_en_ff & last_beat))) | (miss_state == SCND_MISS) ? imb_scnd_ff[31:1] : imb_ff[31:1] ;
+  assign  miss_address[pt.XLEN-1:1]  = (((miss_state==HIT_U_MISS)  & ~(bus_ifu_wr_en_ff & last_beat))) | (miss_state == SCND_MISS) ? imb_scnd_ff[pt.XLEN-1:1] : imb_ff[pt.XLEN-1:1] ;
 
   rvdff #(1) sel_mb_ff (.*, .clk(active_clk),  .din (sel_mb_addr), .dout(sel_mb_addr_ff));
 
@@ -2428,4 +2428,3 @@ assign ic_miss_buff_half[63:0]    = {ic_miss_buff_data[{other_tag,1'b1}],ic_miss
 ///////////////////////////////////// END END Threaded ///////////////////////////////////////////
 
 endmodule // eh2_ifu_mem_ctl_thr
-

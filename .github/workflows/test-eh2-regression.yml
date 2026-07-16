@@ -1,0 +1,41 @@
+name: EH2 Regression tests
+
+on:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  eh2-regression-tests:
+    name: EH2 Regression tests
+    runs-on: ubuntu-latest
+    container: ghcr.io/antmicro/cores-veer-el2:20260618
+    strategy:
+      matrix:
+        bus: ["axi", "ahb"]
+        test: ["hello_world", "hello_world_dccm", "hello_world_iccm", "cmark", "cmark_dccm", "cmark_iccm", "cmark_mt",
+               "cmark_dccm_mt", "cmark_iccm_mt", "dhry", "dhry_mt"]
+    env:
+      DEBIAN_FRONTEND: "noninteractive"
+      CCACHE_DIR: "/opt/regression/.cache/"
+
+    steps:
+      - name: Setup repository
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          RV_ROOT=`pwd`
+          echo "RV_ROOT=$RV_ROOT" >> $GITHUB_ENV
+          PYTHONUNBUFFERED=1
+          echo "PYTHONUNBUFFERED=$PYTHONUNBUFFERED" >> $GITHUB_ENV
+          TEST_PATH=$RV_ROOT/test_results
+          echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: |
+          export RV_ROOT=`pwd`
+          export TB_EXTRA_ARGS="${{ matrix.tb_extra_args }}"
+          .github/scripts/run_EH2_test.sh $TEST_PATH ${{ matrix.bus }} ${{ matrix.test}}

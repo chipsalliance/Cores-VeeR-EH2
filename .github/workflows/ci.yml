@@ -1,0 +1,24 @@
+name: VeeR-EH2 CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # run daily at 02:00 am (UTC)
+
+jobs:
+
+  Test-EH2-Regression:
+    name: Test-EH2-Regression
+    uses: ./.github/workflows/test-eh2-regression.yml
+
+  Build-and-deploy-docs:
+    name: Build-and-deploy-docs
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/build-docs.yml

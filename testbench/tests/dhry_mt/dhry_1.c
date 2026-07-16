@@ -92,7 +92,7 @@ extern void Proc_6 (Enumeration Enum_Val_Par,
                     Enumeration *Enum_Ref_Par,
                     int Int_Glob);
 
-void Proc_5();
+void Proc_5(struct Globals* globals);
 void Proc_4(struct Globals* globals);
 
 void Proc_1(struct Globals* globals, Rec_Pointer Ptr_Val_Par);

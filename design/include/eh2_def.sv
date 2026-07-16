@@ -270,6 +270,7 @@ typedef struct packed {
                        logic half;
                        logic word;
                        logic dword;
+                       logic qword;
                        logic load;
                        logic store;
                        logic pipe;   // which pipe is load/store

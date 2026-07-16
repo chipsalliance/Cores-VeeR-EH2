@@ -34,21 +34,21 @@ import eh2_pkg::*;
    input eh2_trigger_pkt_t [pt.NUM_THREADS-1:0][3:0] trigger_pkt_any, // Trigger info from the decode
    input eh2_lsu_pkt_t           lsu_pkt_dc3,            // lsu packet
    input eh2_lsu_pkt_t           lsu_pkt_dc4,            // lsu packet
-   input logic [31:0]             lsu_addr_dc4,           // address
-   input logic [31:0]             store_data_dc3,         // store data
-   input logic [31:0]             amo_data_dc3,
+   input logic [pt.XLEN-1:0]     lsu_addr_dc4,           // address
+   input logic [pt.XLEN-1:0]     store_data_dc3,         // store data
+   input logic [pt.XLEN-1:0]     amo_data_dc3,
 
    output logic [3:0]             lsu_trigger_match_dc4   // match result
 );
 
    eh2_trigger_pkt_t  [3:0]        trigger_tid_pkt_any;
-   logic              trigger_enable;             // Trigger enable. Used to bus quiescing
-   logic [31:0]       ldst_addr_trigger_dc4;
-   logic [31:0]       trigger_store_data_dc3;
-   logic [31:0]       store_data_trigger_dc3;
-   logic [31:0]       store_data_trigger_dc4;
-   logic [3:0][31:0]  lsu_match_data;
-   logic [3:0]        lsu_trigger_data_match;
+   logic               trigger_enable;             // Trigger enable. Used to bus quiescing
+   logic [pt.XLEN-1:0] ldst_addr_trigger_dc4;
+   logic [pt.XLEN-1:0] trigger_store_data_dc3;
+   logic [pt.XLEN-1:0] store_data_trigger_dc3;
+   logic [pt.XLEN-1:0] store_data_trigger_dc4;
+   logic [3:0][pt.XLEN-1:0] lsu_match_data;
+   logic [3:0]         lsu_trigger_data_match;
 
    // Generate the trigger enable
    always_comb begin
@@ -60,19 +60,28 @@ import eh2_pkg::*;
       end
    end
 
-   assign trigger_store_data_dc3[31:0] = (lsu_pkt_dc3.atomic ? amo_data_dc3[31:0] : store_data_dc3[31:0]) & {32{trigger_enable}};
-   assign store_data_trigger_dc3[31:0] = { ({16{lsu_pkt_dc3.word | lsu_pkt_dc3.dword}} & trigger_store_data_dc3[31:16]), ({8{(lsu_pkt_dc3.half | lsu_pkt_dc3.word | lsu_pkt_dc3.dword)}} & trigger_store_data_dc3[15:8]), trigger_store_data_dc3[7:0]};
+   assign trigger_store_data_dc3[pt.XLEN-1:0] = (lsu_pkt_dc3.atomic ? amo_data_dc3[pt.XLEN-1:0] : store_data_dc3[pt.XLEN-1:0]) & {pt.XLEN{trigger_enable}};
+   if (pt.XLEN == 32) begin
+      assign store_data_trigger_dc3[31:0] = { ({16{(                  lsu_pkt_dc3.word | lsu_pkt_dc3.dword)}} & trigger_store_data_dc3[31:16]),
+                                              ({8{(lsu_pkt_dc3.half | lsu_pkt_dc3.word | lsu_pkt_dc3.dword)}} & trigger_store_data_dc3[15:8]),
+                                                                                                                trigger_store_data_dc3[7:0]};
+   end else begin
+      assign store_data_trigger_dc3[63:0] = { ({32{(                                     lsu_pkt_dc3.dword | lsu_pkt_dc3.qword)}} & trigger_store_data_dc3[63:32]),
+                                              ({16{(                  lsu_pkt_dc3.word | lsu_pkt_dc3.dword | lsu_pkt_dc3.qword)}} & trigger_store_data_dc3[31:16]),
+                                              ({8{(lsu_pkt_dc3.half | lsu_pkt_dc3.word | lsu_pkt_dc3.dword | lsu_pkt_dc3.qword)}} & trigger_store_data_dc3[15:8]),
+                                                                                                                                    trigger_store_data_dc3[7:0]};
+   end
 
-   assign ldst_addr_trigger_dc4[31:0] = lsu_addr_dc4[31:0] & {32{trigger_enable}};
+   assign ldst_addr_trigger_dc4[pt.XLEN-1:0] = lsu_addr_dc4[pt.XLEN-1:0] & {pt.XLEN{trigger_enable}};
 
-   rvdffe #(32) store_data_trigger_ff   (.*, .din(store_data_trigger_dc3[31:0]),  .dout(store_data_trigger_dc4[31:0]), .en((lsu_pkt_dc3.valid & lsu_pkt_dc3.store & trigger_enable) | clk_override));
+   rvdffe #(pt.XLEN) store_data_trigger_ff   (.*, .din(store_data_trigger_dc3[pt.XLEN-1:0]),  .dout(store_data_trigger_dc4[pt.XLEN-1:0]), .en((lsu_pkt_dc3.valid & lsu_pkt_dc3.store & trigger_enable) | clk_override));
 
    for (genvar i=0; i<4; i++) begin
-      assign trigger_tid_pkt_any[i]    = trigger_pkt_any[lsu_pkt_dc4.tid][i];
-      assign lsu_match_data[i][31:0]   = ({32{~trigger_tid_pkt_any[i].select                               }} & ldst_addr_trigger_dc4[31:0]) |
-                                         ({32{ trigger_tid_pkt_any[i].select & trigger_tid_pkt_any[i].store}} & store_data_trigger_dc4[31:0]);
+      assign trigger_tid_pkt_any[i] = trigger_pkt_any[lsu_pkt_dc4.tid][i];
+      assign lsu_match_data[i][pt.XLEN-1:0] = ({pt.XLEN{~trigger_tid_pkt_any[i].select                               }} & ldst_addr_trigger_dc4[pt.XLEN-1:0]) |
+                                              ({pt.XLEN{ trigger_tid_pkt_any[i].select & trigger_tid_pkt_any[i].store}} & store_data_trigger_dc4[pt.XLEN-1:0]);
 
-      rvmaskandmatch trigger_match     (.mask(trigger_tid_pkt_any[i].tdata2[31:0]), .data(lsu_match_data[i][31:0]), .masken(trigger_tid_pkt_any[i].match), .match(lsu_trigger_data_match[i]));
+      rvmaskandmatch trigger_match     (.mask(trigger_tid_pkt_any[i].tdata2[pt.XLEN-1:0]), .data(lsu_match_data[i][pt.XLEN-1:0]), .masken(trigger_tid_pkt_any[i].match), .match(lsu_trigger_data_match[i]));
 
       assign lsu_trigger_match_dc4[i]  = lsu_pkt_dc4.valid & ~lsu_pkt_dc4.dma &
                                          ((trigger_tid_pkt_any[i].store & lsu_pkt_dc4.store) | (trigger_tid_pkt_any[i].load & lsu_pkt_dc4.load & ~lsu_pkt_dc4.store & ~trigger_tid_pkt_any[i].select)) &

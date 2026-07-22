@@ -103,10 +103,10 @@ import eh2_pkg::*;
    input  logic [116:0]          iccm_rd_data_ecc,
 
    // ICache , ITAG  ports
-   output logic [31:1]           ic_rw_addr,
-   output logic [pt.ICACHE_NUM_WAYS-1:0]            ic_tag_valid,
-   output logic [pt.ICACHE_NUM_WAYS-1:0]          ic_wr_en  ,         // Which way to write
-   output logic                  ic_rd_en,
+   output logic [pt.XLEN-1:1]             ic_rw_addr,
+   output logic [pt.ICACHE_NUM_WAYS-1:0]  ic_tag_valid,
+   output logic [pt.ICACHE_NUM_WAYS-1:0]  ic_wr_en ,         // Which way to write
+   output logic                           ic_rd_en,
 
    output logic [pt.ICACHE_BANKS_WAY-1:0] [70:0]               ic_wr_data,           // Data to fill to the Icache. With ECC
    input  logic [63:0]               ic_rd_data ,          // Data read from Icache. 2x64bits + parity bits. F2 stage. With ECC
@@ -153,7 +153,7 @@ import eh2_pkg::*;
    output logic                            lsu_axi_awvalid,
    input  logic                            lsu_axi_awready,
    output logic [pt.LSU_BUS_TAG-1:0]       lsu_axi_awid,
-   output logic [31:0]                     lsu_axi_awaddr,
+   output logic [pt.XLEN-1:0]              lsu_axi_awaddr,
    output logic [3:0]                      lsu_axi_awregion,
    output logic [7:0]                      lsu_axi_awlen,
    output logic [2:0]                      lsu_axi_awsize,
@@ -165,8 +165,8 @@ import eh2_pkg::*;
 
    output logic                            lsu_axi_wvalid,
    input  logic                            lsu_axi_wready,
-   output logic [63:0]                     lsu_axi_wdata,
-   output logic [7:0]                      lsu_axi_wstrb,
+   output logic [pt.BUS_WIDTH-1:0]         lsu_axi_wdata,
+   output logic [pt.BUS_BYTE_WIDTH-1:0]    lsu_axi_wstrb,
    output logic                            lsu_axi_wlast,
 
    input  logic                            lsu_axi_bvalid,
@@ -178,7 +178,7 @@ import eh2_pkg::*;
    output logic                            lsu_axi_arvalid,
    input  logic                            lsu_axi_arready,
    output logic [pt.LSU_BUS_TAG-1:0]       lsu_axi_arid,
-   output logic [31:0]                     lsu_axi_araddr,
+   output logic [pt.XLEN-1:0]              lsu_axi_araddr,
    output logic [3:0]                      lsu_axi_arregion,
    output logic [7:0]                      lsu_axi_arlen,
    output logic [2:0]                      lsu_axi_arsize,
@@ -191,7 +191,7 @@ import eh2_pkg::*;
    input  logic                            lsu_axi_rvalid,
    output logic                            lsu_axi_rready,
    input  logic [pt.LSU_BUS_TAG-1:0]       lsu_axi_rid,
-   input  logic [63:0]                     lsu_axi_rdata,
+   input  logic [pt.BUS_WIDTH-1:0]         lsu_axi_rdata,
    input  logic [1:0]                      lsu_axi_rresp,
    input  logic                            lsu_axi_rlast,
 
@@ -200,7 +200,7 @@ import eh2_pkg::*;
    output logic                            ifu_axi_awvalid,
    input  logic                            ifu_axi_awready,
    output logic [pt.IFU_BUS_TAG-1:0]       ifu_axi_awid,
-   output logic [31:0]                     ifu_axi_awaddr,
+   output logic [pt.XLEN-1:0]              ifu_axi_awaddr,
    output logic [3:0]                      ifu_axi_awregion,
    output logic [7:0]                      ifu_axi_awlen,
    output logic [2:0]                      ifu_axi_awsize,
@@ -225,7 +225,7 @@ import eh2_pkg::*;
    output logic                            ifu_axi_arvalid,
    input  logic                            ifu_axi_arready,
    output logic [pt.IFU_BUS_TAG-1:0]       ifu_axi_arid,
-   output logic [31:0]                     ifu_axi_araddr,
+   output logic [pt.XLEN-1:0]              ifu_axi_araddr,
    output logic [3:0]                      ifu_axi_arregion,
    output logic [7:0]                      ifu_axi_arlen,
    output logic [2:0]                      ifu_axi_arsize,
@@ -247,7 +247,7 @@ import eh2_pkg::*;
    output logic                            sb_axi_awvalid,
    input  logic                            sb_axi_awready,
    output logic [pt.SB_BUS_TAG-1:0]        sb_axi_awid,
-   output logic [31:0]                     sb_axi_awaddr,
+   output logic [pt.XLEN-1:0]              sb_axi_awaddr,
    output logic [3:0]                      sb_axi_awregion,
    output logic [7:0]                      sb_axi_awlen,
    output logic [2:0]                      sb_axi_awsize,
@@ -259,8 +259,8 @@ import eh2_pkg::*;
 
    output logic                            sb_axi_wvalid,
    input  logic                            sb_axi_wready,
-   output logic [63:0]                     sb_axi_wdata,
-   output logic [7:0]                      sb_axi_wstrb,
+   output logic [pt.BUS_WIDTH-1:0]         sb_axi_wdata,
+   output logic [pt.BUS_BYTE_WIDTH-1:0]    sb_axi_wstrb,
    output logic                            sb_axi_wlast,
 
    input  logic                            sb_axi_bvalid,
@@ -272,7 +272,7 @@ import eh2_pkg::*;
    output logic                            sb_axi_arvalid,
    input  logic                            sb_axi_arready,
    output logic [pt.SB_BUS_TAG-1:0]        sb_axi_arid,
-   output logic [31:0]                     sb_axi_araddr,
+   output logic [pt.XLEN-1:0]              sb_axi_araddr,
    output logic [3:0]                      sb_axi_arregion,
    output logic [7:0]                      sb_axi_arlen,
    output logic [2:0]                      sb_axi_arsize,
@@ -285,7 +285,7 @@ import eh2_pkg::*;
    input  logic                            sb_axi_rvalid,
    output logic                            sb_axi_rready,
    input  logic [pt.SB_BUS_TAG-1:0]        sb_axi_rid,
-   input  logic [63:0]                     sb_axi_rdata,
+   input  logic [pt.BUS_WIDTH-1:0]         sb_axi_rdata,
    input  logic [1:0]                      sb_axi_rresp,
    input  logic                            sb_axi_rlast,
 
@@ -294,17 +294,16 @@ import eh2_pkg::*;
    input  logic                         dma_axi_awvalid,
    output logic                         dma_axi_awready,
    input  logic [pt.DMA_BUS_TAG-1:0]    dma_axi_awid,
-   input  logic [31:0]                  dma_axi_awaddr,
+   input  logic [pt.XLEN-1:0]           dma_axi_awaddr,
    input  logic [2:0]                   dma_axi_awsize,
    input  logic [2:0]                   dma_axi_awprot,
    input  logic [7:0]                   dma_axi_awlen,
    input  logic [1:0]                   dma_axi_awburst,
 
-
    input  logic                         dma_axi_wvalid,
    output logic                         dma_axi_wready,
-   input  logic [63:0]                  dma_axi_wdata,
-   input  logic [7:0]                   dma_axi_wstrb,
+   input  logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata,
+   input  logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb,
    input  logic                         dma_axi_wlast,
 
    output logic                         dma_axi_bvalid,
@@ -316,7 +315,7 @@ import eh2_pkg::*;
    input  logic                         dma_axi_arvalid,
    output logic                         dma_axi_arready,
    input  logic [pt.DMA_BUS_TAG-1:0]    dma_axi_arid,
-   input  logic [31:0]                  dma_axi_araddr,
+   input  logic [pt.XLEN-1:0]           dma_axi_araddr,
    input  logic [2:0]                   dma_axi_arsize,
    input  logic [2:0]                   dma_axi_arprot,
    input  logic [7:0]                   dma_axi_arlen,
@@ -325,66 +324,66 @@ import eh2_pkg::*;
    output logic                         dma_axi_rvalid,
    input  logic                         dma_axi_rready,
    output logic [pt.DMA_BUS_TAG-1:0]    dma_axi_rid,
-   output logic [63:0]                  dma_axi_rdata,
+   output logic [pt.BUS_WIDTH-1:0]      dma_axi_rdata,
    output logic [1:0]                   dma_axi_rresp,
    output logic                         dma_axi_rlast,
 
     //// AHB LITE BUS
-   output logic [31:0]           haddr,
-   output logic [2:0]            hburst,
-   output logic                  hmastlock,
-   output logic [3:0]            hprot,
-   output logic [2:0]            hsize,
-   output logic [1:0]            htrans,
-   output logic                  hwrite,
+   output logic [pt.XLEN-1:0]       haddr,
+   output logic [2:0]               hburst,
+   output logic                     hmastlock,
+   output logic [3:0]               hprot,
+   output logic [2:0]               hsize,
+   output logic [1:0]               htrans,
+   output logic                     hwrite,
 
-   input  logic [63:0]           hrdata,
-   input  logic                  hready,
-   input  logic                  hresp,
+   input  logic [63:0]              hrdata,
+   input  logic                     hready,
+   input  logic                     hresp,
 
    // LSU AHB Master
-   output logic [31:0]          lsu_haddr,
-   output logic [2:0]           lsu_hburst,
-   output logic                 lsu_hmastlock,
-   output logic [3:0]           lsu_hprot,
-   output logic [2:0]           lsu_hsize,
-   output logic [1:0]           lsu_htrans,
-   output logic                 lsu_hwrite,
-   output logic [63:0]          lsu_hwdata,
+   output logic [pt.XLEN-1:0]       lsu_haddr,
+   output logic [2:0]               lsu_hburst,
+   output logic                     lsu_hmastlock,
+   output logic [3:0]               lsu_hprot,
+   output logic [2:0]               lsu_hsize,
+   output logic [1:0]               lsu_htrans,
+   output logic                     lsu_hwrite,
+   output logic [pt.BUS_WIDTH-1:0]  lsu_hwdata,
 
-   input  logic [63:0]          lsu_hrdata,
-   input  logic                 lsu_hready,
-   input  logic                 lsu_hresp,
+   input  logic [pt.BUS_WIDTH-1:0]  lsu_hrdata,
+   input  logic                     lsu_hready,
+   input  logic                     lsu_hresp,
 
    //System Bus Debug Master
-   output logic [31:0]          sb_haddr,
-   output logic [2:0]           sb_hburst,
-   output logic                 sb_hmastlock,
-   output logic [3:0]           sb_hprot,
-   output logic [2:0]           sb_hsize,
-   output logic [1:0]           sb_htrans,
-   output logic                 sb_hwrite,
-   output logic [63:0]          sb_hwdata,
+   output logic [pt.XLEN-1:0]       sb_haddr,
+   output logic [2:0]               sb_hburst,
+   output logic                     sb_hmastlock,
+   output logic [3:0]               sb_hprot,
+   output logic [2:0]               sb_hsize,
+   output logic [1:0]               sb_htrans,
+   output logic                     sb_hwrite,
+   output logic [pt.BUS_WIDTH-1:0]  sb_hwdata,
 
-   input  logic [63:0]          sb_hrdata,
-   input  logic                 sb_hready,
-   input  logic                 sb_hresp,
+   input  logic [pt.BUS_WIDTH-1:0]  sb_hrdata,
+   input  logic                     sb_hready,
+   input  logic                     sb_hresp,
 
    // DMA Slave
-   input logic [31:0]            dma_haddr,
-   input logic [2:0]             dma_hburst,
-   input logic                   dma_hmastlock,
-   input logic [3:0]             dma_hprot,
-   input logic [2:0]             dma_hsize,
-   input logic [1:0]             dma_htrans,
-   input logic                   dma_hwrite,
-   input logic [63:0]            dma_hwdata,
-   input logic                   dma_hreadyin,
-   input logic                   dma_hsel,
+   input logic [pt.XLEN-1:0]        dma_haddr,
+   input logic [2:0]                dma_hburst,
+   input logic                      dma_hmastlock,
+   input logic [3:0]                dma_hprot,
+   input logic [2:0]                dma_hsize,
+   input logic [1:0]                dma_htrans,
+   input logic                      dma_hwrite,
+   input logic [pt.BUS_WIDTH-1:0]   dma_hwdata,
+   input logic                      dma_hreadyin,
+   input logic                      dma_hsel,
 
-   output  logic [63:0]          dma_hrdata,
-   output  logic                 dma_hreadyout,
-   output  logic                 dma_hresp,
+   output  logic [pt.BUS_WIDTH-1:0] dma_hrdata,
+   output  logic                    dma_hreadyout,
+   output  logic                    dma_hresp,
 
    input   logic                 lsu_bus_clk_en,
    input   logic                 ifu_bus_clk_en,
@@ -417,7 +416,7 @@ import eh2_pkg::*;
    logic                         lsu_axi_arready_ahb;
    logic                         lsu_axi_rvalid_ahb;
    logic [pt.LSU_BUS_TAG-1:0]    lsu_axi_rid_ahb;
-   logic [63:0]                  lsu_axi_rdata_ahb;
+   logic [pt.BUS_WIDTH-1:0]      lsu_axi_rdata_ahb;
    logic [1:0]                   lsu_axi_rresp_ahb;
    logic                         lsu_axi_rlast_ahb;
 
@@ -430,7 +429,7 @@ import eh2_pkg::*;
    logic                         lsu_axi_arready_int;
    logic                         lsu_axi_rvalid_int;
    logic [pt.LSU_BUS_TAG-1:0]    lsu_axi_rid_int;
-   logic [63:0]                  lsu_axi_rdata_int;
+   logic [pt.BUS_WIDTH-1:0]      lsu_axi_rdata_int;
    logic [1:0]                   lsu_axi_rresp_int;
    logic                         lsu_axi_rlast_int;
 
@@ -469,7 +468,7 @@ import eh2_pkg::*;
    logic                         sb_axi_arready_ahb;
    logic                         sb_axi_rvalid_ahb;
    logic [pt.SB_BUS_TAG-1:0]     sb_axi_rid_ahb;
-   logic [63:0]                  sb_axi_rdata_ahb;
+   logic [pt.BUS_WIDTH-1:0]      sb_axi_rdata_ahb;
    logic [1:0]                   sb_axi_rresp_ahb;
    logic                         sb_axi_rlast_ahb;
 
@@ -482,25 +481,25 @@ import eh2_pkg::*;
    logic                         sb_axi_arready_int;
    logic                         sb_axi_rvalid_int;
    logic [pt.SB_BUS_TAG-1:0]     sb_axi_rid_int;
-   logic [63:0]                  sb_axi_rdata_int;
+   logic [pt.BUS_WIDTH-1:0]      sb_axi_rdata_int;
    logic [1:0]                   sb_axi_rresp_int;
    logic                         sb_axi_rlast_int;
 
    logic                         dma_axi_awvalid_ahb;
    logic [pt.DMA_BUS_TAG-1:0]    dma_axi_awid_ahb;
-   logic [31:0]                  dma_axi_awaddr_ahb;
+   logic [pt.XLEN-1:0]           dma_axi_awaddr_ahb;
    logic [2:0]                   dma_axi_awsize_ahb;
    logic [2:0]                   dma_axi_awprot_ahb;
    logic [7:0]                   dma_axi_awlen_ahb;
    logic [1:0]                   dma_axi_awburst_ahb;
    logic                         dma_axi_wvalid_ahb;
-   logic [63:0]                  dma_axi_wdata_ahb;
-   logic [7:0]                   dma_axi_wstrb_ahb;
+   logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata_ahb;
+   logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb_ahb;
    logic                         dma_axi_wlast_ahb;
    logic                         dma_axi_bready_ahb;
    logic                         dma_axi_arvalid_ahb;
    logic [pt.DMA_BUS_TAG-1:0]    dma_axi_arid_ahb;
-   logic [31:0]                  dma_axi_araddr_ahb;
+   logic [pt.XLEN-1:0]           dma_axi_araddr_ahb;
    logic [2:0]                   dma_axi_arsize_ahb;
    logic [2:0]                   dma_axi_arprot_ahb;
    logic [7:0]                   dma_axi_arlen_ahb;
@@ -509,19 +508,19 @@ import eh2_pkg::*;
 
    logic                         dma_axi_awvalid_int;
    logic [pt.DMA_BUS_TAG-1:0]    dma_axi_awid_int;
-   logic [31:0]                  dma_axi_awaddr_int;
+   logic [pt.XLEN-1:0]           dma_axi_awaddr_int;
    logic [2:0]                   dma_axi_awsize_int;
    logic [2:0]                   dma_axi_awprot_int;
    logic [7:0]                   dma_axi_awlen_int;
    logic [1:0]                   dma_axi_awburst_int;
    logic                         dma_axi_wvalid_int;
-   logic [63:0]                  dma_axi_wdata_int;
-   logic [7:0]                   dma_axi_wstrb_int;
+   logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata_int;
+   logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb_int;
    logic                         dma_axi_wlast_int;
    logic                         dma_axi_bready_int;
    logic                         dma_axi_arvalid_int;
    logic [pt.DMA_BUS_TAG-1:0]    dma_axi_arid_int;
-   logic [31:0]                  dma_axi_araddr_int;
+   logic [pt.XLEN-1:0]           dma_axi_araddr_int;
    logic [2:0]                   dma_axi_arsize_int;
    logic [2:0]                   dma_axi_arprot_int;
    logic [7:0]                   dma_axi_arlen_int;
@@ -1033,7 +1032,7 @@ import eh2_pkg::*;
 
                             .sb_axi_arready(sb_axi_arready_int),
                             .sb_axi_rvalid(sb_axi_rvalid_int),
-                            .sb_axi_rdata(sb_axi_rdata_int[63:0]),
+                            .sb_axi_rdata(sb_axi_rdata_int[pt.BUS_WIDTH-1:0]),
                             .sb_axi_rresp(sb_axi_rresp_int[1:0]),
 
                             .*
@@ -1091,7 +1090,7 @@ import eh2_pkg::*;
                             .lsu_axi_arready(lsu_axi_arready_int),
                             .lsu_axi_rvalid(lsu_axi_rvalid_int),
                             .lsu_axi_rid(lsu_axi_rid_int[pt.LSU_BUS_TAG-1:0]),
-                            .lsu_axi_rdata(lsu_axi_rdata_int[63:0]),
+                            .lsu_axi_rdata(lsu_axi_rdata_int[pt.BUS_WIDTH-1:0]),
                             .lsu_axi_rresp(lsu_axi_rresp_int[1:0]),
                             .lsu_axi_rlast(lsu_axi_rlast_int),
 
@@ -1119,16 +1118,16 @@ import eh2_pkg::*;
                                       // AXI signals
                                       .dma_axi_awvalid(dma_axi_awvalid_int),
                                       .dma_axi_awid(dma_axi_awid_int[pt.DMA_BUS_TAG-1:0]),
-                                      .dma_axi_awaddr(dma_axi_awaddr_int[31:0]),
+                                      .dma_axi_awaddr(dma_axi_awaddr_int[pt.XLEN-1:0]),
                                       .dma_axi_awsize(dma_axi_awsize_int[2:0]),
                                       .dma_axi_wvalid(dma_axi_wvalid_int),
-                                      .dma_axi_wdata(dma_axi_wdata_int[63:0]),
-                                      .dma_axi_wstrb(dma_axi_wstrb_int[7:0]),
+                                      .dma_axi_wdata(dma_axi_wdata_int[pt.BUS_WIDTH-1:0]),
+                                      .dma_axi_wstrb(dma_axi_wstrb_int[pt.BUS_BYTE_WIDTH-1:0]),
                                       .dma_axi_bready(dma_axi_bready_int),
 
                                       .dma_axi_arvalid(dma_axi_arvalid_int),
                                       .dma_axi_arid(dma_axi_arid_int[pt.DMA_BUS_TAG-1:0]),
-                                      .dma_axi_araddr(dma_axi_araddr_int[31:0]),
+                                      .dma_axi_araddr(dma_axi_araddr_int[pt.XLEN-1:0]),
                                       .dma_axi_arsize(dma_axi_arsize_int[2:0]),
                                       .dma_axi_rready(dma_axi_rready_int),
 
@@ -1139,7 +1138,8 @@ import eh2_pkg::*;
 
       // AXI4 -> AHB Gasket for LSU
       axi4_to_ahb #(.NUM_THREADS(pt.NUM_THREADS),
-                    .TAG(pt.LSU_BUS_TAG)) lsu_axi4_to_ahb (
+                    .TAG(pt.LSU_BUS_TAG),
+                    .DATA_WIDTH(pt.BUS_WIDTH)) lsu_axi4_to_ahb (
          .clk(free_l2clk),
          .free_clk(free_clk),
          .rst_l(core_rst_l),
@@ -1151,14 +1151,14 @@ import eh2_pkg::*;
          .axi_awvalid(lsu_axi_awvalid),
          .axi_awready(lsu_axi_awready_ahb),
          .axi_awid(lsu_axi_awid[pt.LSU_BUS_TAG-1:0]),
-         .axi_awaddr(lsu_axi_awaddr[31:0]),
+         .axi_awaddr(lsu_axi_awaddr[pt.XLEN-1:0]),
          .axi_awsize(lsu_axi_awsize[2:0]),
          .axi_awprot(lsu_axi_awprot[2:0]),
 
          .axi_wvalid(lsu_axi_wvalid),
          .axi_wready(lsu_axi_wready_ahb),
-         .axi_wdata(lsu_axi_wdata[63:0]),
-         .axi_wstrb(lsu_axi_wstrb[7:0]),
+         .axi_wdata(lsu_axi_wdata[pt.BUS_WIDTH-1:0]),
+         .axi_wstrb(lsu_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0]),
          .axi_wlast(lsu_axi_wlast),
 
          .axi_bvalid(lsu_axi_bvalid_ahb),
@@ -1170,28 +1170,28 @@ import eh2_pkg::*;
          .axi_arvalid(lsu_axi_arvalid),
          .axi_arready(lsu_axi_arready_ahb),
          .axi_arid(lsu_axi_arid[pt.LSU_BUS_TAG-1:0]),
-         .axi_araddr(lsu_axi_araddr[31:0]),
+         .axi_araddr(lsu_axi_araddr[pt.XLEN-1:0]),
          .axi_arsize(lsu_axi_arsize[2:0]),
          .axi_arprot(lsu_axi_arprot[2:0]),
 
          .axi_rvalid(lsu_axi_rvalid_ahb),
          .axi_rready(lsu_axi_rready),
          .axi_rid(lsu_axi_rid_ahb[pt.LSU_BUS_TAG-1:0]),
-         .axi_rdata(lsu_axi_rdata_ahb[63:0]),
+         .axi_rdata(lsu_axi_rdata_ahb[pt.BUS_WIDTH-1:0]),
          .axi_rresp(lsu_axi_rresp_ahb[1:0]),
          .axi_rlast(lsu_axi_rlast_ahb),
 
          // AHB-LITE signals
-         .ahb_haddr(lsu_haddr[31:0]),
+         .ahb_haddr(lsu_haddr[pt.XLEN-1:0]),
          .ahb_hburst(lsu_hburst),
          .ahb_hmastlock(lsu_hmastlock),
          .ahb_hprot(lsu_hprot[3:0]),
          .ahb_hsize(lsu_hsize[2:0]),
          .ahb_htrans(lsu_htrans[1:0]),
          .ahb_hwrite(lsu_hwrite),
-         .ahb_hwdata(lsu_hwdata[63:0]),
+         .ahb_hwdata(lsu_hwdata[pt.BUS_WIDTH-1:0]),
 
-         .ahb_hrdata(lsu_hrdata[63:0]),
+         .ahb_hrdata(lsu_hrdata[pt.BUS_WIDTH-1:0]),
          .ahb_hready(lsu_hready),
          .ahb_hresp(lsu_hresp),
 
@@ -1199,7 +1199,8 @@ import eh2_pkg::*;
       );
 
       axi4_to_ahb #(.NUM_THREADS(pt.NUM_THREADS),
-                    .TAG(pt.IFU_BUS_TAG)) ifu_axi4_to_ahb (
+                    .TAG(pt.IFU_BUS_TAG),
+                    .DATA_WIDTH(64)) ifu_axi4_to_ahb (
          .clk(free_l2clk),
          .free_clk(free_clk),
          .rst_l(core_rst_l),
@@ -1208,7 +1209,7 @@ import eh2_pkg::*;
          .dec_tlu_force_halt(dec_tlu_force_halt),
 
           // AHB-Lite signals
-         .ahb_haddr(haddr[31:0]),
+         .ahb_haddr(haddr[pt.XLEN-1:0]),
          .ahb_hburst(hburst),
          .ahb_hmastlock(hmastlock),
          .ahb_hprot(hprot[3:0]),
@@ -1225,7 +1226,7 @@ import eh2_pkg::*;
          .axi_awvalid(ifu_axi_awvalid),
          .axi_awready(ifu_axi_awready_ahb),
          .axi_awid(ifu_axi_awid[pt.IFU_BUS_TAG-1:0]),
-         .axi_awaddr(ifu_axi_awaddr[31:0]),
+         .axi_awaddr(ifu_axi_awaddr[pt.XLEN-1:0]),
          .axi_awsize(ifu_axi_awsize[2:0]),
          .axi_awprot(ifu_axi_awprot[2:0]),
 
@@ -1244,7 +1245,7 @@ import eh2_pkg::*;
          .axi_arvalid(ifu_axi_arvalid),
          .axi_arready(ifu_axi_arready_ahb),
          .axi_arid(ifu_axi_arid[pt.IFU_BUS_TAG-1:0]),
-         .axi_araddr(ifu_axi_araddr[31:0]),
+         .axi_araddr(ifu_axi_araddr[pt.XLEN-1:0]),
          .axi_arsize(ifu_axi_arsize[2:0]),
          .axi_arprot(ifu_axi_arprot[2:0]),
 
@@ -1259,7 +1260,8 @@ import eh2_pkg::*;
 
       // AXI4 -> AHB Gasket for System Bus
       axi4_to_ahb #(.NUM_THREADS(pt.NUM_THREADS),
-                    .TAG(pt.SB_BUS_TAG)) sb_axi4_to_ahb (
+                    .TAG(pt.SB_BUS_TAG),
+                    .DATA_WIDTH(pt.BUS_WIDTH)) sb_axi4_to_ahb (
          .clk_override(dec_tlu_bus_clk_override),
          .rst_l(dbg_rst_l),
          .clk(free_l2clk),
@@ -1271,14 +1273,14 @@ import eh2_pkg::*;
          .axi_awvalid(sb_axi_awvalid),
          .axi_awready(sb_axi_awready_ahb),
          .axi_awid(sb_axi_awid[pt.SB_BUS_TAG-1:0]),
-         .axi_awaddr(sb_axi_awaddr[31:0]),
+         .axi_awaddr(sb_axi_awaddr[pt.XLEN-1:0]),
          .axi_awsize(sb_axi_awsize[2:0]),
          .axi_awprot(sb_axi_awprot[2:0]),
 
          .axi_wvalid(sb_axi_wvalid),
          .axi_wready(sb_axi_wready_ahb),
-         .axi_wdata(sb_axi_wdata[63:0]),
-         .axi_wstrb(sb_axi_wstrb[7:0]),
+         .axi_wdata(sb_axi_wdata[pt.BUS_WIDTH-1:0]),
+         .axi_wstrb(sb_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0]),
          .axi_wlast(sb_axi_wlast),
 
          .axi_bvalid(sb_axi_bvalid_ahb),
@@ -1290,28 +1292,28 @@ import eh2_pkg::*;
          .axi_arvalid(sb_axi_arvalid),
          .axi_arready(sb_axi_arready_ahb),
          .axi_arid(sb_axi_arid[pt.SB_BUS_TAG-1:0]),
-         .axi_araddr(sb_axi_araddr[31:0]),
+         .axi_araddr(sb_axi_araddr[pt.XLEN-1:0]),
          .axi_arsize(sb_axi_arsize[2:0]),
          .axi_arprot(sb_axi_arprot[2:0]),
 
          .axi_rvalid(sb_axi_rvalid_ahb),
          .axi_rready(sb_axi_rready),
          .axi_rid(sb_axi_rid_ahb[pt.SB_BUS_TAG-1:0]),
-         .axi_rdata(sb_axi_rdata_ahb[63:0]),
+         .axi_rdata(sb_axi_rdata_ahb[pt.BUS_WIDTH-1:0]),
          .axi_rresp(sb_axi_rresp_ahb[1:0]),
          .axi_rlast(sb_axi_rlast_ahb),
 
          // AHB-LITE signals
-         .ahb_haddr(sb_haddr[31:0]),
+         .ahb_haddr(sb_haddr[pt.XLEN-1:0]),
          .ahb_hburst(sb_hburst),
          .ahb_hmastlock(sb_hmastlock),
          .ahb_hprot(sb_hprot[3:0]),
          .ahb_hsize(sb_hsize[2:0]),
          .ahb_htrans(sb_htrans[1:0]),
          .ahb_hwrite(sb_hwrite),
-         .ahb_hwdata(sb_hwdata[63:0]),
+         .ahb_hwdata(sb_hwdata[pt.BUS_WIDTH-1:0]),
 
-         .ahb_hrdata(sb_hrdata[63:0]),
+         .ahb_hrdata(sb_hrdata[pt.BUS_WIDTH-1:0]),
          .ahb_hready(sb_hready),
          .ahb_hresp(sb_hresp),
 
@@ -1320,7 +1322,8 @@ import eh2_pkg::*;
 
       //AHB -> AXI4 Gasket for DMA
       ahb_to_axi4 #(.pt(pt),
-                    .TAG(pt.DMA_BUS_TAG)) dma_ahb_to_axi4 (
+                    .TAG(pt.DMA_BUS_TAG),
+                    .DATA_WIDTH(pt.BUS_WIDTH)) dma_ahb_to_axi4 (
          .clk_override(dec_tlu_bus_clk_override),
          .rst_l(core_rst_l),
          .clk(free_l2clk),
@@ -1330,7 +1333,7 @@ import eh2_pkg::*;
          .axi_awvalid(dma_axi_awvalid_ahb),
          .axi_awready(dma_axi_awready),
          .axi_awid(dma_axi_awid_ahb[pt.DMA_BUS_TAG-1:0]),
-         .axi_awaddr(dma_axi_awaddr_ahb[31:0]),
+         .axi_awaddr(dma_axi_awaddr_ahb[pt.XLEN-1:0]),
          .axi_awsize(dma_axi_awsize_ahb[2:0]),
          .axi_awprot(dma_axi_awprot_ahb[2:0]),
          .axi_awlen(dma_axi_awlen_ahb[7:0]),
@@ -1338,8 +1341,8 @@ import eh2_pkg::*;
 
          .axi_wvalid(dma_axi_wvalid_ahb),
          .axi_wready(dma_axi_wready),
-         .axi_wdata(dma_axi_wdata_ahb[63:0]),
-         .axi_wstrb(dma_axi_wstrb_ahb[7:0]),
+         .axi_wdata(dma_axi_wdata_ahb[pt.BUS_WIDTH-1:0]),
+         .axi_wstrb(dma_axi_wstrb_ahb[pt.BUS_BYTE_WIDTH-1:0]),
          .axi_wlast(dma_axi_wlast_ahb),
 
          .axi_bvalid(dma_axi_bvalid),
@@ -1351,7 +1354,7 @@ import eh2_pkg::*;
          .axi_arvalid(dma_axi_arvalid_ahb),
          .axi_arready(dma_axi_arready),
          .axi_arid(dma_axi_arid_ahb[pt.DMA_BUS_TAG-1:0]),
-         .axi_araddr(dma_axi_araddr_ahb[31:0]),
+         .axi_araddr(dma_axi_araddr_ahb[pt.XLEN-1:0]),
          .axi_arsize(dma_axi_arsize_ahb[2:0]),
          .axi_arprot(dma_axi_arprot_ahb[2:0]),
          .axi_arlen(dma_axi_arlen_ahb[7:0]),
@@ -1360,20 +1363,20 @@ import eh2_pkg::*;
          .axi_rvalid(dma_axi_rvalid),
          .axi_rready(dma_axi_rready_ahb),
          .axi_rid(dma_axi_rid[pt.DMA_BUS_TAG-1:0]),
-         .axi_rdata(dma_axi_rdata[63:0]),
+         .axi_rdata(dma_axi_rdata[pt.BUS_WIDTH-1:0]),
          .axi_rresp(dma_axi_rresp[1:0]),
 
           // AHB signals
-         .ahb_haddr(dma_haddr[31:0]),
+         .ahb_haddr(dma_haddr[pt.XLEN-1:0]),
          .ahb_hburst(dma_hburst),
          .ahb_hmastlock(dma_hmastlock),
          .ahb_hprot(dma_hprot[3:0]),
          .ahb_hsize(dma_hsize[2:0]),
          .ahb_htrans(dma_htrans[1:0]),
          .ahb_hwrite(dma_hwrite),
-         .ahb_hwdata(dma_hwdata[63:0]),
+         .ahb_hwdata(dma_hwdata[pt.BUS_WIDTH-1:0]),
 
-         .ahb_hrdata(dma_hrdata[63:0]),
+         .ahb_hrdata(dma_hrdata[pt.BUS_WIDTH-1:0]),
          .ahb_hreadyout(dma_hreadyout),
          .ahb_hresp(dma_hresp),
          .ahb_hreadyin(dma_hreadyin),
@@ -1393,7 +1396,7 @@ import eh2_pkg::*;
    assign lsu_axi_arready_int                 = pt.BUILD_AHB_LITE ? lsu_axi_arready_ahb : lsu_axi_arready;
    assign lsu_axi_rvalid_int                  = pt.BUILD_AHB_LITE ? lsu_axi_rvalid_ahb : lsu_axi_rvalid;
    assign lsu_axi_rid_int[pt.LSU_BUS_TAG-1:0] = pt.BUILD_AHB_LITE ? lsu_axi_rid_ahb[pt.LSU_BUS_TAG-1:0] : lsu_axi_rid[pt.LSU_BUS_TAG-1:0];
-   assign lsu_axi_rdata_int[63:0]             = pt.BUILD_AHB_LITE ? lsu_axi_rdata_ahb[63:0] : lsu_axi_rdata[63:0];
+   assign lsu_axi_rdata_int[pt.BUS_WIDTH-1:0] = pt.BUILD_AHB_LITE ? lsu_axi_rdata_ahb[pt.BUS_WIDTH-1:0] : lsu_axi_rdata[pt.BUS_WIDTH-1:0];
    assign lsu_axi_rresp_int[1:0]              = pt.BUILD_AHB_LITE ? lsu_axi_rresp_ahb[1:0] : lsu_axi_rresp[1:0];
    assign lsu_axi_rlast_int                   = pt.BUILD_AHB_LITE ? lsu_axi_rlast_ahb : lsu_axi_rlast;
 
@@ -1419,25 +1422,25 @@ import eh2_pkg::*;
    assign sb_axi_arready_int                  = pt.BUILD_AHB_LITE ? sb_axi_arready_ahb : sb_axi_arready;
    assign sb_axi_rvalid_int                   = pt.BUILD_AHB_LITE ? sb_axi_rvalid_ahb : sb_axi_rvalid;
    assign sb_axi_rid_int[pt.SB_BUS_TAG-1:0]   = pt.BUILD_AHB_LITE ? sb_axi_rid_ahb[pt.SB_BUS_TAG-1:0] : sb_axi_rid[pt.SB_BUS_TAG-1:0];
-   assign sb_axi_rdata_int[63:0]              = pt.BUILD_AHB_LITE ? sb_axi_rdata_ahb[63:0] : sb_axi_rdata[63:0];
+   assign sb_axi_rdata_int[pt.BUS_WIDTH-1:0]  = pt.BUILD_AHB_LITE ? sb_axi_rdata_ahb[pt.BUS_WIDTH-1:0] : sb_axi_rdata[pt.BUS_WIDTH-1:0];
    assign sb_axi_rresp_int[1:0]               = pt.BUILD_AHB_LITE ? sb_axi_rresp_ahb[1:0] : sb_axi_rresp[1:0];
    assign sb_axi_rlast_int                    = pt.BUILD_AHB_LITE ? sb_axi_rlast_ahb : sb_axi_rlast;
 
    assign dma_axi_awvalid_int                  = pt.BUILD_AHB_LITE ? dma_axi_awvalid_ahb : dma_axi_awvalid;
    assign dma_axi_awid_int[pt.DMA_BUS_TAG-1:0] = pt.BUILD_AHB_LITE ? dma_axi_awid_ahb[pt.DMA_BUS_TAG-1:0] : dma_axi_awid[pt.DMA_BUS_TAG-1:0];
-   assign dma_axi_awaddr_int[31:0]             = pt.BUILD_AHB_LITE ? dma_axi_awaddr_ahb[31:0] : dma_axi_awaddr[31:0];
+   assign dma_axi_awaddr_int[pt.XLEN-1:0]      = pt.BUILD_AHB_LITE ? dma_axi_awaddr_ahb[pt.XLEN-1:0] : dma_axi_awaddr[pt.XLEN-1:0];
    assign dma_axi_awsize_int[2:0]              = pt.BUILD_AHB_LITE ? dma_axi_awsize_ahb[2:0] : dma_axi_awsize[2:0];
    assign dma_axi_awprot_int[2:0]              = pt.BUILD_AHB_LITE ? dma_axi_awprot_ahb[2:0] : dma_axi_awprot[2:0];
    assign dma_axi_awlen_int[7:0]               = pt.BUILD_AHB_LITE ? dma_axi_awlen_ahb[7:0] : dma_axi_awlen[7:0];
    assign dma_axi_awburst_int[1:0]             = pt.BUILD_AHB_LITE ? dma_axi_awburst_ahb[1:0] : dma_axi_awburst[1:0];
    assign dma_axi_wvalid_int                   = pt.BUILD_AHB_LITE ? dma_axi_wvalid_ahb : dma_axi_wvalid;
-   assign dma_axi_wdata_int[63:0]              = pt.BUILD_AHB_LITE ? dma_axi_wdata_ahb[63:0] : dma_axi_wdata;
-   assign dma_axi_wstrb_int[7:0]               = pt.BUILD_AHB_LITE ? dma_axi_wstrb_ahb[7:0] : dma_axi_wstrb[7:0];
+   assign dma_axi_wdata_int[pt.BUS_WIDTH-1:0]  = pt.BUILD_AHB_LITE ? dma_axi_wdata_ahb[pt.BUS_WIDTH-1:0] : dma_axi_wdata;
+   assign dma_axi_wstrb_int[pt.BUS_BYTE_WIDTH-1:0] = pt.BUILD_AHB_LITE ? dma_axi_wstrb_ahb[pt.BUS_BYTE_WIDTH-1:0] : dma_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0];
    assign dma_axi_wlast_int                    = pt.BUILD_AHB_LITE ? dma_axi_wlast_ahb : dma_axi_wlast;
    assign dma_axi_bready_int                   = pt.BUILD_AHB_LITE ? dma_axi_bready_ahb : dma_axi_bready;
    assign dma_axi_arvalid_int                  = pt.BUILD_AHB_LITE ? dma_axi_arvalid_ahb : dma_axi_arvalid;
    assign dma_axi_arid_int[pt.DMA_BUS_TAG-1:0] = pt.BUILD_AHB_LITE ? dma_axi_arid_ahb[pt.DMA_BUS_TAG-1:0] : dma_axi_arid[pt.DMA_BUS_TAG-1:0];
-   assign dma_axi_araddr_int[31:0]             = pt.BUILD_AHB_LITE ? dma_axi_araddr_ahb[31:0] : dma_axi_araddr[31:0];
+   assign dma_axi_araddr_int[pt.XLEN-1:0]      = pt.BUILD_AHB_LITE ? dma_axi_araddr_ahb[pt.XLEN-1:0] : dma_axi_araddr[pt.XLEN-1:0];
    assign dma_axi_arsize_int[2:0]              = pt.BUILD_AHB_LITE ? dma_axi_arsize_ahb[2:0] : dma_axi_arsize[2:0];
    assign dma_axi_arprot_int[2:0]              = pt.BUILD_AHB_LITE ? dma_axi_arprot_ahb[2:0] : dma_axi_arprot[2:0];
    assign dma_axi_arlen_int[7:0]               = pt.BUILD_AHB_LITE ? dma_axi_arlen_ahb[7:0] : dma_axi_arlen[7:0];

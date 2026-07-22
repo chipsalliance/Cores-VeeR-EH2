@@ -62,9 +62,9 @@ import eh2_pkg::*;
    output logic [63:0]  iccm_rd_data,
    output logic [116:0] iccm_rd_data_ecc,
    // Icache and Itag Ports
-   input  logic [31:1]  ic_rw_addr,
-   input  logic [pt.ICACHE_NUM_WAYS-1:0]   ic_tag_valid,
-   input  logic [pt.ICACHE_NUM_WAYS-1:0]          ic_wr_en  ,         // Which way to write
+   input  logic [pt.XLEN-1:1]             ic_rw_addr,
+   input  logic [pt.ICACHE_NUM_WAYS-1:0]  ic_tag_valid,
+   input  logic [pt.ICACHE_NUM_WAYS-1:0]  ic_wr_en,         // Which way to write
    input  logic         ic_rd_en,
    input  logic [63:0]  ic_premux_data,     // Premux data to be muxed with each way of the Icache.
    input  logic         ic_sel_premux_data, // Premux data sel

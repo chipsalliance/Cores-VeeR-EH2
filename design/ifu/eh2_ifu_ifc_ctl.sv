@@ -87,7 +87,7 @@ import eh2_pkg::*;
    logic [pt.XLEN-1:1]  miss_addr, ifc_fetch_addr_f1_raw;
    logic [pt.XLEN-1:3]  fetch_addr_next;
    logic [pt.XLEN-1:1]  miss_addr_ns;
-   logic [4:0]   cacheable_select;
+   logic [pt.XLENW-1:0] cacheable_select;
    logic [4:0]   fb_write_f1, fb_write_ns;
 
    logic         fb_full_f1_ns, fb_full_f1;
@@ -229,7 +229,7 @@ else begin // NOT SRAM
 
 end // else: !if(pt.BTB_USE_SRAM)
 
-   assign fetch_addr_next[pt.XLEN-1:3] = fetch_addr_f1[pt.XLEN-1:3] + (pt.XLEN-1)'(1'b1);
+   assign fetch_addr_next[pt.XLEN-1:3] = fetch_addr_f1[pt.XLEN-1:3] + (pt.XLEN-3)'(1'b1);
 
    assign line_wrap = (fetch_addr_next[pt.ICACHE_TAG_INDEX_LO] ^ fetch_addr_f1[pt.ICACHE_TAG_INDEX_LO]);
 // For verilator.... jb
@@ -286,7 +286,7 @@ end // else: !if(pt.BTB_USE_SRAM)
                                ({5{(flush_fb & fetch_req_f1_won)}} & 5'b00010) |
                                ({5{~flush_fb & fb_right }} & {1'b0, fb_write_f1[4:1]}) |
                                ({5{~flush_fb & fb_right2}} & {2'b0, fb_write_f1[4:2]}) |
-                               ({5{~flush_fb & fb_right3}} & {3'b0, fb_write_f1[4:3]}  ) |
+                               ({5{~flush_fb & fb_right3}} & {3'b0, fb_write_f1[4:3]}) |
                                ({5{~flush_fb & fb_left  }} & {fb_write_f1[3:0], 1'b0}) |
                                ({5{~flush_fb & ~fb_right & ~fb_right2 & ~fb_left & ~fb_right3}}  & fb_write_f1[4:0]));
 
@@ -398,8 +398,15 @@ else
  end
 
 
-   // TODO: Add proper logic once we decided how to handle mrac for 64-bit arch
-   assign cacheable_select[4:0]    =  {fetch_addr_f1[31:28] , 1'b0 } ;
+   if (pt.XLEN == 32) begin
+      assign cacheable_select[4:0] = {fetch_addr_f1[31:28] , 1'b0 } ;
+   end else if (pt.XLEN == 64) begin
+      // First 16 regions start at [31:28] indexes and are 28-bit long (legacy 32-bit region support)
+      // 17th region is 0x00000001_00000000-0x0FFFFFFF_FFFFFFFF
+      // Last 15 regions start at [63:60] indexes and are 60-bit long
+      assign cacheable_select[5:0] = |fetch_addr_f1[63:60] ? {1'b1, fetch_addr_f1[63:60], 1'b0 } :
+                                     |fetch_addr_f1[59:32] ? 6'h20 : {1'b0, fetch_addr_f1[31:28] , 1'b0 } ;
+   end
    assign fetch_uncacheable_f1 =  ~dec_tlu_mrac_ff[cacheable_select]  ; // bit 0 of each region description is the cacheable bit
 
 endmodule // eh2_ifu_ifc_ctl

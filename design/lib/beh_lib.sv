@@ -1059,31 +1059,55 @@ module rvmaskandmatch #( parameter WIDTH=32 )
 
 endmodule // rvmaskandmatch
 
-
 // Check if the S_ADDR <= addr < E_ADDR
-module rvrangecheck  #(CCM_SADR = 32'h0,
-                       CCM_SIZE  = 128) (
-   input  logic [31:0]   addr,                             // Address to be checked for range
-   output logic          in_range,                            // S_ADDR <= start_addr < E_ADDR
-   output logic          in_region
+// CCM_SADR must fit in 32-bit address space
+module rvrangecheck  #(
+   parameter logic [`RV_XLEN-1:0] CCM_SADR = {`RV_XLEN{1'b0}},
+   parameter int                  CCM_SIZE  = 128
+) (
+   input  logic [`RV_XLEN-1:0] addr,     // Address to be checked for range
+   output logic                in_range, // S_ADDR <= addr < E_ADDR
+   output logic                in_region
 );
 
    localparam REGION_BITS = 4;
    localparam MASK_BITS = 10 + $clog2(CCM_SIZE);
 
-   logic [31:0]          start_addr;
-   logic [3:0]           region;
+   logic [31:0]    start_addr;
 
-   assign start_addr[31:0]        = CCM_SADR;
-   assign region[REGION_BITS-1:0] = start_addr[31:(32-REGION_BITS)];
+   assign start_addr[31:0] = CCM_SADR[31:0];
 
-   assign in_region = (addr[31:(32-REGION_BITS)] == region[REGION_BITS-1:0]);
-   if (CCM_SIZE  == 48)
-    assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]) & ~(&addr[MASK_BITS-1 : MASK_BITS-2]);
-   else
-    assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]);
+   if (`RV_XLEN == 32) begin
+      assign in_region = (addr[31:(32-REGION_BITS)] == start_addr[31:(32-REGION_BITS)]);
+      if (CCM_SIZE == 48)
+         assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]) & ~(&addr[MASK_BITS-1 : MASK_BITS-2]);
+      else
+         assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]);
+   end else if (`RV_XLEN == 64) begin
+      // This module assumes that CCM_SADR is placed in region 0-15 (32-bit address space) so we skip checking the others
+      assign in_region = (|addr[63:32]) ? 1'b0 : (addr[31:(32-REGION_BITS)] == start_addr[31:(32-REGION_BITS)]);
 
+      if (CCM_SIZE == 48) begin
+         assign in_range = (|addr[63:32]) ? 1'b0 : (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]) & ~(&addr[MASK_BITS-1 : MASK_BITS-2]);
+      end else begin
+         assign in_range = (|addr[63:32]) ? 1'b0 : (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]);
+      end
+   end
 endmodule  // rvrangechecker
+
+// Calculate index of the memory region
+// For regions 16-31 in RV64, it needs to be increased by 16 to retrieve mrac register index
+module rv_region_idx (
+   input  logic [`RV_XLEN-1:0] addr,
+   output logic [`RV_XLENW-2:0] region_idx
+);
+   if (`RV_XLEN == 32) begin
+      assign region_idx = addr[31:28];
+   end else if (`RV_XLEN == 64) begin
+      assign region_idx = |addr[63:60] ? {1'b1, addr[63:60]} :
+                          |addr[59:32] ? 5'h10 : {1'b0, addr[31:28]} ;
+   end
+endmodule // rv_region_idx
 
 // 16 bit even parity generator
 module rveven_paritygen #(WIDTH = 16)  (

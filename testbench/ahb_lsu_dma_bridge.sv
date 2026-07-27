@@ -25,51 +25,51 @@ module ahb_lsu_dma_bridge
     input                   reset_l,
 
     // AHB master interface (LSU)
-    input logic [31:0]      m_ahb_haddr,     // ahb bus address
-    input logic [2:0]       m_ahb_hburst,    // tied to 0
-    input logic             m_ahb_hmastlock, // tied to 0
-    input logic [3:0]       m_ahb_hprot,     // tied to 4'b0011
-    input logic [2:0]       m_ahb_hsize,     // size of bus transaction (possible values 0,1,2,3)
-    input logic [1:0]       m_ahb_htrans,    // Transaction type (possible values 0,2 only right now)
-    input logic             m_ahb_hwrite,    // ahb bus write
-    input logic [63:0]      m_ahb_hwdata,    // ahb bus write data
-    input logic             m_ahb_hsel,      // this slave was selected
-    input logic             m_ahb_hreadyin,  // previous hready was accepted or not
-    output logic [63:0]     m_ahb_hrdata,    // ahb bus read data
-    output logic            m_ahb_hreadyout, // slave ready to accept transaction
-    output logic            m_ahb_hresp,     // slave response (high indicates erro)
+    input logic [pt.XLEN-1:0]       m_ahb_haddr,     // ahb bus address
+    input logic [2:0]               m_ahb_hburst,    // tied to 0
+    input logic                     m_ahb_hmastlock, // tied to 0
+    input logic [3:0]               m_ahb_hprot,     // tied to 4'b0011
+    input logic [2:0]               m_ahb_hsize,     // size of bus transaction (possible values 0,1,2,3)
+    input logic [1:0]               m_ahb_htrans,    // Transaction type (possible values 0,2 only right now)
+    input logic                     m_ahb_hwrite,    // ahb bus write
+    input logic [pt.BUS_WIDTH-1:0]  m_ahb_hwdata,    // ahb bus write data
+    input logic                     m_ahb_hsel,      // this slave was selected
+    input logic                     m_ahb_hreadyin,  // previous hready was accepted or not
+    output logic [pt.BUS_WIDTH-1:0] m_ahb_hrdata,    // ahb bus read data
+    output logic                    m_ahb_hreadyout, // slave ready to accept transaction
+    output logic                    m_ahb_hresp,     // slave response (high indicates erro)
 
     // AHB slave interface (lmem)
-    output logic            s0_ahb_hsel,        // ahb bus slave select
-    output logic [31:0]     s0_ahb_haddr,       // ahb bus address
-    output logic [2:0]      s0_ahb_hburst,      // tied to 0
-    output logic            s0_ahb_hmastlock,   // tied to 0
-    output logic [3:0]      s0_ahb_hprot,       // [3:1] are tied to 3'b001
-    output logic [2:0]      s0_ahb_hsize,       // size of bus transaction (possible values 0,1,2,3)
-    output logic [1:0]      s0_ahb_htrans,      // Transaction type (possible values 0,2 only right now)
-    output logic            s0_ahb_hwrite,      // ahb bus write
-    output logic [63:0]     s0_ahb_hwdata,      // ahb bus write data
-    input logic  [63:0]     s0_ahb_hrdata,      // ahb bus read data
-    input logic             s0_ahb_hready,      // connect to veer's dma_hreadyout
-    input logic             s0_ahb_hresp,       // slave response (high indicates erro)
+    output logic                    s0_ahb_hsel,        // ahb bus slave select
+    output logic [pt.XLEN-1:0]      s0_ahb_haddr,       // ahb bus address
+    output logic [2:0]              s0_ahb_hburst,      // tied to 0
+    output logic                    s0_ahb_hmastlock,   // tied to 0
+    output logic [3:0]              s0_ahb_hprot,       // [3:1] are tied to 3'b001
+    output logic [2:0]              s0_ahb_hsize,       // size of bus transaction (possible values 0,1,2,3)
+    output logic [1:0]              s0_ahb_htrans,      // Transaction type (possible values 0,2 only right now)
+    output logic                    s0_ahb_hwrite,      // ahb bus write
+    output logic [pt.BUS_WIDTH-1:0] s0_ahb_hwdata,      // ahb bus write data
+    input logic  [pt.BUS_WIDTH-1:0] s0_ahb_hrdata,      // ahb bus read data
+    input logic                     s0_ahb_hready,      // connect to veer's dma_hreadyout
+    input logic                     s0_ahb_hresp,       // slave response (high indicates erro)
 
     // AHB slave interface (dma)
-    output logic            s1_ahb_hsel,        // ahb bus slave select
-    output logic [31:0]     s1_ahb_haddr,       // ahb bus address
-    output logic [2:0]      s1_ahb_hburst,      // tied to 0
-    output logic            s1_ahb_hmastlock,   // tied to 0
-    output logic [3:0]      s1_ahb_hprot,       // [3:1] are tied to 3'b001
-    output logic [2:0]      s1_ahb_hsize,       // size of bus transaction (possible values 0,1,2,3)
-    output logic [1:0]      s1_ahb_htrans,      // Transaction type (possible values 0,2 only right now)
-    output logic            s1_ahb_hwrite,      // ahb bus write
-    output logic [63:0]     s1_ahb_hwdata,      // ahb bus write data
-    input logic  [63:0]     s1_ahb_hrdata,      // ahb bus read data
-    input logic             s1_ahb_hready,      // connect to veer's dma_hreadyout
-    input logic             s1_ahb_hresp        // slave response (high indicates erro)
+    output logic                    s1_ahb_hsel,        // ahb bus slave select
+    output logic [pt.XLEN-1:0]      s1_ahb_haddr,       // ahb bus address
+    output logic [2:0]              s1_ahb_hburst,      // tied to 0
+    output logic                    s1_ahb_hmastlock,   // tied to 0
+    output logic [3:0]              s1_ahb_hprot,       // [3:1] are tied to 3'b001
+    output logic [2:0]              s1_ahb_hsize,       // size of bus transaction (possible values 0,1,2,3)
+    output logic [1:0]              s1_ahb_htrans,      // Transaction type (possible values 0,2 only right now)
+    output logic                    s1_ahb_hwrite,      // ahb bus write
+    output logic [pt.BUS_WIDTH-1:0] s1_ahb_hwdata,      // ahb bus write data
+    input logic  [pt.BUS_WIDTH-1:0] s1_ahb_hrdata,      // ahb bus read data
+    input logic                     s1_ahb_hready,      // connect to veer's dma_hreadyout
+    input logic                     s1_ahb_hresp        // slave response (high indicates erro)
 );
 
 parameter ICCM_BASE = `RV_ICCM_BITS; // in LSBs
-bit[31:0] iccm_real_base_addr = `RV_ICCM_SADR ;
+bit[pt.XLEN-1:0] iccm_real_base_addr = {{pt.XLEN-32{1'b0}}, `RV_ICCM_SADR} ; // TODO : FIXME when this is handled on the config
 
 wire bus_active;
 wire slave_select;
@@ -77,7 +77,7 @@ wire slave_select;
 reg slave_select_dly;
 
 assign bus_active = m_ahb_htrans inside {2'b10, 2'b11};
-assign slave_select = m_ahb_haddr[31:ICCM_BASE] == iccm_real_base_addr[31:ICCM_BASE];
+assign slave_select = m_ahb_haddr[pt.XLEN-1:ICCM_BASE] == iccm_real_base_addr[pt.XLEN-1:ICCM_BASE];
 
 assign s0_ahb_hsel = bus_active & ~slave_select;
 assign s0_ahb_haddr = m_ahb_haddr;

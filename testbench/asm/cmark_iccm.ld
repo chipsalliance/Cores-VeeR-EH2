@@ -5,7 +5,7 @@ MEMORY {
     EXTDATA : ORIGIN = 0x10000,    LENGTH = 0x10000
     ICCM    : ORIGIN = 0xee000000, LENGTH = 0x80000
     DCCM    : ORIGIN = 0xf0040000, LENGTH = 0x10000
-    CTL     : ORIGIN = 0xfffffff0, LENGTH = 16
+    CTL     : ORIGIN = 0xffffffe0, LENGTH = 16
 }
 SECTIONS {
   .text_init : {*(.text_init)} > EXTCODE

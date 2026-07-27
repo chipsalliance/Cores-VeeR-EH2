@@ -10,78 +10,78 @@ input                   clk,
 input                   reset_l,
 
 // master read bus
-input                   m_arvalid,
-input [M_ID_WIDTH-1:0]  m_arid,
-input[31:0]             m_araddr,
-output                  m_arready,
+input                       m_arvalid,
+input [M_ID_WIDTH-1:0]      m_arid,
+input [`RV_XLEN-1:0]        m_araddr,
+output                      m_arready,
 
-output                  m_rvalid,
-input                   m_rready,
-output [63:0]           m_rdata,
-output [M_ID_WIDTH-1:0] m_rid,
-output [1:0]            m_rresp,
-output                  m_rlast,
+output                      m_rvalid,
+input                       m_rready,
+output [`RV_BUS_WIDTH-1:0]  m_rdata,
+output [M_ID_WIDTH-1:0]     m_rid,
+output [1:0]                m_rresp,
+output                      m_rlast,
 
 // master write bus
-input                   m_awvalid,
-input [M_ID_WIDTH-1:0]  m_awid,
-input[31:0]             m_awaddr,
-output                  m_awready,
+input                       m_awvalid,
+input [M_ID_WIDTH-1:0]      m_awid,
+input [`RV_XLEN-1:0]        m_awaddr,
+output                      m_awready,
 
-input                   m_wvalid,
-output                  m_wready,
+input                       m_wvalid,
+output                      m_wready,
 
-output[1:0]             m_bresp,
-output                  m_bvalid,
-output[M_ID_WIDTH-1:0]  m_bid,
-input                   m_bready,
+output [1:0]                m_bresp,
+output                      m_bvalid,
+output [M_ID_WIDTH-1:0]     m_bid,
+input                       m_bready,
 
 // slave 0 if general ext memory
-output                  s0_arvalid,
-input                   s0_arready,
+output                      s0_arvalid,
+input                       s0_arready,
 
-input                   s0_rvalid,
-input[S0_ID_WIDTH-1:0]  s0_rid,
-input[1:0]              s0_rresp,
-input[63:0]             s0_rdata,
-input                   s0_rlast,
-output                  s0_rready,
+input                       s0_rvalid,
+input [S0_ID_WIDTH-1:0]     s0_rid,
+input [1:0]                 s0_rresp,
+input [`RV_BUS_WIDTH-1:0]   s0_rdata,
+input                       s0_rlast,
+output                      s0_rready,
 
-output                  s0_awvalid,
-input                   s0_awready,
+output                      s0_awvalid,
+input                       s0_awready,
 
-output                  s0_wvalid,
-input                   s0_wready,
+output                      s0_wvalid,
+input                       s0_wready,
 
-input[1:0]              s0_bresp,
-input                   s0_bvalid,
-input[S0_ID_WIDTH-1:0]  s0_bid,
-output                  s0_bready,
+input [1:0]                 s0_bresp,
+input                       s0_bvalid,
+input [S0_ID_WIDTH-1:0]     s0_bid,
+output                      s0_bready,
 
 // slave 1 if DMA port
-output                  s1_arvalid,
-input                   s1_arready,
+output                      s1_arvalid,
+input                       s1_arready,
 
-input                   s1_rvalid,
-input[1:0]              s1_rresp,
-input[63:0]             s1_rdata,
-input                   s1_rlast,
-output                  s1_rready,
+input                       s1_rvalid,
+input [1:0]                 s1_rresp,
+input [`RV_BUS_WIDTH-1:0]   s1_rdata,
+input                       s1_rlast,
+output                      s1_rready,
 
-output                  s1_awvalid,
-input                   s1_awready,
+output                      s1_awvalid,
+input                       s1_awready,
 
-output                  s1_wvalid,
-input                   s1_wready,
+output                      s1_wvalid,
+input                       s1_wready,
 
-input[1:0]              s1_bresp,
-input                   s1_bvalid,
-output                  s1_bready
+input [1:0]                 s1_bresp,
+input                       s1_bvalid,
+output                      s1_bready
 );
 
 parameter ICCM_BASE = `RV_ICCM_BITS; // in LSBs
 localparam IDFIFOSZ = $clog2(`RV_DMA_BUF_DEPTH);
-bit[31:0] iccm_real_base_addr = `RV_ICCM_SADR ;
+bit[`RV_XLEN-1:0] iccm_real_base_addr = {{`RV_XLEN-32{1'b0}}, `RV_ICCM_SADR};
 
 wire ar_slave_select;
 wire aw_slave_select;
@@ -109,8 +109,8 @@ reg [IDFIFOSZ-1:0] bid_cnt;
 assign ar_slave_select = ar_iccm_select;
 assign aw_slave_select = aw_iccm_select;
 
-assign ar_iccm_select = m_araddr[31:ICCM_BASE] == iccm_real_base_addr[31:ICCM_BASE];
-assign aw_iccm_select = m_awaddr[31:ICCM_BASE] == iccm_real_base_addr[31:ICCM_BASE];
+assign ar_iccm_select = m_araddr[`RV_XLEN-1:ICCM_BASE] == iccm_real_base_addr[`RV_XLEN-1:ICCM_BASE];
+assign aw_iccm_select = m_awaddr[`RV_XLEN-1:ICCM_BASE] == iccm_real_base_addr[`RV_XLEN-1:ICCM_BASE];
 
 assign s0_arvalid = m_arvalid & ~ar_slave_select;
 assign s1_arvalid = m_arvalid &  ar_slave_select;

@@ -11,7 +11,7 @@ SECTIONS {
   .data  :  { *(.*data) *(.rodata*) *(.srodata*) *(.sbss*) }
   .bss : { *(.bss) }
   STACK = ALIGN(16) + 0x2000;
-  . = 0xfffffff8;
+  . = 0xfffffff0;
   .data.ctl : { LONG(0xf0040000); LONG(STACK) }
   /DISCARD/ : { *(.eh_frame*) }
 }

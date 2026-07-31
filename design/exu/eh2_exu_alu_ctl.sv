@@ -96,7 +96,6 @@ import eh2_pkg::*;
 
    // Zbp
    logic                  ap_pack;
-   logic                  ap_packu;
    logic                  ap_packh;
 
    // Zba
@@ -160,16 +159,6 @@ import eh2_pkg::*;
        assign ap_bclr         =  1'b0;
        assign ap_binv         =  1'b0;
        assign ap_bext         =  1'b0;
-     end
-
-
-   if (pt.BITMANIP_ZBP == 1)
-     begin
-       assign ap_packu        =  ap.packu;
-     end
-   else
-     begin
-       assign ap_packu        =  1'b0;
      end
 
 
@@ -400,11 +389,9 @@ import eh2_pkg::*;
    // * * * * * * * * * * * * * * * * * *  BitManip  :  PACK, PACKU, PACKH * * * * * * * * * * * * * * *
 
    logic        [31:0]    bitmanip_pack_result;
-   logic        [31:0]    bitmanip_packu_result;
    logic        [31:0]    bitmanip_packh_result;
 
    assign bitmanip_pack_result[31:0]   = {32{ap_pack}}  & {b_ff[15:0], a_ff[15:0]};
-   assign bitmanip_packu_result[31:0]  = {32{ap_packu}} & {b_ff[31:16],a_ff[31:16]};
    assign bitmanip_packh_result[31:0]  = {32{ap_packh}} & {16'b0,b_ff[7:0],a_ff[7:0]};
 
 
@@ -485,7 +472,6 @@ import eh2_pkg::*;
                                                        bitmanip_sext_result[31:0]    |
                                                        bitmanip_minmax_result[31:0]  |
                                                        bitmanip_pack_result[31:0]    |
-                                                       bitmanip_packu_result[31:0]   |
                                                        bitmanip_packh_result[31:0]   |
                                                        bitmanip_rev8_result[31:0]    |
                                                        bitmanip_orc_b_result[31:0]   |

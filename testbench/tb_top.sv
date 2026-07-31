@@ -16,7 +16,7 @@
 // this is testbench file
 
 `ifdef VERILATOR
-module tb_top ( 
+module tb_top (
     input bit                   core_clk,
     input bit [31:0]            mem_signature_begin,
     input bit [31:0]            mem_signature_end

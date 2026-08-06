@@ -747,12 +747,20 @@ if (pt.ICACHE_BYPASS_ENABLE == 1) begin \
                              .dout(wb_dout_ecc_bank_ff[i][70:0])
                              );
 
+   logic single_ecc_error, double_ecc_error;
+   logic [63:0] dout_nc;
+   logic [7:0] ecc_out_nc;
    rvecc_decode_64  ecc_decode_64 (
                                    .en               (bank_check_en_ff[i]),
                                    .din              ((bank_check_en_ff[i])?wb_dout_ecc_bank_ff[i][63:0]:64'd0),                  // [134:71],  [63:0]
                                    .ecc_in           ((bank_check_en_ff[i])?wb_dout_ecc_bank_ff[i][70:64]:7'd0),               // [141:135] [70:64]
-                                   .ecc_error        (ic_eccerr[i])
+                                   .sed_ded          (1'b1),
+                                   .dout             (dout_nc),
+                                   .ecc_out          (ecc_out_nc),
+                                   .single_ecc_error (single_ecc_error),
+                                   .double_ecc_error (double_ecc_error)
                                    );
+   assign ic_eccerr[i] = single_ecc_error | double_ecc_error;
 
    // or the sb and db error detects into 1 signal called aligndataperr[i] where i corresponds to 2B position
   end // block: ic_ecc_error
@@ -950,7 +958,7 @@ if (pt.ICACHE_TAG_LO == pt.ICACHE_TAG_MIN_LO) begin: SMALLEST
    end else if (pt.XLEN == 64) begin
            rvecc_encode_64  tag_ecc_encode (
                                   .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
-                                  .ecc_out({ ic_tag_ecc[6:0]}));
+                                  .ecc_out({ ic_tag_ecc[7:0]}));
    end
 
    assign  ic_tag_wr_data[pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
@@ -973,13 +981,12 @@ end // block: SMALLEST
 else begin: OTHERS
   if(pt.ICACHE_ECC) begin : ECC1_W
    if (pt.XLEN == 32) begin
-           rvecc_encode     tag_ecc_encode (
-                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
-                                  .ecc_out({ ic_tag_ecc[6:0]}));
+      rvecc_encode     tag_ecc_encode (.din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
+                                       .ecc_out({ ic_tag_ecc[6:0]}));
    end else if (pt.XLEN == 64) begin
-           rvecc_encode_64  tag_ecc_encode (
-                                  .din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
-                                  .ecc_out({ ic_tag_ecc[6:0]}));
+      logic ecc_bit_nc;
+      rvecc_encode_64  tag_ecc_encode (.din    ({{pt.ICACHE_TAG_LO{1'b0}}, ic_rw_addr[pt.XLEN-1:pt.ICACHE_TAG_LO]}),
+                                       .ecc_out({ ecc_bit_nc, ic_tag_ecc[6:0]}));
    end
 
    assign  ic_tag_wr_data[pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:0] = (ic_debug_wr_en & ic_debug_tag_array) ?
@@ -1205,9 +1212,13 @@ if (pt.ICACHE_WAYPACK == 0 ) begin : PACKED_0
          end else if (pt.XLEN == 64) begin
             rvecc_decode_64  ecc_decode (
                                     .en(ecc_decode_enable),
+                                    .sed_ded ( 1'b1 ),                                      // 1 : means only detection
                                     .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][52:0]}:64'd0),
-                                    .ecc_in((ecc_decode_enable)?{1'b0, ic_tag_data_raw_ff[i][58:53]}:7'd0),
-                                    .ecc_error(ic_tag_error[i]));
+                                    .ecc_in((ecc_decode_enable)?{1'b0, ic_tag_data_raw_ff[i][58:53]}:8'd0),
+                                    .dout(ic_tag_corrected_data_unc[i][pt.XLEN-1:0]),
+                                    .ecc_out(ic_tag_corrected_ecc_unc[i][6:0]),
+                                    .single_ecc_error(ic_tag_single_ecc_error[i]),
+                                    .double_ecc_error(ic_tag_double_ecc_error[i]));
          end
 
         assign ic_tag_way_perr[i] = ic_tag_error[i];
@@ -1486,9 +1497,14 @@ else begin : PACKED_1
          end else if (pt.XLEN == 64) begin
             rvecc_decode_64  ecc_decode (
                                     .en(ecc_decode_enable),
+                                    .sed_ded ( 1'b1 ),                                      // 1 : means only detection
                                     .din(   (ecc_decode_enable)?{11'b0,ic_tag_data_raw_ff[i][52:0]}:64'd0),
-                                    .ecc_in((ecc_decode_enable)?{1'b0, ic_tag_data_raw_ff[i][58:53]}:7'd0),
-                                    .ecc_error(ic_tag_error[i]));
+                                    .ecc_in((ecc_decode_enable)?{2'b0, ic_tag_data_raw_ff[i][pt.ICACHE_TAG_MAX_FDATA_WIDTH-1:53]}:8'd0),
+                                    .dout(ic_tag_corrected_data_unc[i][pt.XLEN-1:0]),
+                                    .ecc_out(ic_tag_corrected_ecc_unc[i][6:0]),
+                                    .single_ecc_error(ic_tag_single_ecc_error[i]),
+                                    .double_ecc_error(ic_tag_double_ecc_error[i]));
+            assign ic_tag_error = ic_tag_single_ecc_error[i] | ic_tag_double_ecc_error[i];
          end
 
          assign ic_tag_way_perr[i]= ic_tag_error[i];

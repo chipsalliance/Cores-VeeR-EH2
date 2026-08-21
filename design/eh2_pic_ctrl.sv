@@ -36,9 +36,9 @@ import eh2_pkg::*;
                      input  logic [pt.NUM_THREADS-1:0] o_cpu_halt_status, // PMU interface, halted
 
                      input  logic [pt.PIC_TOTAL_INT_PLUS1-1:0]   extintsrc_req,  // Interrupt requests
-                     input  logic [31:0]            picm_rdaddr,          // Address of the register
-                     input  logic [31:0]            picm_wraddr,          // Address of the register
-                     input  logic [31:0]            picm_wr_data,         // Data to be written to the register
+                     input  logic [pt.XLEN-1:0]     picm_rdaddr,          // Address of the register
+                     input  logic [pt.XLEN-1:0]     picm_wraddr,          // Address of the register
+                     input  logic [pt.XLEN-1:0]     picm_wr_data,         // Data to be written to the register
                      input  logic                   picm_wren,            // Write enable to the register
                      input  logic                   picm_rden,            // Read enable for the register
                      input  logic                   picm_rd_thr,          // Reading thread
@@ -52,20 +52,20 @@ import eh2_pkg::*;
                      output logic [pt.NUM_THREADS-1:0] [3:0]             pl_out,                   // Priority level of the requested interrupt
                      output logic [pt.NUM_THREADS-1:0]                   mhwakeup_out,             // Wake-up interrupt request
 
-                     output logic [31:0]            picm_rd_data,         // Read data of the register
+                     output logic [pt.XLEN-1:0]     picm_rd_data,         // Read data of the register
                      input  logic                   scan_mode             // scan mode
 
 );
 
 localparam NUM_LEVELS            = $clog2(pt.PIC_TOTAL_INT_PLUS1);
-localparam INTPRIORITY_BASE_ADDR = pt.PIC_BASE_ADDR ;
-localparam INTPEND_BASE_ADDR     = pt.PIC_BASE_ADDR + 32'h00001000 ;
-localparam INTPEND_THR_BASE_ADDR = pt.PIC_BASE_ADDR + 32'h00001800 ;
-localparam INTENABLE_BASE_ADDR   = pt.PIC_BASE_ADDR + 32'h00002000 ;
-localparam EXT_INTR_PIC_CONFIG   = pt.PIC_BASE_ADDR + 32'h00003000 ;
-localparam EXT_INTR_GW_CONFIG    = pt.PIC_BASE_ADDR + 32'h00004000 ;
-localparam EXT_INTR_GW_CLEAR     = pt.PIC_BASE_ADDR + 32'h00005000 ;
-localparam EXT_INTR_DELG_REG     = pt.PIC_BASE_ADDR + 32'h00006000 ;
+localparam logic [pt.XLEN-1:0] INTPRIORITY_BASE_ADDR = pt.XLEN'(pt.PIC_BASE_ADDR) ;
+localparam logic [pt.XLEN-1:0] INTPEND_BASE_ADDR     = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00001000) ;
+localparam logic [pt.XLEN-1:0] INTPEND_THR_BASE_ADDR = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00001800) ;
+localparam logic [pt.XLEN-1:0] INTENABLE_BASE_ADDR   = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00002000) ;
+localparam logic [pt.XLEN-1:0] EXT_INTR_PIC_CONFIG   = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00003000) ;
+localparam logic [pt.XLEN-1:0] EXT_INTR_GW_CONFIG    = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00004000) ;
+localparam logic [pt.XLEN-1:0] EXT_INTR_GW_CLEAR     = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00005000) ;
+localparam logic [pt.XLEN-1:0] EXT_INTR_DELG_REG     = pt.XLEN'(pt.PIC_BASE_ADDR) + pt.XLEN'('h00006000) ;
 
 
 localparam INTPEND_SIZE          = (pt.PIC_TOTAL_INT_PLUS1 < 32)  ? 32  :
@@ -117,7 +117,7 @@ logic  mhwakeup_in ;
 logic  intpend_reg_read ;
 logic  intpend_thr_reg_read ;
 
-logic [31:0]                                 picm_rd_data_in, intpend_rd_out, intpend_thr_rd_out;
+logic [pt.XLEN-1:0]                          picm_rd_data_in, intpend_rd_out, intpend_thr_rd_out;
 logic                                        intenable_rd_out ;
 logic                                        delg_rd_out ;
 logic [INTPRIORITY_BITS-1:0]                 intpriority_rd_out;
@@ -149,8 +149,8 @@ logic [pt.PIC_TOTAL_INT_PLUS1-1:0] [INTPRIORITY_BITS-1:0] intpend_w_prior_en;
 logic [pt.PIC_TOTAL_INT_PLUS1-1:0] [ID_BITS-1:0]          intpend_id;
 logic [INTPRIORITY_BITS-1:0]                 maxint;
 logic [INTPRIORITY_BITS-1:0]                 selected_int_priority;
-logic [INT_GRPS-1:0] [31:0]                  intpend_rd_part_out ;
-logic [INT_GRPS-1:0] [31:0]                  intpend_thr_rd_part_out ;
+logic [INT_GRPS-1:0] [pt.XLEN-1:0]           intpend_rd_part_out ;
+logic [INT_GRPS-1:0] [pt.XLEN-1:0]           intpend_thr_rd_part_out ;
 
 logic                                        curr_int_tid;
 logic                                        curr_int_tid_ff;
@@ -167,9 +167,9 @@ logic                                        intenable_reg_read   ;
 logic                                        gw_config_reg_read   ;
 logic                                        picm_wren_ff , picm_rden_ff ;
 logic                                        picm_rd_thr_ff;
-logic [31:0]                                 picm_raddr_ff;
-logic [31:0]                                 picm_waddr_ff;
-logic [31:0]                                 picm_wr_data_ff;
+logic [pt.XLEN-1:0]                          picm_raddr_ff;
+logic [pt.XLEN-1:0]                          picm_waddr_ff;
+logic [pt.XLEN-1:0]                          picm_wr_data_ff;
 logic [3:0]                                  mask;
 logic                                        picm_mken_ff;
 logic [ID_BITS-1:0]                          claimid_in ;
@@ -225,25 +225,25 @@ logic [NUM_LEVELS:NUM_LEVELS/2] [(pt.PIC_TOTAL_INT_PLUS1/2**(NUM_LEVELS/2))+1:0]
 
 // ------ end clock gating section ------------------------
 
-assign raddr_intenable_base_match   = (picm_raddr_ff[31:NUM_LEVELS+2] == INTENABLE_BASE_ADDR[31:NUM_LEVELS+2]) ;
-assign raddr_intpriority_base_match = (picm_raddr_ff[31:NUM_LEVELS+2] == INTPRIORITY_BASE_ADDR[31:NUM_LEVELS+2]) ;
-assign raddr_config_gw_base_match   = (picm_raddr_ff[31:NUM_LEVELS+2] == EXT_INTR_GW_CONFIG[31:NUM_LEVELS+2]) ;
-assign raddr_config_pic_match       = (picm_raddr_ff[31:0]            == EXT_INTR_PIC_CONFIG[31:0]) ;
+assign raddr_intenable_base_match   = (picm_raddr_ff[pt.XLEN-1:NUM_LEVELS+2] == INTENABLE_BASE_ADDR[pt.XLEN-1:NUM_LEVELS+2]) ;
+assign raddr_intpriority_base_match = (picm_raddr_ff[pt.XLEN-1:NUM_LEVELS+2] == INTPRIORITY_BASE_ADDR[pt.XLEN-1:NUM_LEVELS+2]) ;
+assign raddr_config_gw_base_match   = (picm_raddr_ff[pt.XLEN-1:NUM_LEVELS+2] == EXT_INTR_GW_CONFIG[pt.XLEN-1:NUM_LEVELS+2]) ;
+assign raddr_config_pic_match       = (picm_raddr_ff[pt.XLEN-1:0]            == EXT_INTR_PIC_CONFIG[pt.XLEN-1:0]) ;
 
-assign addr_intpend_base_match      = (picm_raddr_ff[31:6]            == INTPEND_BASE_ADDR[31:6]) ;
+assign addr_intpend_base_match      = (picm_raddr_ff[pt.XLEN-1:6]            == INTPEND_BASE_ADDR[pt.XLEN-1:6]) ;
 
-assign waddr_config_pic_match       = (picm_waddr_ff[31:0]            == EXT_INTR_PIC_CONFIG[31:0]) ;
-assign addr_clear_gw_base_match     = (picm_waddr_ff[31:NUM_LEVELS+2] == EXT_INTR_GW_CLEAR[31:NUM_LEVELS+2]) ;
-assign waddr_intpriority_base_match = (picm_waddr_ff[31:NUM_LEVELS+2] == INTPRIORITY_BASE_ADDR[31:NUM_LEVELS+2]) ;
-assign waddr_intenable_base_match   = (picm_waddr_ff[31:NUM_LEVELS+2] == INTENABLE_BASE_ADDR[31:NUM_LEVELS+2]) ;
-assign waddr_config_gw_base_match   = (picm_waddr_ff[31:NUM_LEVELS+2] == EXT_INTR_GW_CONFIG[31:NUM_LEVELS+2]) ;
+assign waddr_config_pic_match       = (picm_waddr_ff[pt.XLEN-1:0]            == EXT_INTR_PIC_CONFIG[pt.XLEN-1:0]) ;
+assign addr_clear_gw_base_match     = (picm_waddr_ff[pt.XLEN-1:NUM_LEVELS+2] == EXT_INTR_GW_CLEAR[pt.XLEN-1:NUM_LEVELS+2]) ;
+assign waddr_intpriority_base_match = (picm_waddr_ff[pt.XLEN-1:NUM_LEVELS+2] == INTPRIORITY_BASE_ADDR[pt.XLEN-1:NUM_LEVELS+2]) ;
+assign waddr_intenable_base_match   = (picm_waddr_ff[pt.XLEN-1:NUM_LEVELS+2] == INTENABLE_BASE_ADDR[pt.XLEN-1:NUM_LEVELS+2]) ;
+assign waddr_config_gw_base_match   = (picm_waddr_ff[pt.XLEN-1:NUM_LEVELS+2] == EXT_INTR_GW_CONFIG[pt.XLEN-1:NUM_LEVELS+2]) ;
 
 if (pt.NUM_THREADS > 1 ) begin:  gt_1_thr
    assign pic_del_c1_clken    = (waddr_delg_base_match        & picm_wren_ff)  | (raddr_delg_base_match        & picm_rden_ff) | clk_override;
    rvoclkhdr pic_del_c1_cgc    ( .en(pic_del_c1_clken),    .l1clk(pic_del_c1_clk),  .* );
-   assign raddr_delg_base_match        = (picm_raddr_ff[31:NUM_LEVELS+2] == EXT_INTR_DELG_REG[31:NUM_LEVELS+2]) ;
-   assign waddr_delg_base_match        = (picm_waddr_ff[31:NUM_LEVELS+2] == EXT_INTR_DELG_REG[31:NUM_LEVELS+2]) ;
-   assign addr_intpend_thr_base_match  = (picm_raddr_ff[31:6]            == INTPEND_THR_BASE_ADDR[31:6]) ;
+   assign raddr_delg_base_match        = (picm_raddr_ff[pt.XLEN-1:NUM_LEVELS+2] == EXT_INTR_DELG_REG[pt.XLEN-1:NUM_LEVELS+2]) ;
+   assign waddr_delg_base_match        = (picm_waddr_ff[pt.XLEN-1:NUM_LEVELS+2] == EXT_INTR_DELG_REG[pt.XLEN-1:NUM_LEVELS+2]) ;
+   assign addr_intpend_thr_base_match  = (picm_raddr_ff[pt.XLEN-1:6]            == INTPEND_THR_BASE_ADDR[pt.XLEN-1:6]) ;
 end else begin: one_t
    assign raddr_delg_base_match = 1'b0 ;
    assign waddr_delg_base_match = 1'b0 ;
@@ -251,16 +251,16 @@ end else begin: one_t
    assign addr_intpend_thr_base_match  = 1'b0;
 end
 
-   assign picm_bypass_ff = picm_rden_ff & picm_wren_ff & ( picm_raddr_ff[31:0] == picm_waddr_ff[31:0] );    // pic writes and reads to same address together
+   assign picm_bypass_ff = picm_rden_ff & picm_wren_ff & ( picm_raddr_ff[pt.XLEN-1:0] == picm_waddr_ff[pt.XLEN-1:0] );    // pic writes and reads to same address together
 
 
-rvdff #(32) picm_radd_flop  (.*, .din (picm_rdaddr),        .dout(picm_raddr_ff),         .clk(pic_raddr_c1_clk));
-rvdff #(32) picm_wadd_flop  (.*, .din (picm_wraddr),        .dout(picm_waddr_ff),         .clk(pic_data_c1_clk));
-rvdff  #(1) picm_wre_flop   (.*, .din (picm_wren),          .dout(picm_wren_ff),          .clk(free_clk));
-rvdff  #(1) picm_rde_flop   (.*, .din (picm_rden),          .dout(picm_rden_ff),          .clk(free_clk));
-rvdff  #(1) picm_rdt_flop   (.*, .din (picm_rd_thr),        .dout(picm_rd_thr_ff),        .clk(free_clk));
-rvdff  #(1) picm_mke_flop   (.*, .din (picm_mken),          .dout(picm_mken_ff),          .clk(free_clk));
-rvdff #(32) picm_dat_flop   (.*, .din (picm_wr_data[31:0]), .dout(picm_wr_data_ff[31:0]), .clk(pic_data_c1_clk));
+rvdff #(pt.XLEN) picm_radd_flop  (.*, .din (picm_rdaddr),        .dout(picm_raddr_ff),         .clk(pic_raddr_c1_clk));
+rvdff #(pt.XLEN) picm_wadd_flop  (.*, .din (picm_wraddr),        .dout(picm_waddr_ff),         .clk(pic_data_c1_clk));
+rvdff       #(1) picm_wre_flop   (.*, .din (picm_wren),          .dout(picm_wren_ff),          .clk(free_clk));
+rvdff       #(1) picm_rde_flop   (.*, .din (picm_rden),          .dout(picm_rden_ff),          .clk(free_clk));
+rvdff       #(1) picm_rdt_flop   (.*, .din (picm_rd_thr),        .dout(picm_rd_thr_ff),        .clk(free_clk));
+rvdff       #(1) picm_mke_flop   (.*, .din (picm_mken),          .dout(picm_mken_ff),          .clk(free_clk));
+rvdff #(pt.XLEN) picm_dat_flop   (.*, .din (picm_wr_data[pt.XLEN-1:0]), .dout(picm_wr_data_ff[pt.XLEN-1:0]), .clk(pic_data_c1_clk));
 
 
 
@@ -651,20 +651,20 @@ assign thr_mx_intpend_reg_extended[INTPEND_SIZE-1:0]= {{INTPEND_SIZE-pt.PIC_TOTA
    end
 
 
- assign picm_rd_data_in[31:0] = ({32{intpend_reg_read      }} &   intpend_rd_out                                                    ) |
-                                ({32{intpend_thr_reg_read  }} &   intpend_thr_rd_out                                                ) |
-                                ({32{intpriority_reg_read  }} &  {{32-INTPRIORITY_BITS{1'b0}}, intpriority_rd_out                 } ) |
-                                ({32{intenable_reg_read    }} &  {31'b0 , intenable_rd_out                                        } ) |
-                                ({32{delg_reg_read         }} &  {31'b0 , delg_rd_out                                             } ) |
-                                ({32{gw_config_reg_read    }} &  {30'b0 , gw_config_rd_out                                        } ) |
-                                ({32{config_reg_re         }} &  {31'b0 , config_reg                                              } ) |
-                                ({32{picm_mken_ff & mask[3]}} &  {30'b0 , 2'b11                                                   } ) |
-                                ({32{picm_mken_ff & mask[2]}} &  {31'b0 , 1'b1                                                    } ) |
-                                ({32{picm_mken_ff & mask[1]}} &  {28'b0 , 4'b1111                                                 } ) |
-                                ({32{picm_mken_ff & mask[0]}} &   32'b0                                                             ) ;
+ assign picm_rd_data_in[pt.XLEN-1:0] = ({pt.XLEN{intpend_reg_read      }} &   intpend_rd_out                                                    ) |
+                                       ({pt.XLEN{intpend_thr_reg_read  }} &   intpend_thr_rd_out                                                ) |
+                                       ({pt.XLEN{intpriority_reg_read  }} &  {{pt.XLEN-INTPRIORITY_BITS{1'b0}}, intpriority_rd_out            } ) |
+                                       ({pt.XLEN{intenable_reg_read    }} &  {{pt.XLEN-1{1'b0}} , intenable_rd_out                            } ) |
+                                       ({pt.XLEN{delg_reg_read         }} &  {{pt.XLEN-1{1'b0}} , delg_rd_out                                 } ) |
+                                       ({pt.XLEN{gw_config_reg_read    }} &  {{pt.XLEN-2{1'b0}} , gw_config_rd_out                            } ) |
+                                       ({pt.XLEN{config_reg_re         }} &  {{pt.XLEN-1{1'b0}} , config_reg                                  } ) |
+                                       ({pt.XLEN{picm_mken_ff & mask[3]}} &  {{pt.XLEN-2{1'b0}} , 2'b11                                       } ) |
+                                       ({pt.XLEN{picm_mken_ff & mask[2]}} &  {{pt.XLEN-1{1'b0}} , 1'b1                                        } ) |
+                                       ({pt.XLEN{picm_mken_ff & mask[1]}} &  {{pt.XLEN-4{1'b0}} , 4'b1111                                     } ) |
+                                       ({pt.XLEN{picm_mken_ff & mask[0]}} &   {pt.XLEN{1'b0}}                                                   ) ;
 
 
-assign picm_rd_data[31:0] = picm_bypass_ff ? picm_wr_data_ff[31:0] : picm_rd_data_in[31:0] ;
+assign picm_rd_data[pt.XLEN-1:0] = picm_bypass_ff ? picm_wr_data_ff[pt.XLEN-1:0] : picm_rd_data_in[pt.XLEN-1:0] ;
 
 logic [14:0] address;
 
@@ -726,12 +726,3 @@ module eh2_configurable_gw (
   assign extintsrc_req_config =  meigwctrl_type ? ((extintsrc_req_sync ^  meigwctrl_polarity) | gw_int_pending) : (extintsrc_req_sync ^  meigwctrl_polarity) ;
 
 endmodule // configurable_gw
-
-
-
-
-
-
-
-
-

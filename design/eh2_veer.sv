@@ -853,8 +853,8 @@ import eh2_pkg::*;
 
    // -----------------------DEBUG  START -------------------------------
 
-   logic [31:0]            dbg_cmd_addr;              // the address of the debug command to used by the core
-   logic [31:0]            dbg_cmd_wrdata;            // If the debug command is a write command, this has the data to be written to the CSR/GPR
+   logic [pt.XLEN-1:0]     dbg_cmd_addr;              // the address of the debug command to used by the core
+   logic [pt.XLEN-1:0]     dbg_cmd_wrdata;            // If the debug command is a write command, this has the data to be written to the CSR/GPR
    logic                   dbg_cmd_valid;             // commad is being driven by the dbg module. One pulse. Only dirven when core_halted has been seen
    logic                   dbg_cmd_tid;               // thread for debug register read
    logic                   dbg_cmd_write;             // 1: write command; 0: read_command
@@ -866,16 +866,16 @@ import eh2_pkg::*;
 
    logic                   core_dbg_cmd_done;         // Final muxed cmd done to debug
    logic                   core_dbg_cmd_fail;         // Final muxed cmd done to debug
-   logic [31:0]            core_dbg_rddata;           // Final muxed cmd done to debug
+   logic [pt.XLEN-1:0]     core_dbg_rddata;           // Final muxed cmd done to debug
 
    logic                   dma_dbg_cmd_done;          // Abstarct memory command sent to dma is done
    logic                   dma_dbg_cmd_fail;          // Abstarct memory command sent to dma failed
-   logic [31:0]            dma_dbg_rddata;            // Read data for abstract memory access
+   logic [pt.XLEN-1:0]     dma_dbg_rddata;            // Read data for abstract memory access
 
    logic                   dbg_dma_bubble;            // Debug needs a bubble to send a valid
    logic                   dma_dbg_ready;             // DMA is ready to accept debug request
 
-   logic [31:0]            dec_dbg_rddata;            // The core drives this data ( intercepts the pipe and sends it here )
+   logic [pt.XLEN-1:0]     dec_dbg_rddata;            // The core drives this data ( intercepts the pipe and sends it here )
    logic                   dec_dbg_cmd_done;          // This will be treated like a valid signal
    logic                   dec_dbg_cmd_fail;          // Abstract command failed
    logic                   dec_dbg_cmd_tid;           // Tid of abstract command response
@@ -1017,7 +1017,7 @@ import eh2_pkg::*;
 
    assign core_dbg_cmd_done = dma_dbg_cmd_done | dec_dbg_cmd_done;
    assign core_dbg_cmd_fail = dma_dbg_cmd_fail | dec_dbg_cmd_fail;
-   assign core_dbg_rddata[31:0] = dma_dbg_cmd_done ? dma_dbg_rddata[31:0] : dec_dbg_rddata[31:0];
+   assign core_dbg_rddata[pt.XLEN-1:0] = dma_dbg_cmd_done ? dma_dbg_rddata[pt.XLEN-1:0] : dec_dbg_rddata[pt.XLEN-1:0];
 
    eh2_dbg #(.pt(pt)) dbg (
                             .rst_l(core_rst_l),

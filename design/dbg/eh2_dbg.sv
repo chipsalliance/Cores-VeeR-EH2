@@ -25,8 +25,8 @@ module eh2_dbg #(
 `include "eh2_param.vh"
  )(
    // outputs to the core for command and data interface
-   output logic [31:0]                    dbg_cmd_addr,
-   output logic [31:0]                    dbg_cmd_wrdata,
+   output logic [pt.XLEN-1:0]             dbg_cmd_addr,
+   output logic [pt.XLEN-1:0]             dbg_cmd_wrdata,
    output logic                           dbg_cmd_valid,
    output logic                           dbg_cmd_tid,     // thread for debug register read
    output logic                           dbg_cmd_write,   // 1: write command, 0: read_command
@@ -35,7 +35,7 @@ module eh2_dbg #(
    output logic                           dbg_core_rst_l,  // Debug reset
 
    // inputs back from the core/dec
-   input logic [31:0]                     core_dbg_rddata,
+   input logic [pt.XLEN-1:0]              core_dbg_rddata,
    input logic                            core_dbg_cmd_done, // This will be treated like a valid signal
    input logic                            core_dbg_cmd_fail, // Exception during command run
 
@@ -130,6 +130,8 @@ module eh2_dbg #(
    logic [31:0]  haltsum0_reg;
    logic [31:0]  data0_reg;
    logic [31:0]  data1_reg;
+   logic [31:0]  data2_reg;
+   logic [31:0]  data3_reg;
 
    // data 0
    logic [31:0]  data0_din;
@@ -138,6 +140,13 @@ module eh2_dbg #(
    // data 1
    logic [31:0]  data1_din;
    logic         data1_reg_wren, data1_reg_wren0, data1_reg_wren1;
+   logic [pt.NUM_THREADS-1:0]  data1_reg_wren2;
+   // data 2
+   logic [31:0]  data2_din;
+   logic         data2_reg_wren, data2_reg_wren0, data2_reg_wren1;
+   // data 3
+   logic [31:0]  data3_din;
+   logic         data3_reg_wren, data3_reg_wren0, data3_reg_wren1;
    // abstractcs
    logic [pt.NUM_THREADS-1:0] abstractcs_busy;
    logic [2:0]   abstractcs_error_din;
@@ -157,8 +166,8 @@ module eh2_dbg #(
    logic         command_postexec_din;
    logic [31:0]  command_din;
    logic [3:0]   dbg_cmd_addr_incr;
-   logic [31:0]  dbg_cmd_curr_addr;
-   logic [31:0]  dbg_cmd_next_addr;
+   logic [pt.XLEN-1:0]  dbg_cmd_curr_addr;
+   logic [pt.XLEN-1:0]  dbg_cmd_next_addr;
 
 
    // hawindow
@@ -229,16 +238,16 @@ module eh2_dbg #(
    logic [pt.NUM_THREADS-1:0]  sb_abmem_cmd_done_in, sb_abmem_data_done_in;
    logic [pt.NUM_THREADS-1:0]  sb_abmem_cmd_done_en, sb_abmem_data_done_en;
    logic [pt.NUM_THREADS-1:0]  sb_abmem_cmd_done, sb_abmem_data_done;
-   logic [31:0]       abmem_addr;
-   logic              abmem_addr_in_dccm_region, abmem_addr_in_iccm_region, abmem_addr_in_pic_region;
-   logic              abmem_addr_core_local;
-   logic              abmem_addr_external;
+   logic [pt.XLEN-1:0]  abmem_addr;
+   logic                abmem_addr_in_dccm_region, abmem_addr_in_iccm_region, abmem_addr_in_pic_region;
+   logic                abmem_addr_core_local;
+   logic                abmem_addr_external;
 
-   logic              sb_cmd_pending, sb_abmem_cmd_pending;
-   logic              sb_abmem_cmd_write;
-   logic [2:0]        sb_abmem_cmd_size;
-   logic [31:0]       sb_abmem_cmd_addr;
-   logic [31:0]       sb_abmem_cmd_wdata;
+   logic                sb_cmd_pending, sb_abmem_cmd_pending;
+   logic                sb_abmem_cmd_write;
+   logic [2:0]          sb_abmem_cmd_size;
+   logic [pt.XLEN-1:0]  sb_abmem_cmd_addr;
+   logic [pt.XLEN-1:0]  sb_abmem_cmd_wdata;
 
    logic [2:0]                sb_cmd_size;
    logic [pt.XLEN-1:0]        sb_cmd_addr;
@@ -366,10 +375,10 @@ module eh2_dbg #(
                                        ({32{sbdata1_reg_wren1}} & sb_bus_rdata[63:32]);
 
    if (pt.BUS_WIDTH == 128) begin
-      assign        sbdata2_din[31:0]   = ({32{sbdata2_reg_wren0}} & dmi_reg_wdata[31:0]) |
-                                          ({32{sbdata2_reg_wren1}} & sb_bus_rdata[95:64]);
-      assign        sbdata3_din[31:0]   = ({32{sbdata3_reg_wren0}} & dmi_reg_wdata[31:0]) |
-                                          ({32{sbdata3_reg_wren1}} & sb_bus_rdata[127:96]);
+      assign     sbdata2_din[31:0]   = ({32{sbdata2_reg_wren0}} & dmi_reg_wdata[31:0]) |
+                                       ({32{sbdata2_reg_wren1}} & sb_bus_rdata[95:64]);
+      assign     sbdata3_din[31:0]   = ({32{sbdata3_reg_wren0}} & dmi_reg_wdata[31:0]) |
+                                       ({32{sbdata3_reg_wren1}} & sb_bus_rdata[127:96]);
    end
 
    rvdffe #(32)    dbg_sbdata0_reg    (.*, .din(sbdata0_din[31:0]), .dout(sbdata0_reg[31:0]), .en(sbdata0_reg_wren), .rst_l(dbg_dm_rst_l));
@@ -481,7 +490,9 @@ module eh2_dbg #(
    assign        abstractcs_error_sel3 = execute_command & ~(|abstractcs_reg[10:8]) & ~(|(command_sel[pt.NUM_THREADS-1:0] & dbg_halted[pt.NUM_THREADS-1:0]));  //(dbg_state != HALTED);;
    assign        abstractcs_error_sel4 = (|dbg_sb_bus_error[pt.NUM_THREADS-1:0]) & dbg_bus_clk_en & ~(|abstractcs_reg[10:8]);// sb bus error for abstract memory command
    assign        abstractcs_error_sel5 = execute_command & (command_reg[31:24] == 8'h2) & ~(|abstractcs_reg[10:8]) &
-                                         (((command_reg[22:20] == 3'b001) & data1_reg[0]) | ((command_reg[22:20] == 3'b010) & (|data1_reg[1:0])));  //Unaligned address for abstract memory
+                                         (((command_reg[22:20] == 3'b001) & data1_reg[0]) |
+                                          ((command_reg[22:20] == 3'b010) & (|data1_reg[1:0])) |
+                                          ((pt.XLEN == 64) & (command_reg[22:20] == 3'b011) & (|data2_reg[2:0])));  //Unaligned address for abstract memory
    assign        abstractcs_error_sel6 = (dmi_reg_addr ==  7'h16) & dmi_reg_en & dmi_reg_wr_en;
 
    assign        abstractcs_error_din[2:0]  = abstractcs_error_sel0 ? 3'b001 :                  // writing command or abstractcs while a command was executing. Or accessing data0
@@ -545,21 +556,80 @@ module eh2_dbg #(
 
    rvdffe #(32) dbg_data0_reg (.*, .din(data0_din[31:0]), .dout(data0_reg[31:0]), .en(data0_reg_wren), .rst_l(dbg_dm_rst_l));
 
-   // data 1
+   // data 1 reg
    always_comb begin
       data1_reg_wren0 = 1'b0;
       data1_reg_wren1 = 1'b0;
       for (int i=0; i<pt.NUM_THREADS; i++) begin
-         data1_reg_wren0   |= (dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h5) & command_sel[i] & (dbg_state[i] == HALTED));
-         data1_reg_wren1   |= ((dbg_state[i] == CMD_DONE) & (command_reg[31:24] == 8'h2) & command_reg[19] & ~(|abstractcs_reg[10:8]));   // aampostincrement
+         if (pt.XLEN == 32) begin
+            data1_reg_wren0   |= (dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h5) & command_sel[i] & (dbg_state[i] == HALTED));
+            data1_reg_wren1   |= ((dbg_state[i] == CMD_DONE) & (command_reg[31:24] == 8'h2) & command_reg[19] & ~(|abstractcs_reg[10:8]));   // aampostincrement
+         end else begin
+            data1_reg_wren0   |= (dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h5) & command_sel[i] & (dbg_state[i] == HALTED) & ~abstractcs_reg[12]);
+            data1_reg_wren1   |= (core_dbg_cmd_done & (dbg_state[i] == CORE_CMD_WAIT) & ~command_reg[16]);
+         end
       end
    end
-   assign data1_reg_wren    = data1_reg_wren0 | data1_reg_wren1;
+   assign data1_reg_wren    = data1_reg_wren0 | data1_reg_wren1 | (|data1_reg_wren2[pt.NUM_THREADS-1:0]);
 
-   assign data1_din[31:0]   = ({32{data1_reg_wren0}} & dmi_reg_wdata[31:0]) |
-                              ({32{data1_reg_wren1}} & dbg_cmd_next_addr[31:0]);
+   if (pt.XLEN == 32) begin
+      assign data1_din[31:0]   = ({32{data1_reg_wren0}} & dmi_reg_wdata[31:0]) |
+                                 ({32{data1_reg_wren1}} & dbg_cmd_next_addr[31:0]);
+   end else if (pt.XLEN == 64) begin
+      assign data1_din[31:0]   = ({32{data1_reg_wren0}} & dmi_reg_wdata[31:0]) |
+                                 ({32{data1_reg_wren1}} & core_dbg_rddata[63:32]) |
+                                 ({32{|data1_reg_wren2}} & sb_bus_rdata[63:32]);
+   end
 
-   rvdffe #(32)    dbg_data1_reg    (.*, .din(data1_din[31:0]), .dout(data1_reg[31:0]), .en(data1_reg_wren), .rst_l(dbg_dm_rst_l));
+   rvdffe #(32) dbg_data1_reg (.*, .din(data1_din[31:0]), .dout(data1_reg[31:0]), .en(data1_reg_wren), .rst_l(dbg_dm_rst_l));
+
+   if (pt.XLEN == 64) begin
+      // data 2 reg
+      always_comb begin
+         data2_reg_wren0 = 1'b0;
+         data2_reg_wren1 = 1'b0;
+         for (int i=0; i<pt.NUM_THREADS; i++) begin
+            data2_reg_wren0   |= (dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h6) & command_sel[i] & (dbg_state[i] == HALTED));
+            data2_reg_wren1   |= ((dbg_state[i] == CMD_DONE) & (command_reg[31:24] == 8'h2) & command_reg[19] & ~(|abstractcs_reg[10:8]));   // aampostincrement
+         end
+      end
+      assign data2_reg_wren    = data2_reg_wren0 | data2_reg_wren1;
+
+      assign data2_din[31:0]   = ({32{data2_reg_wren0}} & dmi_reg_wdata[31:0]) |
+                                 ({32{data2_reg_wren1}} & dbg_cmd_next_addr[31:0]);
+
+      rvdffe #(32) dbg_data2_reg (.*, .din(data2_din[31:0]), .dout(data2_reg[31:0]), .en(data2_reg_wren), .rst_l(dbg_dm_rst_l));
+   end else begin
+      assign data2_reg_wren0 = 1'b0;
+      assign data2_reg_wren1 = 1'b0;
+      assign data2_reg_wren  = 1'b0;
+      assign data2_din[31:0] = 32'b0;
+      assign data2_reg[31:0] = 32'b0;
+   end
+
+   if (pt.XLEN == 64) begin
+      // data 3 reg
+      always_comb begin
+         data3_reg_wren0 = 1'b0;
+         data3_reg_wren1 = 1'b0;
+         for (int i=0; i<pt.NUM_THREADS; i++) begin
+            data3_reg_wren0   |= (dmi_reg_en & dmi_reg_wr_en & (dmi_reg_addr == 7'h7) & command_sel[i] & (dbg_state[i] == HALTED));
+            data3_reg_wren1   |= ((dbg_state[i] == CMD_DONE) & (command_reg[31:24] == 8'h2) & command_reg[19] & ~(|abstractcs_reg[10:8]));   // aampostincrement
+         end
+      end
+      assign data3_reg_wren    = data3_reg_wren0 | data3_reg_wren1;
+
+      assign data3_din[31:0]   = ({32{data3_reg_wren0}} & dmi_reg_wdata[31:0]) |
+                                 ({32{data3_reg_wren1}} & dbg_cmd_next_addr[63:32]);
+
+      rvdffe #(32) dbg_data3_reg (.*, .din(data3_din[31:0]), .dout(data3_reg[31:0]), .en(data3_reg_wren), .rst_l(dbg_dm_rst_l));
+   end else begin
+      assign data3_reg_wren0 = 1'b0;
+      assign data3_reg_wren1 = 1'b0;
+      assign data3_reg_wren  = 1'b0;
+      assign data3_din[31:0] = 32'b0;
+      assign data3_reg[31:0] = 32'b0;
+   end
 
    // Generate the per thread sel and state
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin
@@ -599,6 +669,7 @@ module eh2_dbg #(
          dbg_resume_req[i] = 1'b0;                                                                        // single pulse output to the core
          dbg_sb_bus_error[i]     = 1'b0;
          data0_reg_wren2[i]      = 1'b0;
+         data1_reg_wren2[i]      = 1'b0;
          sb_abmem_cmd_done_in[i] = 1'b0;
          sb_abmem_data_done_in[i]= 1'b0;
          sb_abmem_cmd_done_en[i] = 1'b0;
@@ -651,6 +722,7 @@ module eh2_dbg #(
                      dbg_state_en[i]         = (sb_bus_rsp_read | sb_bus_rsp_write) & dbg_bus_clk_en;
                      dbg_sb_bus_error[i]     = (sb_bus_rsp_read | sb_bus_rsp_write) & sb_bus_rsp_error & dbg_bus_clk_en;
                      data0_reg_wren2[i]      = dbg_state_en[i] & ~sb_abmem_cmd_write & ~dbg_sb_bus_error[i];
+                     data1_reg_wren2[i]      = (pt.XLEN == 64) & dbg_state_en[i] & ~sb_abmem_cmd_write & ~dbg_sb_bus_error[i];
             end
             CMD_DONE: begin
                      dbg_nxtstate[i]         = HALTED;
@@ -675,6 +747,7 @@ module eh2_dbg #(
                      dbg_resume_req[i]       = 1'b0;         // single pulse output to the core
                      dbg_sb_bus_error[i]     = 1'b0;
                      data0_reg_wren2[i]      = 1'b0;
+                     data1_reg_wren2[i]      = 1'b0;
                      sb_abmem_cmd_done_in[i] = 1'b0;
                      sb_abmem_data_done_in[i]= 1'b0;
                      sb_abmem_cmd_done_en[i] = 1'b0;
@@ -687,6 +760,8 @@ module eh2_dbg #(
 
    assign dmi_reg_rdata_din[31:0] = ({32{dmi_reg_addr == 7'h4}}  & data0_reg[31:0])      |
                                     ({32{dmi_reg_addr == 7'h5}}  & data1_reg[31:0])      |
+                                    ({32{(dmi_reg_addr == 7'h6) && (pt.XLEN == 64)}}  & data2_reg[31:0])      |
+                                    ({32{(dmi_reg_addr == 7'h7) && (pt.XLEN == 64)}}  & data3_reg[31:0])      |
                                     ({32{dmi_reg_addr == 7'h10}} & {2'b0,dmcontrol_reg[29],1'b0,dmcontrol_reg[27:0]})  |  // Read0 to Write only bits
                                     ({32{dmi_reg_addr == 7'h11}} & dmstatus_reg[31:0])   |
                                     ({32{dmi_reg_addr == 7'h15}} & hawindow_reg[31:0])   |
@@ -705,17 +780,28 @@ module eh2_dbg #(
    // Ack will use the power on reset only otherwise there won't be any ack until dmactive is 1
    rvdffe #(32)             dmi_rddata_reg   (.din(dmi_reg_rdata_din[31:0]), .dout(dmi_reg_rdata[31:0]), .en(dmi_reg_en), .rst_l(dbg_dm_rst_l), .clk(clk), .*);
 
-   assign abmem_addr[31:0]      = data1_reg[31:0];
+   assign abmem_addr[pt.XLEN-1:0] = (pt.XLEN == 32) ? data1_reg[31:0] : {data3_reg[31:0], data2_reg[31:0]};
    assign abmem_addr_core_local = (abmem_addr_in_dccm_region | abmem_addr_in_iccm_region | abmem_addr_in_pic_region);
    assign abmem_addr_external   = ~abmem_addr_core_local;
 
-   assign abmem_addr_in_dccm_region = (abmem_addr[31:28] == pt.DCCM_REGION) & pt.DCCM_ENABLE;
-   assign abmem_addr_in_iccm_region = (abmem_addr[31:28] == pt.ICCM_REGION) & pt.ICCM_ENABLE;
-   assign abmem_addr_in_pic_region  = (abmem_addr[31:28] == pt.PIC_REGION);
+   if (pt.XLEN == 32) begin
+      assign abmem_addr_in_dccm_region = (abmem_addr[31:28] == pt.DCCM_REGION) & pt.DCCM_ENABLE;
+      assign abmem_addr_in_iccm_region = (abmem_addr[31:28] == pt.ICCM_REGION) & pt.ICCM_ENABLE;
+      assign abmem_addr_in_pic_region  = (abmem_addr[31:28] == pt.PIC_REGION);
+   end else if (pt.XLEN == 64) begin
+      // TODO: Fix this logic as part of #101619 (adding proper MRAC support for 64-bit address space)
+      assign abmem_addr_in_dccm_region = (~(|abmem_addr[63:32])) & (abmem_addr[31:28] == pt.DCCM_REGION) & pt.DCCM_ENABLE;
+      assign abmem_addr_in_iccm_region = (~(|abmem_addr[63:32])) & (abmem_addr[31:28] == pt.ICCM_REGION) & pt.ICCM_ENABLE;
+      assign abmem_addr_in_pic_region  = (~(|abmem_addr[63:32])) & (abmem_addr[31:28] == pt.PIC_REGION);
+   end
 
    // interface for the core
-   assign dbg_cmd_addr[31:0]    = (command_reg[31:24] == 8'h2) ? data1_reg[31:0]  : {20'b0, command_reg[11:0]};
-   assign dbg_cmd_wrdata[31:0]  = data0_reg[31:0];
+   assign dbg_cmd_addr[pt.XLEN-1:0] = (command_reg[31:24] == 8'h2) ?
+                                      ((pt.XLEN == 32) ? data1_reg[31:0] : {data3_reg[31:0], data2_reg[31:0]}) :
+                                      {{pt.XLEN-12{1'b0}}, command_reg[11:0]};
+
+   assign dbg_cmd_wrdata[pt.XLEN-1:0]  = (pt.XLEN == 32) ? data0_reg[31:0] : {data1_reg[31:0], data0_reg[31:0]};
+
    always_comb begin
       dbg_cmd_valid = 1'b0;
       for (int i=0; i<pt.NUM_THREADS; i++) begin
@@ -729,8 +815,10 @@ module eh2_dbg #(
    assign dbg_cmd_size[1:0]     = command_reg[21:20];
 
    assign dbg_cmd_addr_incr[3:0]  = (command_reg[31:24] == 8'h2) ? (4'h1 << sb_abmem_cmd_size[1:0]) : 4'h1;
-   assign dbg_cmd_curr_addr[31:0] = (command_reg[31:24] == 8'h2) ? data1_reg[31:0]  : {16'b0, command_reg[15:0]};
-   assign dbg_cmd_next_addr[31:0] = dbg_cmd_curr_addr[31:0] + {28'h0,dbg_cmd_addr_incr[3:0]};
+   assign dbg_cmd_curr_addr[pt.XLEN-1:0] = (command_reg[31:24] == 8'h2) ?
+                                           ((pt.XLEN == 32) ? data1_reg[31:0] : {data3_reg[31:0], data2_reg[31:0]}) :
+                                           {{pt.XLEN-16{1'b0}}, command_reg[15:0]};
+   assign dbg_cmd_next_addr[pt.XLEN-1:0] = dbg_cmd_curr_addr[pt.XLEN-1:0] + {{pt.XLEN-4{1'b0}},dbg_cmd_addr_incr[3:0]};
 
    // Ask DMA to stop taking bus trxns since debug memory request is done
    always_comb begin
@@ -827,8 +915,8 @@ module eh2_dbg #(
 
    assign sb_abmem_cmd_write      = command_reg[16];
    assign sb_abmem_cmd_size[2:0]  = {1'b0, command_reg[21:20]};
-   assign sb_abmem_cmd_addr[31:0] = abmem_addr[31:0];
-   assign sb_abmem_cmd_wdata[31:0] = data0_reg[31:0];
+   assign sb_abmem_cmd_addr[pt.XLEN-1:0] = abmem_addr[pt.XLEN-1:0];
+   assign sb_abmem_cmd_wdata[pt.XLEN-1:0] = (pt.XLEN == 32) ? data0_reg[31:0] : {data1_reg[31:0], data0_reg[31:0]};
 
    assign sb_cmd_size[2:0]   = sbcs_reg[19:17];
    if (pt.BUS_WIDTH == 64) begin
@@ -858,8 +946,8 @@ module eh2_dbg #(
    assign sb_read_pend       = (sb_state == RSP_RD);
 
    assign sb_axi_size[2:0]    = (sb_abmem_cmd_awvalid | sb_abmem_cmd_wvalid | sb_abmem_cmd_arvalid | sb_abmem_read_pend) ? sb_abmem_cmd_size[2:0] : sb_cmd_size[2:0];
-   assign sb_axi_addr[pt.XLEN-1:0]   = (sb_abmem_cmd_awvalid | sb_abmem_cmd_wvalid | sb_abmem_cmd_arvalid | sb_abmem_read_pend) ? {(pt.XLEN/32){sb_abmem_cmd_addr[31:0]}} : sb_cmd_addr[pt.XLEN-1:0];
-   assign sb_axi_wrdata[pt.BUS_WIDTH-1:0] = (sb_abmem_cmd_awvalid | sb_abmem_cmd_wvalid) ? {(pt.BUS_WIDTH/32){sb_abmem_cmd_wdata[31:0]}} : sb_cmd_wdata[pt.BUS_WIDTH-1:0];
+   assign sb_axi_addr[pt.XLEN-1:0]   = (sb_abmem_cmd_awvalid | sb_abmem_cmd_wvalid | sb_abmem_cmd_arvalid | sb_abmem_read_pend) ? sb_abmem_cmd_addr[pt.XLEN-1:0] : sb_cmd_addr[pt.XLEN-1:0];
+   assign sb_axi_wrdata[pt.BUS_WIDTH-1:0] = (sb_abmem_cmd_awvalid | sb_abmem_cmd_wvalid) ? {2{sb_abmem_cmd_wdata[pt.XLEN-1:0]}} : sb_cmd_wdata[pt.BUS_WIDTH-1:0];
 
    // Generic bus response signals
    assign sb_bus_cmd_read       = sb_axi_arvalid & sb_axi_arready;

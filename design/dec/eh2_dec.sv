@@ -147,7 +147,7 @@ import eh2_pkg::*;
    input logic        dbg_cmd_tid,     // thread for debug register read
    input logic        dbg_cmd_write,   // command is a write
    input logic  [1:0] dbg_cmd_type,    // command type
-   input logic [31:0] dbg_cmd_addr,    // command address
+   input logic  [pt.XLEN-1:0] dbg_cmd_addr,    // command address
    input logic  [1:0] dbg_cmd_wrdata,  // command write data, for fence/fence_i
 
 

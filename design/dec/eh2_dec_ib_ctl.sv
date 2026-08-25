@@ -33,7 +33,7 @@ import eh2_pkg::*;
 
    input logic                 dbg_cmd_write,  // dbg cmd is write
    input logic [1:0]           dbg_cmd_type,   // dbg type
-   input logic [31:0]          dbg_cmd_addr,   // expand to XLEN-1:0
+   input logic [pt.XLEN-1:0]   dbg_cmd_addr,
 
    input logic exu_flush_final,                // all flush sources: primary/secondary alu's, trap
 

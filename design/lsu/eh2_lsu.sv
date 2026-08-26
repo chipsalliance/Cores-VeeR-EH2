@@ -200,8 +200,6 @@ import eh2_pkg::*;
 
    );
 
-   localparam unsigned ADDR_LSB_OFFSET = $clog2(pt.DCCM_BYTE_WIDTH);
-
    logic [pt.XLEN-1:0] lsu_addr_dc1;
    logic               lsu_dccm_rden_dc3;
    logic [pt.XLEN-1:0] store_data_dc3;
@@ -343,10 +341,10 @@ import eh2_pkg::*;
    assign lsu_fastint_stall_any = ld_single_ecc_error_dc3;
 
    // Dual ld-st
-   assign ldst_dual_dc2 = (lsu_addr_dc2[ADDR_LSB_OFFSET] != end_addr_dc2[ADDR_LSB_OFFSET]);
-   assign ldst_dual_dc3 = (lsu_addr_dc3[ADDR_LSB_OFFSET] != end_addr_dc3[ADDR_LSB_OFFSET]);
-   assign ldst_dual_dc4 = (lsu_addr_dc4[ADDR_LSB_OFFSET] != end_addr_dc4[ADDR_LSB_OFFSET]);
-   assign ldst_dual_dc5 = (lsu_addr_dc5[ADDR_LSB_OFFSET] != end_addr_dc5[ADDR_LSB_OFFSET]);
+   assign ldst_dual_dc2 = (lsu_addr_dc2[pt.DCCM_ADDR_OFF] != end_addr_dc2[pt.DCCM_ADDR_OFF]);
+   assign ldst_dual_dc3 = (lsu_addr_dc3[pt.DCCM_ADDR_OFF] != end_addr_dc3[pt.DCCM_ADDR_OFF]);
+   assign ldst_dual_dc4 = (lsu_addr_dc4[pt.DCCM_ADDR_OFF] != end_addr_dc4[pt.DCCM_ADDR_OFF]);
+   assign ldst_dual_dc5 = (lsu_addr_dc5[pt.DCCM_ADDR_OFF] != end_addr_dc5[pt.DCCM_ADDR_OFF]);
 
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin: GenThreadLoop
       // block stores in decode  - for either bus or stbuf reasons

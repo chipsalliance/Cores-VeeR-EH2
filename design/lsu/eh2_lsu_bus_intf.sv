@@ -135,7 +135,7 @@ import eh2_pkg::*;
    output logic                         lsu_axi_wvalid,
    input  logic                         lsu_axi_wready,
    output logic [(pt.XLEN*2)-1:0]       lsu_axi_wdata,
-   output logic [pt.BUS_BYTE_WIDTH-1:0] lsu_axi_wstrb,
+   output logic [pt.BUS_BYTES-1:0]      lsu_axi_wstrb,
    output logic                         lsu_axi_wlast,
 
    input  logic                         lsu_axi_bvalid,
@@ -167,18 +167,14 @@ import eh2_pkg::*;
 
 );
 
-   localparam unsigned BYTE_WIDTH = pt.XLEN / 8;
-   localparam unsigned ADDR_LSB_OFFSET = $clog2(BYTE_WIDTH);
-   localparam unsigned BUS_ADDR_LSB_OFFSET = $clog2(pt.BUS_BYTE_WIDTH);
-
    logic              lsu_bus_clk_en_q;
    logic              ldst_dual_dc1;
    logic              ldst_samebeat_dc5, is_aligned_dc5;
 
-   logic [BYTE_WIDTH-1:0]     ldst_byteen_dc2, ldst_byteen_dc3, ldst_byteen_dc4, ldst_byteen_dc5;
-   logic [(BYTE_WIDTH*2)-1:0] ldst_byteen_ext_dc2, ldst_byteen_ext_dc3, ldst_byteen_ext_dc4, ldst_byteen_ext_dc5;
-   logic [BYTE_WIDTH-1:0]     ldst_byteen_hi_dc2, ldst_byteen_hi_dc3, ldst_byteen_hi_dc4, ldst_byteen_hi_dc5;
-   logic [BYTE_WIDTH-1:0]     ldst_byteen_lo_dc2, ldst_byteen_lo_dc3, ldst_byteen_lo_dc4, ldst_byteen_lo_dc5;
+   logic [pt.XLEN_BYTES-1:0]     ldst_byteen_dc2, ldst_byteen_dc3, ldst_byteen_dc4, ldst_byteen_dc5;
+   logic [(pt.XLEN_BYTES*2)-1:0] ldst_byteen_ext_dc2, ldst_byteen_ext_dc3, ldst_byteen_ext_dc4, ldst_byteen_ext_dc5;
+   logic [pt.XLEN_BYTES-1:0]     ldst_byteen_hi_dc2, ldst_byteen_hi_dc3, ldst_byteen_hi_dc4, ldst_byteen_hi_dc5;
+   logic [pt.XLEN_BYTES-1:0]     ldst_byteen_lo_dc2, ldst_byteen_lo_dc3, ldst_byteen_lo_dc4, ldst_byteen_lo_dc5;
    logic              is_sideeffects_dc4, is_sideeffects_dc5;
 
    logic [pt.XLEN-1:0]       store_data_hi_dc3, store_data_hi_dc4, store_data_hi_dc5;
@@ -192,17 +188,17 @@ import eh2_pkg::*;
    logic              ld_addr_dc4hit_lo_lo, ld_addr_dc4hit_hi_lo, ld_addr_dc4hit_lo_hi, ld_addr_dc4hit_hi_hi;
    logic              ld_addr_dc5hit_lo_lo, ld_addr_dc5hit_hi_lo, ld_addr_dc5hit_lo_hi, ld_addr_dc5hit_hi_hi;
 
-   logic [BYTE_WIDTH-1:0] ld_byte_dc3hit_lo_lo, ld_byte_dc3hit_hi_lo, ld_byte_dc3hit_lo_hi, ld_byte_dc3hit_hi_hi;
-   logic [BYTE_WIDTH-1:0] ld_byte_dc4hit_lo_lo, ld_byte_dc4hit_hi_lo, ld_byte_dc4hit_lo_hi, ld_byte_dc4hit_hi_hi;
-   logic [BYTE_WIDTH-1:0] ld_byte_dc5hit_lo_lo, ld_byte_dc5hit_hi_lo, ld_byte_dc5hit_lo_hi, ld_byte_dc5hit_hi_hi;
+   logic [pt.XLEN_BYTES-1:0] ld_byte_dc3hit_lo_lo, ld_byte_dc3hit_hi_lo, ld_byte_dc3hit_lo_hi, ld_byte_dc3hit_hi_hi;
+   logic [pt.XLEN_BYTES-1:0] ld_byte_dc4hit_lo_lo, ld_byte_dc4hit_hi_lo, ld_byte_dc4hit_lo_hi, ld_byte_dc4hit_hi_hi;
+   logic [pt.XLEN_BYTES-1:0] ld_byte_dc5hit_lo_lo, ld_byte_dc5hit_hi_lo, ld_byte_dc5hit_lo_hi, ld_byte_dc5hit_hi_hi;
 
-   logic [BYTE_WIDTH-1:0] ld_byte_hit_lo, ld_byte_dc3hit_lo, ld_byte_dc4hit_lo, ld_byte_dc5hit_lo;
-   logic [BYTE_WIDTH-1:0] ld_byte_hit_hi, ld_byte_dc3hit_hi, ld_byte_dc4hit_hi, ld_byte_dc5hit_hi;
+   logic [pt.XLEN_BYTES-1:0] ld_byte_hit_lo, ld_byte_dc3hit_lo, ld_byte_dc4hit_lo, ld_byte_dc5hit_lo;
+   logic [pt.XLEN_BYTES-1:0] ld_byte_hit_hi, ld_byte_dc3hit_hi, ld_byte_dc4hit_hi, ld_byte_dc5hit_hi;
 
    logic [pt.XLEN-1:0]    ld_fwddata_dc3pipe_lo, ld_fwddata_dc4pipe_lo, ld_fwddata_dc5pipe_lo;
    logic [pt.XLEN-1:0]    ld_fwddata_dc3pipe_hi, ld_fwddata_dc4pipe_hi, ld_fwddata_dc5pipe_hi;
 
-   logic [pt.NUM_THREADS-1:0][BYTE_WIDTH-1:0] ld_byte_hit_buf_lo, ld_byte_hit_buf_hi;
+   logic [pt.NUM_THREADS-1:0][pt.XLEN_BYTES-1:0] ld_byte_hit_buf_lo, ld_byte_hit_buf_hi;
    logic [pt.NUM_THREADS-1:0][pt.XLEN-1:0]    ld_fwddata_buf_lo, ld_fwddata_buf_hi;
 
    logic [pt.XLEN-1:0]    ld_fwddata_lo, ld_fwddata_hi;
@@ -225,14 +221,14 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0][pt.XLEN-1:0]        obuf_addr;
    logic [pt.NUM_THREADS-1:0][(pt.XLEN*2)-1:0]    obuf_data;
    logic [pt.NUM_THREADS-1:0][1:0]                obuf_sz;
-   logic [pt.NUM_THREADS-1:0][(BYTE_WIDTH*2)-1:0] obuf_byteen;
+   logic [pt.NUM_THREADS-1:0][(pt.XLEN_BYTES*2)-1:0] obuf_byteen;
    logic [pt.NUM_THREADS-1:0]                     obuf_cmd_done, obuf_data_done;
    logic [pt.NUM_THREADS-1:0][pt.LSU_BUS_TAG-1:0] obuf_tag0;
    logic [pt.NUM_THREADS-1:0]                     obuf_nxtready;
 
    logic                                lsu_nonblock_load_valid_dc2, lsu_nonblock_load_valid_dc3, lsu_nonblock_load_valid_dc4,lsu_nonblock_load_valid_dc5;
    logic [pt.NUM_THREADS-1:0]           bus_pend_trxn_en;
-   logic [pt.NUM_THREADS-1:0][(BYTE_WIDTH*2)-1:0] bus_pend_trxn, bus_pend_trxn_ns, bus_pend_trxnQ;
+   logic [pt.NUM_THREADS-1:0][(pt.XLEN_BYTES*2)-1:0] bus_pend_trxn, bus_pend_trxn_ns, bus_pend_trxnQ;
    logic [pt.NUM_THREADS-1:0]           lsu_bus_cntr_overflow;
 
    logic [pt.NUM_THREADS-1:0]           bus_addr_match_pending;
@@ -278,25 +274,25 @@ import eh2_pkg::*;
 
    assign bus_coalescing_disable = dec_tlu_wb_coalescing_disable | pt.BUILD_AHB_LITE;  // No coalescing for ahb
 
-   assign ldst_byteen_dc2[BYTE_WIDTH-1:0] = ({BYTE_WIDTH{lsu_pkt_dc2.by}}    & BYTE_WIDTH'('b0001)) |
-                                            ({BYTE_WIDTH{lsu_pkt_dc2.half}}  & BYTE_WIDTH'('b0011)) |
-                                            ({BYTE_WIDTH{lsu_pkt_dc2.word}}  & BYTE_WIDTH'('b1111)) |
-                                            ({BYTE_WIDTH{lsu_pkt_dc2.dword}} & {BYTE_WIDTH{1'b1}});
+   assign ldst_byteen_dc2[pt.XLEN_BYTES-1:0] =  ({pt.XLEN_BYTES{lsu_pkt_dc2.by}}    & pt.XLEN_BYTES'('b0001)) |
+                                                ({pt.XLEN_BYTES{lsu_pkt_dc2.half}}  & pt.XLEN_BYTES'('b0011)) |
+                                                ({pt.XLEN_BYTES{lsu_pkt_dc2.word}}  & pt.XLEN_BYTES'('b1111)) |
+                                                ({pt.XLEN_BYTES{lsu_pkt_dc2.dword}} & {pt.XLEN_BYTES{1'b1}});
    assign ldst_dual_dc1   = core_ldst_dual_dc1;
-   assign ldst_samebeat_dc5 = (lsu_addr_dc5[BUS_ADDR_LSB_OFFSET] == end_addr_dc5[BUS_ADDR_LSB_OFFSET]);
+   assign ldst_samebeat_dc5 = (lsu_addr_dc5[pt.BUS_ADDR_OFF] == end_addr_dc5[pt.BUS_ADDR_OFF]);
    assign is_aligned_dc5  = (lsu_pkt_dc5.dword & (~(|lsu_addr_dc5[2:0]))) |
                             (lsu_pkt_dc5.word  & (~(|lsu_addr_dc5[1:0]))) |
                             (lsu_pkt_dc5.half  & (~lsu_addr_dc5[0]))      |
                              lsu_pkt_dc5.by;
 
    // Logic to determine if dc5 store can be coalesced or not with younger stores. Bypass ibuf if cannot colaesced
-   assign addr_match_dw_lo_dc5_dc4 = (lsu_addr_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] == lsu_addr_dc4[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]);
-   assign addr_match_dw_lo_dc5_dc3 = (lsu_addr_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] == lsu_addr_dc3[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]);
-   assign addr_match_dw_lo_dc5_dc2 = (lsu_addr_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] == lsu_addr_dc2[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]);
+   assign addr_match_dw_lo_dc5_dc4 = (lsu_addr_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF] == lsu_addr_dc4[pt.XLEN-1:pt.BUS_ADDR_OFF]);
+   assign addr_match_dw_lo_dc5_dc3 = (lsu_addr_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF] == lsu_addr_dc3[pt.XLEN-1:pt.BUS_ADDR_OFF]);
+   assign addr_match_dw_lo_dc5_dc2 = (lsu_addr_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF] == lsu_addr_dc2[pt.XLEN-1:pt.BUS_ADDR_OFF]);
 
-   assign addr_match_word_lo_dc5_dc4 = addr_match_dw_lo_dc5_dc4 & ~(lsu_addr_dc5[BUS_ADDR_LSB_OFFSET]^lsu_addr_dc4[BUS_ADDR_LSB_OFFSET]);
-   assign addr_match_word_lo_dc5_dc3 = addr_match_dw_lo_dc5_dc3 & ~(lsu_addr_dc5[BUS_ADDR_LSB_OFFSET]^lsu_addr_dc3[BUS_ADDR_LSB_OFFSET]);
-   assign addr_match_word_lo_dc5_dc2 = addr_match_dw_lo_dc5_dc2 & ~(lsu_addr_dc5[BUS_ADDR_LSB_OFFSET]^lsu_addr_dc2[BUS_ADDR_LSB_OFFSET]);
+   assign addr_match_word_lo_dc5_dc4 = addr_match_dw_lo_dc5_dc4 & ~(lsu_addr_dc5[pt.BUS_ADDR_OFF]^lsu_addr_dc4[pt.BUS_ADDR_OFF]);
+   assign addr_match_word_lo_dc5_dc3 = addr_match_dw_lo_dc5_dc3 & ~(lsu_addr_dc5[pt.BUS_ADDR_OFF]^lsu_addr_dc3[pt.BUS_ADDR_OFF]);
+   assign addr_match_word_lo_dc5_dc2 = addr_match_dw_lo_dc5_dc2 & ~(lsu_addr_dc5[pt.BUS_ADDR_OFF]^lsu_addr_dc2[pt.BUS_ADDR_OFF]);
 
    assign no_word_merge_dc5  = lsu_busreq_dc5 & ~ldst_dual_dc5 &
                                ((lsu_busreq_dc4 & (lsu_pkt_dc4.tid ~^ lsu_pkt_dc5.tid) & (lsu_pkt_dc4.load | ~addr_match_word_lo_dc5_dc4)) |
@@ -309,19 +305,19 @@ import eh2_pkg::*;
                               (lsu_busreq_dc2 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid) & ~(lsu_busreq_dc3 & (lsu_pkt_dc3.tid ~^ lsu_pkt_dc5.tid))  & ~(lsu_busreq_dc4 & (lsu_pkt_dc4.tid ~^ lsu_pkt_dc5.tid))  & (lsu_pkt_dc2.load | ~addr_match_dw_lo_dc5_dc2)));
 
    // Create Hi/Lo signals
-   assign ldst_byteen_ext_dc2[(2*BYTE_WIDTH)-1:0] = {{BYTE_WIDTH{1'b0}},ldst_byteen_dc2[BYTE_WIDTH-1:0]} << lsu_addr_dc2[ADDR_LSB_OFFSET-1:0];
-   assign ldst_byteen_ext_dc3[(2*BYTE_WIDTH)-1:0] = {{BYTE_WIDTH{1'b0}},ldst_byteen_dc3[BYTE_WIDTH-1:0]} << lsu_addr_dc3[ADDR_LSB_OFFSET-1:0];
-   assign ldst_byteen_ext_dc4[(2*BYTE_WIDTH)-1:0] = {{BYTE_WIDTH{1'b0}},ldst_byteen_dc4[BYTE_WIDTH-1:0]} << lsu_addr_dc4[ADDR_LSB_OFFSET-1:0];
-   assign ldst_byteen_ext_dc5[(2*BYTE_WIDTH)-1:0] = {{BYTE_WIDTH{1'b0}},ldst_byteen_dc5[BYTE_WIDTH-1:0]} << lsu_addr_dc5[ADDR_LSB_OFFSET-1:0];
+   assign ldst_byteen_ext_dc2[(2*pt.XLEN_BYTES)-1:0] = {{pt.XLEN_BYTES{1'b0}},ldst_byteen_dc2[pt.XLEN_BYTES-1:0]} << lsu_addr_dc2[pt.XLEN_ADDR_OFF-1:0];
+   assign ldst_byteen_ext_dc3[(2*pt.XLEN_BYTES)-1:0] = {{pt.XLEN_BYTES{1'b0}},ldst_byteen_dc3[pt.XLEN_BYTES-1:0]} << lsu_addr_dc3[pt.XLEN_ADDR_OFF-1:0];
+   assign ldst_byteen_ext_dc4[(2*pt.XLEN_BYTES)-1:0] = {{pt.XLEN_BYTES{1'b0}},ldst_byteen_dc4[pt.XLEN_BYTES-1:0]} << lsu_addr_dc4[pt.XLEN_ADDR_OFF-1:0];
+   assign ldst_byteen_ext_dc5[(2*pt.XLEN_BYTES)-1:0] = {{pt.XLEN_BYTES{1'b0}},ldst_byteen_dc5[pt.XLEN_BYTES-1:0]} << lsu_addr_dc5[pt.XLEN_ADDR_OFF-1:0];
 
-   assign ldst_byteen_hi_dc2[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc2[(2*BYTE_WIDTH)-1:BYTE_WIDTH];
-   assign ldst_byteen_lo_dc2[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc2[BYTE_WIDTH-1:0];
-   assign ldst_byteen_hi_dc3[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc3[(2*BYTE_WIDTH)-1:BYTE_WIDTH];
-   assign ldst_byteen_lo_dc3[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc3[BYTE_WIDTH-1:0];
-   assign ldst_byteen_hi_dc4[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc4[(2*BYTE_WIDTH)-1:BYTE_WIDTH];
-   assign ldst_byteen_lo_dc4[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc4[BYTE_WIDTH-1:0];
-   assign ldst_byteen_hi_dc5[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc5[(2*BYTE_WIDTH)-1:BYTE_WIDTH];
-   assign ldst_byteen_lo_dc5[BYTE_WIDTH-1:0] = ldst_byteen_ext_dc5[BYTE_WIDTH-1:0];
+   assign ldst_byteen_hi_dc2[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc2[(2*pt.XLEN_BYTES)-1:pt.XLEN_BYTES];
+   assign ldst_byteen_lo_dc2[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc2[pt.XLEN_BYTES-1:0];
+   assign ldst_byteen_hi_dc3[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc3[(2*pt.XLEN_BYTES)-1:pt.XLEN_BYTES];
+   assign ldst_byteen_lo_dc3[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc3[pt.XLEN_BYTES-1:0];
+   assign ldst_byteen_hi_dc4[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc4[(2*pt.XLEN_BYTES)-1:pt.XLEN_BYTES];
+   assign ldst_byteen_lo_dc4[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc4[pt.XLEN_BYTES-1:0];
+   assign ldst_byteen_hi_dc5[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc5[(2*pt.XLEN_BYTES)-1:pt.XLEN_BYTES];
+   assign ldst_byteen_lo_dc5[pt.XLEN_BYTES-1:0] = ldst_byteen_ext_dc5[pt.XLEN_BYTES-1:0];
 
    assign store_data_hi_dc3[pt.XLEN-1:0] = store_data_ext_dc3[(pt.XLEN*2)-1:pt.XLEN];
    assign store_data_lo_dc3[pt.XLEN-1:0] = store_data_ext_dc3[pt.XLEN-1:0];
@@ -330,22 +326,22 @@ import eh2_pkg::*;
    assign store_data_hi_dc5[pt.XLEN-1:0] = store_data_ext_dc5[(pt.XLEN*2)-1:pt.XLEN];
    assign store_data_lo_dc5[pt.XLEN-1:0] = store_data_ext_dc5[pt.XLEN-1:0];
 
-   assign ld_addr_dc3hit_lo_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == lsu_addr_dc3[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
-   assign ld_addr_dc3hit_lo_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == lsu_addr_dc3[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
-   assign ld_addr_dc3hit_hi_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == end_addr_dc3[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
-   assign ld_addr_dc3hit_hi_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == end_addr_dc3[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_lo_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lsu_addr_dc3[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_lo_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lsu_addr_dc3[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_hi_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == end_addr_dc3[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
+   assign ld_addr_dc3hit_hi_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == end_addr_dc3[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc3.valid & lsu_pkt_dc3.store & lsu_busreq_dc2 & lsu_busreq_dc3 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc3.tid);
 
-   assign ld_addr_dc4hit_lo_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == lsu_addr_dc4[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
-   assign ld_addr_dc4hit_lo_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == lsu_addr_dc4[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
-   assign ld_addr_dc4hit_hi_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == end_addr_dc4[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
-   assign ld_addr_dc4hit_hi_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == end_addr_dc4[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_lo_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lsu_addr_dc4[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_lo_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lsu_addr_dc4[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_hi_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == end_addr_dc4[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
+   assign ld_addr_dc4hit_hi_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == end_addr_dc4[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc4.valid & lsu_pkt_dc4.store & lsu_busreq_dc2 & lsu_busreq_dc4 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc4.tid);
 
-   assign ld_addr_dc5hit_lo_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == lsu_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
-   assign ld_addr_dc5hit_lo_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == lsu_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
-   assign ld_addr_dc5hit_hi_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == end_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
-   assign ld_addr_dc5hit_hi_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == end_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_lo_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lsu_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_lo_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lsu_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_hi_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == end_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
+   assign ld_addr_dc5hit_hi_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == end_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.store & lsu_busreq_dc2 & lsu_busreq_dc5 & (lsu_pkt_dc2.tid ~^ lsu_pkt_dc5.tid);
 
-   for (genvar i=0; i<BYTE_WIDTH; i++) begin
+   for (genvar i=0; i<pt.XLEN_BYTES; i++) begin
       assign ld_byte_dc3hit_lo_lo[i] = ld_addr_dc3hit_lo_lo & ldst_byteen_lo_dc3[i] & ldst_byteen_lo_dc2[i];
       assign ld_byte_dc3hit_lo_hi[i] = ld_addr_dc3hit_lo_hi & ldst_byteen_lo_dc3[i] & ldst_byteen_hi_dc2[i];
       assign ld_byte_dc3hit_hi_lo[i] = ld_addr_dc3hit_hi_lo & ldst_byteen_hi_dc3[i] & ldst_byteen_lo_dc2[i];
@@ -410,7 +406,7 @@ import eh2_pkg::*;
    always_comb begin
       ld_full_hit_lo_dc2 = 1'b1;
       ld_full_hit_hi_dc2 = 1'b1;
-      for (int i=0; i<BYTE_WIDTH; i++) begin
+      for (int i=0; i<pt.XLEN_BYTES; i++) begin
          ld_full_hit_lo_dc2 &= (ld_byte_hit_lo[i] | ~ldst_byteen_lo_dc2[i]);
          ld_full_hit_hi_dc2 &= (ld_byte_hit_hi[i] | ~ldst_byteen_hi_dc2[i]);
       end
@@ -418,7 +414,7 @@ import eh2_pkg::*;
 
    // This will be high if all the bytes of load hit the stores in pipe/write buffer (dc3/dc4/dc5/wrbuf)
    assign ld_full_hit_dc2 = ld_full_hit_lo_dc2 & ld_full_hit_hi_dc2 & lsu_busreq_dc2 & lsu_pkt_dc2.load & ~is_sideeffects_dc2;
-   assign {ld_fwddata_dc2_nc[(pt.XLEN*2)-1:pt.XLEN], ld_fwddata_dc2[pt.XLEN-1:0]} = {ld_fwddata_hi[pt.XLEN-1:0], ld_fwddata_lo[pt.XLEN-1:0]} >> (8*lsu_addr_dc2[ADDR_LSB_OFFSET-1:0]);
+   assign {ld_fwddata_dc2_nc[(pt.XLEN*2)-1:pt.XLEN], ld_fwddata_dc2[pt.XLEN-1:0]} = {ld_fwddata_hi[pt.XLEN-1:0], ld_fwddata_lo[pt.XLEN-1:0]} >> (8*lsu_addr_dc2[pt.XLEN_ADDR_OFF-1:0]);
    assign bus_read_data_dc3[pt.XLEN-1:0] = ld_fwddata_dc3[pt.XLEN-1:0];
 
    // Non blocking ports
@@ -462,7 +458,7 @@ import eh2_pkg::*;
    assign lsu_axi_awlock                = '0;
 
    assign lsu_axi_wvalid                = obuf_valid[bus_tid] & obuf_write[bus_tid] & ~obuf_data_done[bus_tid] & ~bus_addr_match_pending[bus_tid];
-   assign lsu_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0] = obuf_byteen[bus_tid][pt.BUS_BYTE_WIDTH-1:0] & {pt.BUS_BYTE_WIDTH{obuf_write[bus_tid]}};
+   assign lsu_axi_wstrb[pt.BUS_BYTES-1:0] = obuf_byteen[bus_tid][pt.BUS_BYTES-1:0] & {pt.BUS_BYTES{obuf_write[bus_tid]}};
    assign lsu_axi_wdata[(pt.XLEN*2)-1:0] = obuf_data[bus_tid][(pt.XLEN*2)-1:0];
    assign lsu_axi_wlast                 = '1;
 

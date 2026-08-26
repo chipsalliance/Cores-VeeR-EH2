@@ -25,8 +25,8 @@ import eh2_pkg::*;
 #(
    TAG = 1,
    `include "eh2_param.vh",
-   parameter  unsigned DATA_WIDTH = 64,
-   localparam unsigned DATA_BYTE_WIDTH = DATA_WIDTH / 8
+   parameter  unsigned BUS_WIDTH = 64,
+   localparam unsigned BUS_BYTES = BUS_WIDTH / 8
 )
 //   ,TAG  = 1)
 (
@@ -49,8 +49,8 @@ import eh2_pkg::*;
 
    output logic                           axi_wvalid,
    input  logic                           axi_wready,
-   output logic [DATA_WIDTH-1:0]          axi_wdata,
-   output logic [DATA_BYTE_WIDTH-1:0]     axi_wstrb,
+   output logic [BUS_WIDTH-1:0]           axi_wdata,
+   output logic [BUS_BYTES-1:0]           axi_wstrb,
    output logic                           axi_wlast,
 
    input  logic                           axi_bvalid,
@@ -71,7 +71,7 @@ import eh2_pkg::*;
    input  logic                           axi_rvalid,
    output logic                           axi_rready,
    input  logic [TAG-1:0]                 axi_rid,
-   input  logic [DATA_WIDTH-1:0]          axi_rdata,
+   input  logic [BUS_WIDTH-1:0]           axi_rdata,
    input  logic [1:0]                     axi_rresp,
 
    // AHB-Lite signals
@@ -82,18 +82,18 @@ import eh2_pkg::*;
    input logic [2:0]                      ahb_hsize,     // size of bus transaction (possible values 0,1,2,3)
    input logic [1:0]                      ahb_htrans,    // Transaction type (possible values 0,2 only right now)
    input logic                            ahb_hwrite,    // ahb bus write
-   input logic [DATA_WIDTH-1:0]           ahb_hwdata,    // ahb bus write data
+   input logic [BUS_WIDTH-1:0]            ahb_hwdata,    // ahb bus write data
    input logic                            ahb_hsel,      // this slave was selected
    input logic                            ahb_hreadyin,  // previous hready was accepted or not
 
-   output logic [DATA_WIDTH-1:0]          ahb_hrdata,      // ahb bus read data
+   output logic [BUS_WIDTH-1:0]           ahb_hrdata,      // ahb bus read data
    output logic                           ahb_hreadyout,   // slave ready to accept transaction
    output logic                           ahb_hresp        // slave response (high indicates erro)
 
 );
 
-   localparam unsigned ADDR_BUS_LSB_OFFSET = $clog2(DATA_BYTE_WIDTH);
-   logic [DATA_BYTE_WIDTH-1:0] master_wstrb;
+   localparam unsigned BUS_ADDR_OFF = $clog2(BUS_BYTES);
+   logic [BUS_BYTES-1:0] master_wstrb;
 
    typedef enum logic [1:0] {   IDLE   = 2'b00,    // Nothing in the buffer. No commands yet recieved
                               WR     = 2'b01,    // Write Command recieved
@@ -105,7 +105,7 @@ import eh2_pkg::*;
 
    // Buffer signals (one entry buffer)
    logic                         buf_read_error_in, buf_read_error;
-   logic [DATA_WIDTH-1:0]        buf_rdata;
+   logic [BUS_WIDTH-1:0]         buf_rdata;
 
    logic                         ahb_hready;
    logic                         ahb_hready_q;
@@ -113,7 +113,7 @@ import eh2_pkg::*;
    logic [2:0]                   ahb_hsize_q;
    logic                         ahb_hwrite_q;
    logic [pt.XLEN-1:0]           ahb_haddr_q;
-   logic [DATA_WIDTH-1:0]        ahb_hwdata_q;
+   logic [BUS_WIDTH-1:0]         ahb_hwdata_q;
    logic                         ahb_hresp_q;
 
     //Miscellaneous signals
@@ -129,9 +129,9 @@ import eh2_pkg::*;
    logic                         cmdbuf_full;
    logic                         cmdbuf_vld, cmdbuf_write;
    logic [2:0]                   cmdbuf_size;
-   logic [DATA_BYTE_WIDTH-1:0]   cmdbuf_wstrb;
+   logic [BUS_BYTES-1:0]         cmdbuf_wstrb;
    logic [pt.XLEN-1:0]           cmdbuf_addr;
-   logic [DATA_WIDTH-1:0]        cmdbuf_wdata;
+   logic [BUS_WIDTH-1:0]         cmdbuf_wdata;
 
    logic                         bus_clk;
 
@@ -168,18 +168,18 @@ import eh2_pkg::*;
 
    rvdffs_fpga #($bits(state_t)) state_reg (.*, .din(buf_nxtstate), .dout({buf_state}), .en(buf_state_en), .clk(bus_clk), .clken(bus_clk_en), .rawclk(clk));
 
-   assign master_wstrb[DATA_BYTE_WIDTH-1:0]   =    ({DATA_BYTE_WIDTH{ahb_hsize_q[2:0] == 3'b0}}   & ((DATA_BYTE_WIDTH)'('b1)    << ahb_haddr_q[ADDR_BUS_LSB_OFFSET-1:0])) |
-                                                   ({DATA_BYTE_WIDTH{ahb_hsize_q[2:0] == 3'b001}} & ((DATA_BYTE_WIDTH)'('b11)   << ahb_haddr_q[ADDR_BUS_LSB_OFFSET-1:0])) |
-                                                   ({DATA_BYTE_WIDTH{ahb_hsize_q[2:0] == 3'b010}} & ((DATA_BYTE_WIDTH)'('b1111) << ahb_haddr_q[ADDR_BUS_LSB_OFFSET-1:0])) |
-                                                   ({DATA_BYTE_WIDTH{ahb_hsize_q[2:0] == 3'b011}} & ((DATA_BYTE_WIDTH)'('b1111_1111) << ahb_haddr_q[ADDR_BUS_LSB_OFFSET-1:0])) |
-                                                   ({DATA_BYTE_WIDTH{(ahb_hsize_q[2:0] == 3'b100) & (DATA_WIDTH == 128)}} & {DATA_BYTE_WIDTH{1'b1}}) ;
+   assign master_wstrb[BUS_BYTES-1:0]   =          ({BUS_BYTES{ahb_hsize_q[2:0] == 3'b0}}   & ((BUS_BYTES)'('b1)    << ahb_haddr_q[BUS_ADDR_OFF-1:0])) |
+                                                   ({BUS_BYTES{ahb_hsize_q[2:0] == 3'b001}} & ((BUS_BYTES)'('b11)   << ahb_haddr_q[BUS_ADDR_OFF-1:0])) |
+                                                   ({BUS_BYTES{ahb_hsize_q[2:0] == 3'b010}} & ((BUS_BYTES)'('b1111) << ahb_haddr_q[BUS_ADDR_OFF-1:0])) |
+                                                   ({BUS_BYTES{ahb_hsize_q[2:0] == 3'b011}} & ((BUS_BYTES)'('b1111_1111) << ahb_haddr_q[BUS_ADDR_OFF-1:0])) |
+                                                   ({BUS_BYTES{(ahb_hsize_q[2:0] == 3'b100) & (BUS_WIDTH == 128)}} & {BUS_BYTES{1'b1}}) ;
    // AHB signals
    assign ahb_hreadyout       = ahb_hresp ? (ahb_hresp_q & ~ahb_hready_q) :
                                          ((~cmdbuf_full | (buf_state == IDLE)) & ~(buf_state == RD | buf_state == PEND)  & ~buf_read_error);
 
    assign ahb_hready                   = ahb_hreadyout & ahb_hreadyin;
    assign ahb_htrans_in[1:0]           = {2{ahb_hsel}} & ahb_htrans[1:0];
-   assign ahb_hrdata[DATA_WIDTH-1:0] = buf_rdata[DATA_WIDTH-1:0];
+   assign ahb_hrdata[BUS_WIDTH-1:0] = buf_rdata[BUS_WIDTH-1:0];
    assign ahb_hresp        = ((ahb_htrans_q[1:0] != 2'b0) & (buf_state != IDLE)  &
 
                              ((~(ahb_addr_in_dccm | ahb_addr_in_iccm)) |                                                                                   // request not for ICCM or DCCM
@@ -187,12 +187,12 @@ import eh2_pkg::*;
                              ((ahb_hsize_q[2:0] == 3'h1) & ahb_haddr_q[0])   |                                                                             // 2-byte size but unaligned
                              ((ahb_hsize_q[2:0] == 3'h2) & (|ahb_haddr_q[1:0])) |                                                                          // 4-byte size but unaligned
                              ((ahb_hsize_q[2:0] == 3'h3) & (|ahb_haddr_q[2:0])))) |                                                                        // 8-byte size but unaligned
-                             ((DATA_WIDTH == 128) & (ahb_hsize_q[2:0] == 3'h4) & (|ahb_haddr_q[ADDR_BUS_LSB_OFFSET-1:0]))   |                              // 16-byte size but unaligned
+                             ((BUS_WIDTH == 128) & (ahb_hsize_q[2:0] == 3'h4) & (|ahb_haddr_q[BUS_ADDR_OFF-1:0]))   |                              // 16-byte size but unaligned
                              buf_read_error |                                                                                                              // Read ECC error
                              (ahb_hresp_q & ~ahb_hready_q);
 
    // Buffer signals - needed for the read data and ECC error response
-   rvdff_fpga  #(.WIDTH(DATA_WIDTH))   buf_rdata_ff     (.din(axi_rdata[DATA_WIDTH-1:0]),   .dout(buf_rdata[DATA_WIDTH-1:0]), .clk(buf_rdata_clk), .clken(buf_rdata_clk_en), .rawclk(clk), .*);
+   rvdff_fpga  #(.WIDTH(BUS_WIDTH))   buf_rdata_ff     (.din(axi_rdata[BUS_WIDTH-1:0]),   .dout(buf_rdata[BUS_WIDTH-1:0]), .clk(buf_rdata_clk), .clken(buf_rdata_clk_en), .rawclk(clk), .*);
    rvdff_fpga  #(.WIDTH(1))            buf_read_error_ff(.din(buf_read_error_in), .dout(buf_read_error),  .clk(bus_clk),       .clken(bus_clk_en),       .rawclk(clk), .*);          // buf_read_error will be high only one cycle
 
    // All the Master signals are captured before presenting it to the command buffer. We check for Hresp before sending it to the cmd buffer.
@@ -244,9 +244,9 @@ import eh2_pkg::*;
    rvdffsc_fpga #(.WIDTH(1))                 cmdbuf_vldff      (.din(1'b1),              .dout(cmdbuf_vld),         .en(cmdbuf_wr_en), .clear(cmdbuf_rst), .clk(bus_clk), .clken(bus_clk_en), .rawclk(clk), .*);
    rvdffs_fpga  #(.WIDTH(1))                 cmdbuf_writeff    (.din(ahb_hwrite_q),      .dout(cmdbuf_write),       .en(cmdbuf_wr_en),                     .clk(bus_clk), .clken(bus_clk_en), .rawclk(clk), .*);
    rvdffs_fpga  #(.WIDTH(3))                 cmdbuf_sizeff     (.din(ahb_hsize_q[2:0]),  .dout(cmdbuf_size[2:0]),   .en(cmdbuf_wr_en),                     .clk(bus_clk), .clken(bus_clk_en), .rawclk(clk), .*);
-   rvdffs_fpga  #(.WIDTH(DATA_BYTE_WIDTH))   cmdbuf_wstrbff    (.din(master_wstrb[DATA_BYTE_WIDTH-1:0]), .dout(cmdbuf_wstrb[DATA_BYTE_WIDTH-1:0]),  .en(cmdbuf_wr_en),                     .clk(bus_clk), .clken(bus_clk_en), .rawclk(clk), .*);
+   rvdffs_fpga  #(.WIDTH(BUS_BYTES))         cmdbuf_wstrbff    (.din(master_wstrb[BUS_BYTES-1:0]), .dout(cmdbuf_wstrb[BUS_BYTES-1:0]),  .en(cmdbuf_wr_en),                     .clk(bus_clk), .clken(bus_clk_en), .rawclk(clk), .*);
    rvdffe       #(.WIDTH(pt.XLEN))           cmdbuf_addrff     (.din(ahb_haddr_q[pt.XLEN-1:0]), .dout(cmdbuf_addr[pt.XLEN-1:0]),  .en(cmdbuf_wr_en & bus_clk_en),        .clk(clk), .*);
-   rvdffe       #(.WIDTH(DATA_WIDTH))        cmdbuf_wdataff    (.din(ahb_hwdata[DATA_WIDTH-1:0]),  .dout(cmdbuf_wdata[DATA_WIDTH-1:0]), .en(cmdbuf_wr_en & bus_clk_en),        .clk(clk), .*);
+   rvdffe       #(.WIDTH(BUS_WIDTH))         cmdbuf_wdataff    (.din(ahb_hwdata[BUS_WIDTH-1:0]),  .dout(cmdbuf_wdata[BUS_WIDTH-1:0]), .en(cmdbuf_wr_en & bus_clk_en),        .clk(clk), .*);
 
    // AXI Write Command Channel
    assign axi_awvalid                        = cmdbuf_vld & cmdbuf_write;
@@ -258,8 +258,8 @@ import eh2_pkg::*;
    assign axi_awburst[1:0]                   = 2'b01;
    // AXI Write Data Channel - This is tied to the command channel as we only write the command buffer once we have the data.
    assign axi_wvalid                         = cmdbuf_vld & cmdbuf_write;
-   assign axi_wdata[DATA_WIDTH-1:0]          = cmdbuf_wdata[DATA_WIDTH-1:0];
-   assign axi_wstrb[DATA_BYTE_WIDTH-1:0]     = cmdbuf_wstrb[DATA_BYTE_WIDTH-1:0];
+   assign axi_wdata[BUS_WIDTH-1:0]           = cmdbuf_wdata[BUS_WIDTH-1:0];
+   assign axi_wstrb[BUS_BYTES-1:0]           = cmdbuf_wstrb[BUS_BYTES-1:0];
    assign axi_wlast                          = 1'b1;
   // AXI Write Response - Always ready. AHB does not require a write response.
    assign axi_bready                         = 1'b1;

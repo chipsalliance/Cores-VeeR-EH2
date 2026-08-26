@@ -67,8 +67,8 @@ import eh2_pkg::*;
    input logic [11:0]            dec_lsu_offset_d,
    input logic [pt.XLEN-1:0]     dec_tlu_mrac_ff,           // CSR read
 
-   input eh2_lsu_pkt_t          lsu_p,                     // lsu control packet
-   input logic                    ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5,
+   input eh2_lsu_pkt_t           lsu_p,                     // lsu control packet
+   input logic                   ldst_dual_dc2, ldst_dual_dc3, ldst_dual_dc4, ldst_dual_dc5,
    input logic                   lsu_single_ecc_error_dc3,
    input logic                   lsu_double_ecc_error_dc3,
    output logic                  access_fault_dc3,
@@ -154,12 +154,9 @@ import eh2_pkg::*;
    input logic                   dma_mem_addr_in_dccm
 );
 
-   localparam BYTE_WIDTH = pt.XLEN / 8;
-   localparam BUS_ADDR_LSB_OFFSET = $clog2(pt.BUS_BYTE_WIDTH);
-   localparam ADDR_LSB_OFFSET = $clog2(BYTE_WIDTH);
    localparam THREADS         = pt.NUM_THREADS;
 
-   logic [pt.XLEN-1:BUS_ADDR_LSB_OFFSET] end_addr_pre_dc2, end_addr_pre_dc3, end_addr_pre_dc4, end_addr_pre_dc5;
+   logic [pt.XLEN-1:pt.BUS_ADDR_OFF] end_addr_pre_dc2, end_addr_pre_dc3, end_addr_pre_dc4, end_addr_pre_dc5;
    logic [pt.XLEN-1:0] core_start_addr_dc1;
    logic [pt.XLEN-1:0] core_end_addr_dc1;
    logic [pt.XLEN-1:0] lsu_rs1_d;
@@ -170,7 +167,7 @@ import eh2_pkg::*;
    logic [12:0]        end_addr_offset_dc1;
    logic [pt.XLEN-1:0] lsu_ld_datafn_dc3;
    logic [pt.XLEN-1:0] lsu_ld_datafn_corr_dc3;
-   logic [BUS_ADDR_LSB_OFFSET-1:0] addr_offset_dc1;
+   logic [pt.BUS_ADDR_OFF-1:0] addr_offset_dc1;
 
    logic               ldst_dual_dc1;
    logic               core_addr_in_dccm_dc1, core_addr_in_pic_dc1, core_addr_external_dc1;
@@ -238,18 +235,18 @@ import eh2_pkg::*;
   );
 
    // Calculate start/end address for load/store
-   assign addr_offset_dc1[BUS_ADDR_LSB_OFFSET-1:0] = ({BUS_ADDR_LSB_OFFSET{lsu_pkt_dc1_pre.half}}  & (BUS_ADDR_LSB_OFFSET)'('b1))   |
-                                                     ({BUS_ADDR_LSB_OFFSET{lsu_pkt_dc1_pre.word}}  & (BUS_ADDR_LSB_OFFSET)'('b11))  |
-                                                     ({BUS_ADDR_LSB_OFFSET{lsu_pkt_dc1_pre.dword}} & (BUS_ADDR_LSB_OFFSET)'('b111));
-   assign end_addr_offset_dc1[12:0] = {lsu_offset_dc1[11],lsu_offset_dc1[11:0]} + {{13-BUS_ADDR_LSB_OFFSET{1'b0}},addr_offset_dc1[BUS_ADDR_LSB_OFFSET-1:0]};
+   assign addr_offset_dc1[pt.BUS_ADDR_OFF-1:0] = ({pt.BUS_ADDR_OFF{lsu_pkt_dc1_pre.half}}  & (pt.BUS_ADDR_OFF)'('b1))   |
+                                                     ({pt.BUS_ADDR_OFF{lsu_pkt_dc1_pre.word}}  & (pt.BUS_ADDR_OFF)'('b11))  |
+                                                     ({pt.BUS_ADDR_OFF{lsu_pkt_dc1_pre.dword}} & (pt.BUS_ADDR_OFF)'('b111));
+   assign end_addr_offset_dc1[12:0] = {lsu_offset_dc1[11],lsu_offset_dc1[11:0]} + {{13-pt.BUS_ADDR_OFF{1'b0}},addr_offset_dc1[pt.BUS_ADDR_OFF-1:0]};
    assign end_addr_dc1[pt.XLEN-1:0] = lsu_pkt_dc1_pre.valid ? core_end_addr_dc1[pt.XLEN-1:0] : dma_end_addr_dc1[pt.XLEN-1:0];
    assign lsu_addr_dc1[pt.XLEN-1:0] = lsu_pkt_dc1_pre.valid ? core_start_addr_dc1[pt.XLEN-1:0] : dma_start_addr_dc1[pt.XLEN-1:0];   // absence load/store all 0's
 
    assign addr_in_dccm_dc1 = lsu_pkt_dc1_pre.valid ? core_addr_in_dccm_dc1 : dma_mem_addr_in_dccm;
    assign addr_in_pic_dc1  = lsu_pkt_dc1_pre.valid ? core_addr_in_pic_dc1 : ~dma_mem_addr_in_dccm;
    assign addr_external_dc1 = lsu_pkt_dc1_pre.valid & core_addr_external_dc1;
-   assign core_ldst_dual_dc1 = core_start_addr_dc1[ADDR_LSB_OFFSET] != core_end_addr_dc1[ADDR_LSB_OFFSET];
-   assign ldst_dual_dc1   = lsu_addr_dc1[ADDR_LSB_OFFSET] != end_addr_dc1[ADDR_LSB_OFFSET];
+   assign core_ldst_dual_dc1 = core_start_addr_dc1[pt.XLEN_ADDR_OFF] != core_end_addr_dc1[pt.XLEN_ADDR_OFF];
+   assign ldst_dual_dc1   = lsu_addr_dc1[pt.XLEN_ADDR_OFF] != end_addr_dc1[pt.XLEN_ADDR_OFF];
 
    // Goes to TLU to increment the ECC error counter
    assign lsu_single_ecc_error_incr = (lsu_single_ecc_error_dc5 & ~lsu_double_ecc_error_dc5) & (lsu_commit_dc5 | lsu_pkt_dc5.dma) & lsu_pkt_dc5.valid;
@@ -363,20 +360,20 @@ import eh2_pkg::*;
    rvdff #(pt.XLEN) sadc4ff  (.*, .din(lsu_addr_dc3[pt.XLEN-1:0]),      .dout(lsu_addr_dc4[pt.XLEN-1:0]),       .clk(lsu_c1_dc4_clk));
    rvdff #(pt.XLEN) sadc5ff  (.*, .din(lsu_addr_dc4[pt.XLEN-1:0]),      .dout(lsu_addr_dc5[pt.XLEN-1:0]),       .clk(lsu_c1_dc5_clk));
 
-   assign end_addr_dc2[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] = ldst_dual_dc2 ? end_addr_pre_dc2[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] : lsu_addr_dc2[pt.XLEN-1:BUS_ADDR_LSB_OFFSET];       // This is for power saving
-   assign end_addr_dc3[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] = ldst_dual_dc3 ? end_addr_pre_dc3[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] : lsu_addr_dc3[pt.XLEN-1:BUS_ADDR_LSB_OFFSET];       // This is for power saving
-   assign end_addr_dc4[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] = ldst_dual_dc4 ? end_addr_pre_dc4[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] : lsu_addr_dc4[pt.XLEN-1:BUS_ADDR_LSB_OFFSET];       // This is for power saving
-   assign end_addr_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] = ldst_dual_dc5 ? end_addr_pre_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] : lsu_addr_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET];       // This is for power saving
+   assign end_addr_dc2[pt.XLEN-1:pt.BUS_ADDR_OFF] = ldst_dual_dc2 ? end_addr_pre_dc2[pt.XLEN-1:pt.BUS_ADDR_OFF] : lsu_addr_dc2[pt.XLEN-1:pt.BUS_ADDR_OFF];       // This is for power saving
+   assign end_addr_dc3[pt.XLEN-1:pt.BUS_ADDR_OFF] = ldst_dual_dc3 ? end_addr_pre_dc3[pt.XLEN-1:pt.BUS_ADDR_OFF] : lsu_addr_dc3[pt.XLEN-1:pt.BUS_ADDR_OFF];       // This is for power saving
+   assign end_addr_dc4[pt.XLEN-1:pt.BUS_ADDR_OFF] = ldst_dual_dc4 ? end_addr_pre_dc4[pt.XLEN-1:pt.BUS_ADDR_OFF] : lsu_addr_dc4[pt.XLEN-1:pt.BUS_ADDR_OFF];       // This is for power saving
+   assign end_addr_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF] = ldst_dual_dc5 ? end_addr_pre_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF] : lsu_addr_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF];       // This is for power saving
 
-   rvdffe #(pt.XLEN-BUS_ADDR_LSB_OFFSET) end_addr_hi_dc2ff (.*, .din(end_addr_dc1[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]),    .dout(end_addr_pre_dc2[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]), .en(lsu_pkt_dc1.valid & ldst_dual_dc1));
-   rvdffe #(pt.XLEN-BUS_ADDR_LSB_OFFSET) end_addr_hi_dc3ff (.*, .din(end_addr_dc2[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]),    .dout(end_addr_pre_dc3[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]), .en(lsu_pkt_dc2.valid & ldst_dual_dc2));
-   rvdffe #(pt.XLEN-BUS_ADDR_LSB_OFFSET) end_addr_hi_dc4ff (.*, .din(end_addr_dc3[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]),    .dout(end_addr_pre_dc4[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]), .en(lsu_pkt_dc3.valid & ldst_dual_dc3));
-   rvdffe #(pt.XLEN-BUS_ADDR_LSB_OFFSET) end_addr_hi_dc5ff (.*, .din(end_addr_dc4[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]),    .dout(end_addr_pre_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]), .en(lsu_pkt_dc4.valid & ldst_dual_dc4));
+   rvdffe #(pt.XLEN-pt.BUS_ADDR_OFF) end_addr_hi_dc2ff (.*, .din(end_addr_dc1[pt.XLEN-1:pt.BUS_ADDR_OFF]),    .dout(end_addr_pre_dc2[pt.XLEN-1:pt.BUS_ADDR_OFF]), .en(lsu_pkt_dc1.valid & ldst_dual_dc1));
+   rvdffe #(pt.XLEN-pt.BUS_ADDR_OFF) end_addr_hi_dc3ff (.*, .din(end_addr_dc2[pt.XLEN-1:pt.BUS_ADDR_OFF]),    .dout(end_addr_pre_dc3[pt.XLEN-1:pt.BUS_ADDR_OFF]), .en(lsu_pkt_dc2.valid & ldst_dual_dc2));
+   rvdffe #(pt.XLEN-pt.BUS_ADDR_OFF) end_addr_hi_dc4ff (.*, .din(end_addr_dc3[pt.XLEN-1:pt.BUS_ADDR_OFF]),    .dout(end_addr_pre_dc4[pt.XLEN-1:pt.BUS_ADDR_OFF]), .en(lsu_pkt_dc3.valid & ldst_dual_dc3));
+   rvdffe #(pt.XLEN-pt.BUS_ADDR_OFF) end_addr_hi_dc5ff (.*, .din(end_addr_dc4[pt.XLEN-1:pt.BUS_ADDR_OFF]),    .dout(end_addr_pre_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF]), .en(lsu_pkt_dc4.valid & ldst_dual_dc4));
 
-   rvdff #(BUS_ADDR_LSB_OFFSET) end_addr_lo_dc2ff (.*, .din(end_addr_dc1[BUS_ADDR_LSB_OFFSET-1:0]),    .dout(end_addr_dc2[BUS_ADDR_LSB_OFFSET-1:0]), .clk(lsu_c1_dc2_clk));
-   rvdff #(BUS_ADDR_LSB_OFFSET) end_addr_lo_dc3ff (.*, .din(end_addr_dc2[BUS_ADDR_LSB_OFFSET-1:0]),    .dout(end_addr_dc3[BUS_ADDR_LSB_OFFSET-1:0]), .clk(lsu_c1_dc3_clk));
-   rvdff #(BUS_ADDR_LSB_OFFSET) end_addr_lo_dc4ff (.*, .din(end_addr_dc3[BUS_ADDR_LSB_OFFSET-1:0]),    .dout(end_addr_dc4[BUS_ADDR_LSB_OFFSET-1:0]), .clk(lsu_c1_dc4_clk));
-   rvdff #(BUS_ADDR_LSB_OFFSET) end_addr_lo_dc5ff (.*, .din(end_addr_dc4[BUS_ADDR_LSB_OFFSET-1:0]),    .dout(end_addr_dc5[BUS_ADDR_LSB_OFFSET-1:0]), .clk(lsu_c1_dc5_clk));
+   rvdff #(pt.BUS_ADDR_OFF) end_addr_lo_dc2ff (.*, .din(end_addr_dc1[pt.BUS_ADDR_OFF-1:0]),    .dout(end_addr_dc2[pt.BUS_ADDR_OFF-1:0]), .clk(lsu_c1_dc2_clk));
+   rvdff #(pt.BUS_ADDR_OFF) end_addr_lo_dc3ff (.*, .din(end_addr_dc2[pt.BUS_ADDR_OFF-1:0]),    .dout(end_addr_dc3[pt.BUS_ADDR_OFF-1:0]), .clk(lsu_c1_dc3_clk));
+   rvdff #(pt.BUS_ADDR_OFF) end_addr_lo_dc4ff (.*, .din(end_addr_dc3[pt.BUS_ADDR_OFF-1:0]),    .dout(end_addr_dc4[pt.BUS_ADDR_OFF-1:0]), .clk(lsu_c1_dc4_clk));
+   rvdff #(pt.BUS_ADDR_OFF) end_addr_lo_dc5ff (.*, .din(end_addr_dc4[pt.BUS_ADDR_OFF-1:0]),    .dout(end_addr_dc5[pt.BUS_ADDR_OFF-1:0]), .clk(lsu_c1_dc5_clk));
 
    rvdff #(1) addr_in_dccm_dc2ff(.din(addr_in_dccm_dc1), .dout(addr_in_dccm_dc2), .clk(lsu_c2_dc2_clk), .*);
    rvdff #(1) addr_in_dccm_dc3ff(.din(addr_in_dccm_dc2), .dout(addr_in_dccm_dc3), .clk(lsu_c2_dc3_clk), .*);
@@ -404,16 +401,16 @@ import eh2_pkg::*;
    rvdff #(2) fir_error_dc4ff                (.din(lsu_fir_error_dc3[1:0]),       .dout(lsu_fir_error[1:0]),           .clk(lsu_c2_dc4_clk), .*);
 
    // Load Reservation
-   // when the LR commits - it will set a valid and its address [pt.XLEN-1:ADDR_LSB_OFFSET] for its own thread's LR
+   // when the LR commits - it will set a valid and its address [pt.XLEN-1:pt.XLEN_ADDR_OFF] for its own thread's LR
    // the Reset conditions are :
    // Same Thread : 1) Any Store Conditional - match or not is not relevant
    //               2) Entering Debug,
    //               3) Leaving Debug,
    //               4) Mret, Interrup or Exception
    //
-   // Other Thread :1) Store or AMO to this location ( pt.XLEN-1:ADDR_LSB_OFFSET match )
+   // Other Thread :1) Store or AMO to this location ( pt.XLEN-1:pt.XLEN_ADDR_OFF match )
    if (pt.ATOMIC_ENABLE == 1) begin: GenAtomic
-      logic [THREADS-1:0] [pt.XLEN-1:ADDR_LSB_OFFSET] lr_addr;   // Per Thread LR stations
+      logic [THREADS-1:0] [pt.XLEN-1:pt.XLEN_ADDR_OFF] lr_addr;   // Per Thread LR stations
       logic [THREADS-1:0]        lr_wr_en;   // set and reset logic
       logic                      tid_dc5;
       logic [THREADS-1:0]        lsu_sc_success_vec_dc5;
@@ -422,7 +419,7 @@ import eh2_pkg::*;
       always_comb  begin : store_cond
         lsu_sc_success_vec_dc5[THREADS-1:0] = '0;
         for (int i=0; i < THREADS; i++ ) begin
-        lsu_sc_success_vec_dc5[i] = (i == tid_dc5) & (lsu_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET] == lr_addr[i][pt.XLEN-1:ADDR_LSB_OFFSET]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.sc & lr_vld[i];
+        lsu_sc_success_vec_dc5[i] = (i == tid_dc5) & (lsu_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lr_addr[i][pt.XLEN-1:pt.XLEN_ADDR_OFF]) & lsu_pkt_dc5.valid & lsu_pkt_dc5.sc & lr_vld[i];
         end
       end : store_cond
 
@@ -431,11 +428,11 @@ import eh2_pkg::*;
       for (genvar i=0; i<THREADS; i++) begin
          assign lr_wr_en[i] =  ( i == tid_dc5 )  & lsu_commit_dc5 & lsu_pkt_dc5.lr;
          assign lr_reset[i] =  (( i == tid_dc5 ) & (lsu_commit_dc5 & lsu_pkt_dc5.sc))                                               |        // same thread cases. One signal from tlu covers the non-lsu cases
-                               (i != tid_dc5     & (lsu_commit_dc5 & lsu_pkt_dc5.store & (~lsu_pkt_dc5.sc | lsu_sc_success_dc5) & ((lsu_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET] == lr_addr[i][pt.XLEN-1:ADDR_LSB_OFFSET]) | (end_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET] == lr_addr[i][pt.XLEN-1:ADDR_LSB_OFFSET])))) |        // other thread case - any update to this location
+                               (i != tid_dc5     & (lsu_commit_dc5 & lsu_pkt_dc5.store & (~lsu_pkt_dc5.sc | lsu_sc_success_dc5) & ((lsu_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lr_addr[i][pt.XLEN-1:pt.XLEN_ADDR_OFF]) | (end_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF] == lr_addr[i][pt.XLEN-1:pt.XLEN_ADDR_OFF])))) |        // other thread case - any update to this location
                                dec_tlu_lr_reset_wb[i]                                                                               |        // Reset from dec
-                               (lsu_pkt_dc5.valid & lsu_pkt_dc5.dma  & lsu_pkt_dc5.store & (lsu_addr_dc5[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] == lr_addr[i][pt.XLEN-1:BUS_ADDR_LSB_OFFSET]) & (lsu_pkt_dc5.dword | (lsu_addr_dc5[2] == lr_addr[i][2])));  // DMA store case
+                               (lsu_pkt_dc5.valid & lsu_pkt_dc5.dma  & lsu_pkt_dc5.store & (lsu_addr_dc5[pt.XLEN-1:pt.BUS_ADDR_OFF] == lr_addr[i][pt.XLEN-1:pt.BUS_ADDR_OFF]) & (lsu_pkt_dc5.dword | (lsu_addr_dc5[2] == lr_addr[i][2])));  // DMA store case
          rvdffsc #(.WIDTH(1))  lr_vldff   (.din(1'b1),               .dout(lr_vld[i]),  .en(lr_wr_en[i]), .clear(lr_reset[i]), .clk(lsu_free_c2_clk), .*);
-         rvdffe  #(.WIDTH(30)) lr_address (.din(lsu_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET]), .dout(lr_addr[i]), .en(lr_wr_en[i]),                                             .*);
+         rvdffe  #(.WIDTH(30)) lr_address (.din(lsu_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF]), .dout(lr_addr[i]), .en(lr_wr_en[i]),                                             .*);
       end
    end // block: GenAtomic
    else begin: GenNoAtomic

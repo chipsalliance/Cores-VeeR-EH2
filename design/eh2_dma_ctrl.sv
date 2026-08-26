@@ -92,7 +92,7 @@ import eh2_pkg::*;
    input  logic                        dma_axi_wvalid,
    output logic                        dma_axi_wready,
    input  logic [pt.BUS_WIDTH-1:0]     dma_axi_wdata,
-   input  logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb,
+   input  logic [pt.BUS_BYTES-1:0]     dma_axi_wstrb,
 
    output logic                        dma_axi_bvalid,
    input  logic                        dma_axi_bready,
@@ -114,10 +114,6 @@ import eh2_pkg::*;
    output logic                        dma_axi_rlast
 );
 
-   localparam unsigned BYTE_WIDTH = pt.XLEN / 8;
-   localparam unsigned ADDR_LSB_OFFSET = $clog2(BYTE_WIDTH);
-   localparam unsigned BUS_ADDR_LSB_OFFSET = $clog2(pt.BUS_BYTE_WIDTH);
-
    localparam DEPTH = pt.DMA_BUF_DEPTH;
    localparam DEPTH_PTR = $clog2(DEPTH);
    localparam NACK_COUNT = 7;
@@ -132,7 +128,7 @@ import eh2_pkg::*;
    logic [DEPTH-1:0]        fifo_done_bus;  // DMA trxn is done in core but synced to bus clock
    logic [DEPTH-1:0][pt.XLEN-1:0] fifo_addr;
    logic [DEPTH-1:0][2:0]   fifo_sz;
-   logic [DEPTH-1:0][pt.BUS_BYTE_WIDTH-1:0] fifo_byteen;
+   logic [DEPTH-1:0][pt.BUS_BYTES-1:0] fifo_byteen;
    logic [DEPTH-1:0]        fifo_write;
    logic [DEPTH-1:0]        fifo_posted_write;
    logic [DEPTH-1:0]        fifo_dbg;
@@ -158,25 +154,25 @@ import eh2_pkg::*;
    logic                    fifo_dbg_in;
    logic [pt.XLEN-1:0]      fifo_addr_in;
    logic [2:0]              fifo_sz_in;
-   logic [pt.BUS_BYTE_WIDTH-1:0] fifo_byteen_in;
+   logic [pt.BUS_BYTES-1:0] fifo_byteen_in;
 
    logic [DEPTH_PTR-1:0]    RspPtr, NxtRspPtr;
    logic [DEPTH_PTR-1:0]    WrPtr, NxtWrPtr;
    logic [DEPTH_PTR-1:0]    RdPtr, NxtRdPtr;
    logic                    WrPtrEn, RdPtrEn, RspPtrEn;
 
-   logic [1:0]              dma_dbg_sz;
-   logic [ADDR_LSB_OFFSET-1:0] dma_dbg_addr;
-   logic [pt.XLEN-1:0]      dma_dbg_mem_rddata;
-   logic [pt.XLEN-1:0]      dma_dbg_mem_wrdata;
-   logic                    dma_dbg_cmd_error;
-   logic                    dma_dbg_cmd_done_q;
+   logic [1:0]                   dma_dbg_sz;
+   logic [pt.XLEN_ADDR_OFF-1:0]  dma_dbg_addr;
+   logic [pt.XLEN-1:0]           dma_dbg_mem_rddata;
+   logic [pt.XLEN-1:0]           dma_dbg_mem_wrdata;
+   logic                         dma_dbg_cmd_error;
+   logic                         dma_dbg_cmd_done_q;
 
    logic                    fifo_full, fifo_full_spec, fifo_empty;
    logic                    dma_address_error, dma_alignment_error;
    logic [3:0]              num_fifo_vld;
    logic                    dma_mem_req_spec, dma_mem_req;
-   logic [pt.BUS_BYTE_WIDTH-1:0] dma_mem_byteen;
+   logic [pt.BUS_BYTES-1:0] dma_mem_byteen;
    logic [pt.XLEN-1:0]      dma_mem_addr_int;
    logic [2:0]              dma_mem_sz_int;
    logic                    dma_mem_addr_in_iccm;
@@ -196,7 +192,7 @@ import eh2_pkg::*;
    logic                    bus_rsp_valid, bus_rsp_sent;
    logic                    bus_cmd_valid, bus_cmd_sent;
    logic                    bus_cmd_read, bus_cmd_write, bus_cmd_posted_write;
-   logic [pt.BUS_BYTE_WIDTH-1:0] bus_cmd_byteen;
+   logic [pt.BUS_BYTES-1:0] bus_cmd_byteen;
    logic [2:0]              bus_cmd_sz;
    logic [pt.XLEN-1:0]      bus_cmd_addr;
    logic [pt.BUS_WIDTH-1:0]  bus_cmd_wdata;
@@ -216,8 +212,8 @@ import eh2_pkg::*;
    logic [pt.DMA_BUS_TAG-1:0]  wrbuf_tag;
    logic [2:0]                 wrbuf_sz;
    logic [pt.XLEN-1:0]         wrbuf_addr;
-   logic [pt.BUS_WIDTH-1:0]     wrbuf_data;
-   logic [pt.BUS_BYTE_WIDTH-1:0] wrbuf_byteen;
+   logic [pt.BUS_WIDTH-1:0]    wrbuf_data;
+   logic [pt.BUS_BYTES-1:0]    wrbuf_byteen;
 
    logic                       rdbuf_en;
    logic                       rdbuf_cmd_sent, rdbuf_rst;
@@ -243,9 +239,9 @@ import eh2_pkg::*;
    // FIFO inputs
    assign dbg_mem_cmd_valid     = dbg_cmd_valid & dbg_cmd_type[1];
    assign fifo_addr_in[pt.XLEN-1:0] = dbg_mem_cmd_valid ? dbg_cmd_addr[pt.XLEN-1:0] : bus_cmd_addr[pt.XLEN-1:0];
-   assign fifo_byteen_in[pt.BUS_BYTE_WIDTH-1:0] = dbg_mem_cmd_valid ?
-                                                   ({{BYTE_WIDTH{1'b0}}, {BYTE_WIDTH{1'b1}}} << BYTE_WIDTH*dbg_cmd_addr[ADDR_LSB_OFFSET]) :
-                                                   bus_cmd_byteen[pt.BUS_BYTE_WIDTH-1:0];
+   assign fifo_byteen_in[pt.BUS_BYTES-1:0] = dbg_mem_cmd_valid ?
+                                                   ({{pt.XLEN_BYTES{1'b0}}, {pt.XLEN_BYTES{1'b1}}} << pt.XLEN_BYTES*dbg_cmd_addr[pt.XLEN_ADDR_OFF]) :
+                                                   bus_cmd_byteen[pt.BUS_BYTES-1:0];
    assign fifo_sz_in[2:0]       = dbg_mem_cmd_valid ? {1'b0,dbg_cmd_size[1:0]} : bus_cmd_sz[2:0];
    assign fifo_write_in         = dbg_mem_cmd_valid ? dbg_cmd_write : bus_cmd_write;
    assign fifo_posted_write_in  = ~dbg_mem_cmd_valid & bus_cmd_posted_write;
@@ -283,7 +279,7 @@ import eh2_pkg::*;
       rvdffsc #(1) fifo_done_bus_dff (.din(1'b1), .dout(fifo_done_bus[i]), .en(fifo_done_bus_en[i]), .clear(fifo_reset[i]), .clk(dma_free_clk), .*);
       rvdffe  #(pt.XLEN) fifo_addr_dff (.din(fifo_addr_in[pt.XLEN-1:0]), .dout(fifo_addr[i]), .en(fifo_cmd_en[i]), .*);
       rvdffs  #(3) fifo_sz_dff (.din(fifo_sz_in[2:0]), .dout(fifo_sz[i]), .en(fifo_cmd_en[i]), .clk(dma_buffer_c1_clk), .*);
-      rvdffs  #(pt.BUS_BYTE_WIDTH) fifo_byteen_dff (.din(fifo_byteen_in[pt.BUS_BYTE_WIDTH-1:0]), .dout(fifo_byteen[i]), .en(fifo_cmd_en[i]), .clk(dma_buffer_c1_clk), .*);
+      rvdffs  #(pt.BUS_BYTES) fifo_byteen_dff (.din(fifo_byteen_in[pt.BUS_BYTES-1:0]), .dout(fifo_byteen[i]), .en(fifo_cmd_en[i]), .clk(dma_buffer_c1_clk), .*);
       rvdffs  #(1) fifo_write_dff (.din(fifo_write_in), .dout(fifo_write[i]), .en(fifo_cmd_en[i]), .clk(dma_buffer_c1_clk), .*);
       rvdffs  #(1) fifo_posted_write_dff (.din(fifo_posted_write_in), .dout(fifo_posted_write[i]), .en(fifo_cmd_en[i]), .clk(dma_buffer_c1_clk), .*);
       rvdffs  #(1) fifo_dbg_dff (.din(fifo_dbg_in), .dout(fifo_dbg[i]), .en(fifo_cmd_en[i]), .clk(dma_buffer_c1_clk), .*);
@@ -336,11 +332,11 @@ import eh2_pkg::*;
    assign dma_dbg_cmd_fail     = (|fifo_error[RspPtr] & dma_dbg_cmd_done);
 
    assign dma_dbg_sz[1:0] = fifo_sz[RspPtr][1:0];
-   assign dma_dbg_addr[ADDR_LSB_OFFSET-1:0] = fifo_addr[RspPtr][ADDR_LSB_OFFSET-1:0];
+   assign dma_dbg_addr[pt.XLEN_ADDR_OFF-1:0] = fifo_addr[RspPtr][pt.XLEN_ADDR_OFF-1:0];
    assign dma_dbg_mem_rddata[pt.XLEN-1:0] = fifo_addr[RspPtr][2] ? fifo_data[RspPtr][pt.BUS_WIDTH-1:pt.XLEN] : fifo_data[RspPtr][pt.XLEN-1:0];
-   assign dma_dbg_rddata[pt.XLEN-1:0] = ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h0)}} & ((dma_dbg_mem_rddata[pt.XLEN-1:0] >> 8*dma_dbg_addr[ADDR_LSB_OFFSET-1:0]) & pt.XLEN'('hff))) |
-                                        ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h1)}} & ((dma_dbg_mem_rddata[pt.XLEN-1:0] >> 16*dma_dbg_addr[ADDR_LSB_OFFSET-1:1]) & pt.XLEN'('hffff))) |
-                                        ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h2)}} & ((dma_dbg_mem_rddata[pt.XLEN-1:0] >> ((32*dma_dbg_addr[ADDR_LSB_OFFSET-1]) & (pt.XLEN == 32))) & pt.XLEN'('hffffffffff))) |
+   assign dma_dbg_rddata[pt.XLEN-1:0] = ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h0)}} & ((dma_dbg_mem_rddata[pt.XLEN-1:0] >> 8*dma_dbg_addr[pt.XLEN_ADDR_OFF-1:0]) & pt.XLEN'('hff))) |
+                                        ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h1)}} & ((dma_dbg_mem_rddata[pt.XLEN-1:0] >> 16*dma_dbg_addr[pt.XLEN_ADDR_OFF-1:1]) & pt.XLEN'('hffff))) |
+                                        ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h2)}} & ((dma_dbg_mem_rddata[pt.XLEN-1:0] >> ((32*dma_dbg_addr[pt.XLEN_ADDR_OFF-1]) & (pt.XLEN == 32))) & pt.XLEN'('hffffffffff))) |
                                         ({pt.XLEN{(dma_dbg_sz[1:0] == 2'h3) & (pt.XLEN == 64)}} & dma_dbg_mem_rddata[pt.XLEN-1:0]);
 
    assign dma_dbg_cmd_error = fifo_valid[RdPtr] & ~fifo_done[RdPtr] & fifo_dbg[RdPtr] &
@@ -375,9 +371,9 @@ import eh2_pkg::*;
    assign dma_mem_tag[2:0]    = 3'(RdPtr);
    assign dma_mem_addr_int[pt.XLEN-1:0] = fifo_addr[RdPtr];
    assign dma_mem_sz_int[2:0] = fifo_sz[RdPtr];
-   assign dma_mem_addr[pt.XLEN-1:0]  = (dma_mem_write & ~fifo_dbg[RdPtr] & (dma_mem_byteen[pt.BUS_BYTE_WIDTH-1:0] == 8'hf0)) ? {dma_mem_addr_int[pt.XLEN-1:3],1'b1,dma_mem_addr_int[1:0]} : dma_mem_addr_int[pt.XLEN-1:0];
-   assign dma_mem_sz[2:0]     = (dma_mem_write & ~fifo_dbg[RdPtr] & ((dma_mem_byteen[pt.BUS_BYTE_WIDTH-1:0] == 8'h0f) | (dma_mem_byteen[pt.BUS_BYTE_WIDTH-1:0] == 8'hf0))) ? 3'h2 : dma_mem_sz_int[2:0];
-   assign dma_mem_byteen[pt.BUS_BYTE_WIDTH-1:0] = fifo_byteen[RdPtr];
+   assign dma_mem_addr[pt.XLEN-1:0]  = (dma_mem_write & ~fifo_dbg[RdPtr] & (dma_mem_byteen[pt.BUS_BYTES-1:0] == 8'hf0)) ? {dma_mem_addr_int[pt.XLEN-1:3],1'b1,dma_mem_addr_int[1:0]} : dma_mem_addr_int[pt.XLEN-1:0];
+   assign dma_mem_sz[2:0]     = (dma_mem_write & ~fifo_dbg[RdPtr] & ((dma_mem_byteen[pt.BUS_BYTES-1:0] == 8'h0f) | (dma_mem_byteen[pt.BUS_BYTES-1:0] == 8'hf0))) ? 3'h2 : dma_mem_sz_int[2:0];
+   assign dma_mem_byteen[pt.BUS_BYTES-1:0] = fifo_byteen[RdPtr];
    assign dma_mem_write       = fifo_write[RdPtr];
    assign dma_mem_wdata[pt.BUS_WIDTH-1:0] = fifo_data[RdPtr];
 
@@ -456,7 +452,7 @@ import eh2_pkg::*;
    rvdffs_fpga   #(.WIDTH(3))              wrbuf_szff        (.din(dma_axi_awsize[2:0]),                  .dout(wrbuf_sz[2:0]),                       .en(wrbuf_en),                       .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
    rvdffe        #(.WIDTH(pt.XLEN))        wrbuf_addrff      (.din(dma_axi_awaddr[pt.XLEN-1:0]),          .dout(wrbuf_addr[pt.XLEN-1:0]),             .en(wrbuf_en & dma_bus_clk_en), .*);
    rvdffe        #(.WIDTH(pt.BUS_WIDTH))   wrbuf_dataff      (.din(dma_axi_wdata[pt.BUS_WIDTH-1:0]),      .dout(wrbuf_data[pt.BUS_WIDTH-1:0]),        .en(wrbuf_data_en & dma_bus_clk_en), .*);
-   rvdffs_fpga   #(.WIDTH(pt.BUS_BYTE_WIDTH)) wrbuf_byteenff (.din(dma_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0]), .dout(wrbuf_byteen[pt.BUS_BYTE_WIDTH-1:0]), .en(wrbuf_data_en),                  .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
+   rvdffs_fpga   #(.WIDTH(pt.BUS_BYTES)) wrbuf_byteenff (.din(dma_axi_wstrb[pt.BUS_BYTES-1:0]), .dout(wrbuf_byteen[pt.BUS_BYTES-1:0]), .en(wrbuf_data_en),                  .clk(dma_bus_clk), .clken(dma_bus_clk_en), .rawclk(clk), .*);
 
    // Read channel buffer
    assign rdbuf_en    = dma_axi_arvalid & dma_axi_arready;
@@ -480,7 +476,7 @@ import eh2_pkg::*;
    assign bus_cmd_addr[pt.XLEN-1:0]         = axi_mstr_sel ? wrbuf_addr[pt.XLEN-1:0] : rdbuf_addr[pt.XLEN-1:0];
    assign bus_cmd_sz[2:0]                   = axi_mstr_sel ? wrbuf_sz[2:0] : rdbuf_sz[2:0];
    assign bus_cmd_wdata[pt.BUS_WIDTH-1:0]   = wrbuf_data[pt.BUS_WIDTH-1:0];
-   assign bus_cmd_byteen[pt.BUS_BYTE_WIDTH-1:0] = wrbuf_byteen[pt.BUS_BYTE_WIDTH-1:0];
+   assign bus_cmd_byteen[pt.BUS_BYTES-1:0] = wrbuf_byteen[pt.BUS_BYTES-1:0];
    assign bus_cmd_tag[pt.DMA_BUS_TAG-1:0]   = axi_mstr_sel ? wrbuf_tag[pt.DMA_BUS_TAG-1:0] : rdbuf_tag[pt.DMA_BUS_TAG-1:0];
    assign bus_cmd_mid[pt.DMA_BUS_ID-1:0]    = '0;
    assign bus_cmd_prty[pt.DMA_BUS_PRTY-1:0] = '0;

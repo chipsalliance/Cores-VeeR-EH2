@@ -139,7 +139,7 @@ module tb_top;
     wire                            lsu_axi_wvalid;
     wire                            lsu_axi_wready;
     wire [`RV_BUS_WIDTH-1:0]        lsu_axi_wdata;
-    wire [`RV_BUS_BYTE_WIDTH-1:0]   lsu_axi_wstrb;
+    wire [`RV_BUS_BYTES-1:0]        lsu_axi_wstrb;
     wire                            lsu_axi_wlast;
 
     wire                            lsu_axi_bvalid;
@@ -233,7 +233,7 @@ module tb_top;
     wire                            sb_axi_wvalid;
     wire                            sb_axi_wready;
     wire [`RV_BUS_WIDTH-1:0]        sb_axi_wdata;
-    wire [`RV_BUS_BYTE_WIDTH-1:0]   sb_axi_wstrb;
+    wire [`RV_BUS_BYTES-1:0]        sb_axi_wstrb;
     wire                            sb_axi_wlast;
 
     wire                            sb_axi_bvalid;
@@ -277,7 +277,7 @@ module tb_top;
     wire                            dma_axi_wvalid;
     wire                            dma_axi_wready;
     wire [`RV_BUS_WIDTH-1:0]        dma_axi_wdata;
-    wire [`RV_BUS_BYTE_WIDTH-1:0]   dma_axi_wstrb;
+    wire [`RV_BUS_BYTES-1:0]        dma_axi_wstrb;
     wire                            dma_axi_wlast;
 
     wire                            dma_axi_bvalid;

@@ -162,8 +162,6 @@ import eh2_pkg::*;
    input logic                             scan_mode           // scan mode
 );
 
-   localparam DCCM_WIDTH_BITS = $clog2(pt.DCCM_BYTE_WIDTH);
-
    logic                              lsu_dccm_rden_dc1, lsu_dccm_rden_dc2, disable_ecc_check_lo_dc2, disable_ecc_check_hi_dc2;
    logic                              lsu_dccm_wren_dc1, lsu_dccm_wren_spec_dc1;
    logic [pt.DCCM_DATA_WIDTH-1:0]     store_data_hi_dc4, store_data_lo_dc4, dccm_data_lo_dc4_in, dccm_data_hi_dc4_in, dccm_data_lo_dc5_in, dccm_data_hi_dc5_in, store_data_lo_dc5, store_data_hi_dc5;
@@ -244,8 +242,8 @@ import eh2_pkg::*;
    assign lsu_stbuf_ecc_block = ld_single_ecc_error_dc3 | ld_single_ecc_error_dc4 | ld_single_ecc_error_dc5;
    assign lsu_stbuf_commit_any = stbuf_reqvld_any & ~lsu_stbuf_ecc_block &
                                  ((~(lsu_dccm_rden_dc1 | lsu_dccm_wren_spec_dc1 | ld_single_ecc_error_dc5_ff)) |
-                                  (lsu_dccm_rden_dc1 & (~((stbuf_addr_any[DCCM_WIDTH_BITS+:pt.DCCM_BANK_BITS] == lsu_addr_dc1[DCCM_WIDTH_BITS+:pt.DCCM_BANK_BITS]) |
-                                                          (stbuf_addr_any[DCCM_WIDTH_BITS+:pt.DCCM_BANK_BITS] == end_addr_dc1[DCCM_WIDTH_BITS+:pt.DCCM_BANK_BITS])))));
+                                  (lsu_dccm_rden_dc1 & (~((stbuf_addr_any[pt.DCCM_ADDR_OFF+:pt.DCCM_BANK_BITS] == lsu_addr_dc1[pt.DCCM_ADDR_OFF+:pt.DCCM_BANK_BITS]) |
+                                                          (stbuf_addr_any[pt.DCCM_ADDR_OFF+:pt.DCCM_BANK_BITS] == end_addr_dc1[pt.DCCM_ADDR_OFF+:pt.DCCM_BANK_BITS])))));
 
    // No need to read for aligned word/dword stores since ECC will come by new data completely
    // read enable is speculative for timing reasons

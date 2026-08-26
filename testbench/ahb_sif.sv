@@ -33,12 +33,11 @@ output logic HRESP,
 output logic [`RV_BUS_WIDTH-1:0] HRDATA
 );
 
-localparam int ADDR_BUS_LSB_OFFSET = $clog2(`RV_BUS_BYTE_WIDTH);
 parameter MAILBOX_ADDR = {{(`RV_XLEN-32){1'b0}}, 32'hD0580000};
 
 logic write;
 logic [`RV_XLEN-1:0] laddr, addr;
-logic [`RV_BUS_BYTE_WIDTH-1:0] strb_lat;
+logic [`RV_BUS_BYTES-1:0] strb_lat;
 logic [`RV_BUS_WIDTH-1:0] rdata;
 
 bit [7:0] mem [bit[`RV_XLEN-1:0]];
@@ -51,11 +50,11 @@ bit ok;
 
 // Wires
 wire [`RV_BUS_WIDTH-1:0] WriteData = HWDATA;
-wire [`RV_BUS_BYTE_WIDTH-1:0] strb =    HSIZE == 3'b000 ? `RV_BUS_BYTE_WIDTH'('h1) << HADDR[ADDR_BUS_LSB_OFFSET-1:0] :
-                                        HSIZE == 3'b001 ? `RV_BUS_BYTE_WIDTH'('h3) << {HADDR[ADDR_BUS_LSB_OFFSET-1:1],1'b0} :
-                                        HSIZE == 3'b010 ? `RV_BUS_BYTE_WIDTH'('hf) << {HADDR[ADDR_BUS_LSB_OFFSET-1:2],2'b0} :
-                                        HSIZE == 3'b011 ? (`RV_BUS_WIDTH == 64 ? `RV_BUS_BYTE_WIDTH'('hff) : `RV_BUS_BYTE_WIDTH'('hff) << {HADDR[ADDR_BUS_LSB_OFFSET-1], 3'b0}) :
-                                        HSIZE == 3'b100 & `RV_BUS_WIDTH == 128 ? `RV_BUS_BYTE_WIDTH'('hffff) : 0;
+wire [`RV_BUS_BYTES-1:0] strb =         HSIZE == 3'b000 ? `RV_BUS_BYTES'('h1) << HADDR[`RV_BUS_ADDR_OFF-1:0] :
+                                        HSIZE == 3'b001 ? `RV_BUS_BYTES'('h3) << {HADDR[`RV_BUS_ADDR_OFF-1:1],1'b0} :
+                                        HSIZE == 3'b010 ? `RV_BUS_BYTES'('hf) << {HADDR[`RV_BUS_ADDR_OFF-1:2],2'b0} :
+                                        HSIZE == 3'b011 ? (`RV_BUS_WIDTH == 64 ? `RV_BUS_BYTES'('hff) : `RV_BUS_BYTES'('hff) << {HADDR[`RV_BUS_ADDR_OFF-1], 3'b0}) :
+                                        HSIZE == 3'b100 & `RV_BUS_WIDTH == 128 ? `RV_BUS_BYTES'('hffff) : 0;
 
 wire mailbox_write = write && HSEL && HREADY && laddr==MAILBOX_ADDR;
 
@@ -71,7 +70,7 @@ always @ (negedge HCLK ) begin
     if(HREADY)
         addr = HADDR;
     if (write & HREADY) begin
-        for (int i=0; i<`RV_BUS_BYTE_WIDTH; i++) begin
+        for (int i=0; i<`RV_BUS_BYTES; i++) begin
             if (strb_lat[i]) mem[{laddr[`RV_XLEN-1:3], 3'(i)}] = HWDATA[i*8 +: 8];
         end
     end
@@ -106,7 +105,7 @@ always @(posedge HCLK or negedge HRESETn) begin
             laddr <= HADDR;
             write <= HWRITE & |HTRANS;
             if(|HTRANS & ~HWRITE) begin
-                for (int i=0; i<`RV_BUS_BYTE_WIDTH; i++) begin
+                for (int i=0; i<`RV_BUS_BYTES; i++) begin
                     rdata[i*8 +: 8] = mem[{addr[`RV_XLEN-1:3], 3'(i)}];
                 end
             end
@@ -150,7 +149,7 @@ input [1:0]                     awburst,
 input [2:0]                     awsize,
 
 input [`RV_BUS_WIDTH-1:0]       wdata,
-input [`RV_BUS_BYTE_WIDTH-1:0]  wstrb,
+input [`RV_BUS_BYTES-1:0]  wstrb,
 input                           wvalid,
 output                          wready,
 
@@ -160,7 +159,6 @@ output reg [1:0]                bresp,
 output reg [TAGW-1:0]           bid
 );
 
-localparam int ADDR_BUS_LSB_OFFSET = $clog2(`RV_BUS_BYTE_WIDTH);
 parameter MAILBOX_ADDR = {{(`RV_XLEN-32){1'b0}},32'hD0580000};
 parameter MEM_SIZE_DW = 8192;
 
@@ -188,18 +186,18 @@ always @ ( posedge aclk or negedge rst_l) begin
     end
 end
 
-assign raddr = {araddr[`RV_XLEN-1:ADDR_BUS_LSB_OFFSET], {ADDR_BUS_LSB_OFFSET{1'b0}}};
-assign waddr = {awaddr[`RV_XLEN-1:ADDR_BUS_LSB_OFFSET], {ADDR_BUS_LSB_OFFSET{1'b0}}};
+assign raddr = {araddr[`RV_XLEN-1:`RV_BUS_ADDR_OFF], {`RV_BUS_ADDR_OFF{1'b0}}};
+assign waddr = {awaddr[`RV_XLEN-1:`RV_BUS_ADDR_OFF], {`RV_BUS_ADDR_OFF{1'b0}}};
 
 always @ ( negedge aclk) begin
     if(arvalid) begin
-        for (int i=0; i<`RV_BUS_BYTE_WIDTH; i++) begin
+        for (int i=0; i<`RV_BUS_BYTES; i++) begin
             memdata[i*8 +: 8] = mem[raddr+i];
         end
     end
 
     if(awvalid) begin
-        for (int i=0; i<`RV_BUS_BYTE_WIDTH; i++) begin
+        for (int i=0; i<`RV_BUS_BYTES; i++) begin
             if(wstrb[i]) mem[waddr+i] = wdata[i*8 +: 8];
         end
     end

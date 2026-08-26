@@ -26,9 +26,6 @@
 module eh2_lsu_bus_buffer
 import eh2_pkg::*;
 #(
-   localparam unsigned BYTE_WIDTH = pt.XLEN / 8,
-   localparam unsigned ADDR_LSB_OFFSET = $clog2(BYTE_WIDTH),
-   localparam unsigned BUS_ADDR_LSB_OFFSET = $clog2(pt.BUS_BYTE_WIDTH),
 `include "eh2_param.vh"
 )(
    input logic                          clk,
@@ -68,8 +65,8 @@ import eh2_pkg::*;
    input logic [pt.XLEN-1:0]            lsu_addr_dc5,                     // lsu address flowing down the pipe
    input logic [pt.XLEN-1:0]            end_addr_dc5,                     // lsu address flowing down the pipe
 
-   input logic [BYTE_WIDTH-1:0]         ldst_byteen_hi_dc5,
-   input logic [BYTE_WIDTH-1:0]         ldst_byteen_lo_dc5,
+   input logic [pt.XLEN_BYTES-1:0]      ldst_byteen_hi_dc5,
+   input logic [pt.XLEN_BYTES-1:0]      ldst_byteen_lo_dc5,
    input logic [pt.XLEN-1:0]            store_data_hi_dc5,
    input logic [pt.XLEN-1:0]            store_data_lo_dc5,
 
@@ -91,7 +88,7 @@ import eh2_pkg::*;
    input logic                          ldst_dual_dc4,                    // load/store is unaligned at 32 bit boundary
    input logic                          ldst_dual_dc5,                    // load/store is unaligned at 32 bit boundary
 
-   input logic [(BYTE_WIDTH*2)-1:0]     ldst_byteen_ext_dc2,
+   input logic [(pt.XLEN_BYTES*2)-1:0]  ldst_byteen_ext_dc2,
 
    input logic                          lsu_bus_cntr_overflow,
    input logic                          bus_cmd_sent, bus_cmd_ready,
@@ -115,7 +112,7 @@ import eh2_pkg::*;
    output logic                         lsu_bus_buffer_empty_any,         // bus buffer is empty
    input logic                          lsu_bus_idle_any,                 // No pending responses from the bus
 
-   output logic [BYTE_WIDTH-1:0]        ld_byte_hit_buf_lo, ld_byte_hit_buf_hi,    // Byte enables for forwarding data
+   output logic [pt.XLEN_BYTES-1:0]     ld_byte_hit_buf_lo, ld_byte_hit_buf_hi,    // Byte enables for forwarding data
    output logic [pt.XLEN-1:0]           ld_fwddata_buf_lo, ld_fwddata_buf_hi,      // load forwarding data
 
    output logic                         lsu_imprecise_error_load_any,     // imprecise load bus error
@@ -131,8 +128,8 @@ import eh2_pkg::*;
    output logic                               obuf_sideeffect,
    output logic [pt.XLEN-1:0]                 obuf_addr,
    output logic [pt.BUS_WIDTH-1:0]            obuf_data,
-   output logic [ADDR_LSB_OFFSET-1:0]         obuf_sz,
-   output logic [(BYTE_WIDTH*2)-1:0]          obuf_byteen,
+   output logic [pt.XLEN_ADDR_OFF-1:0]        obuf_sz,
+   output logic [(pt.XLEN_BYTES*2)-1:0]       obuf_byteen,
    output logic                               obuf_cmd_done, obuf_data_done,
    output logic [pt.LSU_BUS_TAG-1:0]          obuf_tag0,
    output logic                               obuf_nxtready,
@@ -160,21 +157,21 @@ import eh2_pkg::*;
    localparam TIMER_LOG2 = (TIMER < 2) ? 1 : $clog2(TIMER);
    localparam TIMER_MAX = (TIMER == 0) ? TIMER_LOG2'(0) : TIMER_LOG2'(TIMER - 1);  // Maximum value of timer
 
-   logic [BYTE_WIDTH-1:0]               ldst_byteen_hi_dc2, ldst_byteen_lo_dc2;
-   logic [DEPTH-1:0]                    ld_addr_hitvec_lo, ld_addr_hitvec_hi;
-   logic [BYTE_WIDTH-1:0][DEPTH-1:0]    ld_byte_hitvec_lo, ld_byte_hitvec_hi;
-   logic [BYTE_WIDTH-1:0][DEPTH-1:0]    ld_byte_hitvecfn_lo, ld_byte_hitvecfn_hi;
+   logic [pt.XLEN_BYTES-1:0]              ldst_byteen_hi_dc2, ldst_byteen_lo_dc2;
+   logic [DEPTH-1:0]                      ld_addr_hitvec_lo, ld_addr_hitvec_hi;
+   logic [pt.XLEN_BYTES-1:0][DEPTH-1:0]   ld_byte_hitvec_lo, ld_byte_hitvec_hi;
+   logic [pt.XLEN_BYTES-1:0][DEPTH-1:0]   ld_byte_hitvecfn_lo, ld_byte_hitvecfn_hi;
 
-   logic                                ld_addr_ibuf_hit_lo, ld_addr_ibuf_hit_hi;
-   logic [BYTE_WIDTH-1:0]               ld_byte_ibuf_hit_lo, ld_byte_ibuf_hit_hi;
+   logic                                  ld_addr_ibuf_hit_lo, ld_addr_ibuf_hit_hi;
+   logic [pt.XLEN_BYTES-1:0]              ld_byte_ibuf_hit_lo, ld_byte_ibuf_hit_hi;
 
-   logic [pt.XLEN-1:0]                  lsu_nonblock_load_data_hi, lsu_nonblock_load_data_lo, lsu_nonblock_data_unalgn;
-   logic [ADDR_LSB_OFFSET-1:0]          lsu_nonblock_addr_offset;
-   logic [ADDR_LSB_OFFSET-1:0]          lsu_nonblock_sz;
-   logic                                lsu_nonblock_load_rtn_valid;
-   logic                                lsu_nonblock_unsign, lsu_nonblock_dual;
-   logic [DEPTH_LOG2-1:0]               lsu_imprecise_error_load_tag;
-   logic [pt.LSU_BUS_TAG-1:0]           lsu_imprecise_error_store_tag;
+   logic [pt.XLEN-1:0]                    lsu_nonblock_load_data_hi, lsu_nonblock_load_data_lo, lsu_nonblock_data_unalgn;
+   logic [pt.XLEN_ADDR_OFF-1:0]           lsu_nonblock_addr_offset;
+   logic [pt.XLEN_ADDR_OFF-1:0]           lsu_nonblock_sz;
+   logic                                  lsu_nonblock_load_rtn_valid;
+   logic                                  lsu_nonblock_unsign, lsu_nonblock_dual;
+   logic [DEPTH_LOG2-1:0]                 lsu_imprecise_error_load_tag;
+   logic [pt.LSU_BUS_TAG-1:0]             lsu_imprecise_error_store_tag;
 
    logic [DEPTH-1:0]                    CmdPtr0Dec, CmdPtr1Dec;
    logic [DEPTH-1:0]                    RspPtrDec;
@@ -189,9 +186,9 @@ import eh2_pkg::*;
 
    // Bus buffer signals
    state_t [DEPTH-1:0]                  buf_state;
-   logic   [DEPTH-1:0][ADDR_LSB_OFFSET-1:0] buf_sz;
+   logic   [DEPTH-1:0][pt.XLEN_ADDR_OFF-1:0] buf_sz;
    logic   [DEPTH-1:0][pt.XLEN-1:0]     buf_addr;
-   logic   [DEPTH-1:0][BYTE_WIDTH-1:0]  buf_byteen;
+   logic   [DEPTH-1:0][pt.XLEN_BYTES-1:0]  buf_byteen;
    logic   [DEPTH-1:0]                  buf_sideeffect;
    logic   [DEPTH-1:0]                  buf_write;
    logic   [DEPTH-1:0]                  buf_unsign;
@@ -218,7 +215,7 @@ import eh2_pkg::*;
    logic   [DEPTH-1:0]                  buf_nomerge_in;
    logic   [DEPTH-1:0]                  buf_sideeffect_in;
    logic   [DEPTH-1:0]                  buf_unsign_in;
-   logic   [DEPTH-1:0][ADDR_LSB_OFFSET-1:0] buf_sz_in;
+   logic   [DEPTH-1:0][pt.XLEN_ADDR_OFF-1:0] buf_sz_in;
    logic   [DEPTH-1:0]                  buf_write_in;
    logic   [DEPTH-1:0]                  buf_wr_en;
    logic   [DEPTH-1:0]                  buf_dualhi_in;
@@ -226,7 +223,7 @@ import eh2_pkg::*;
    logic   [DEPTH-1:0]                  buf_ldfwd_en;
    logic   [DEPTH-1:0]                  buf_ldfwd_in;
    logic   [DEPTH-1:0][DEPTH_LOG2-1:0]  buf_ldfwdtag_in;
-   logic   [DEPTH-1:0][BYTE_WIDTH-1:0]  buf_byteen_in;
+   logic   [DEPTH-1:0][pt.XLEN_BYTES-1:0]  buf_byteen_in;
    logic   [DEPTH-1:0][pt.XLEN-1:0]     buf_addr_in;
    logic   [DEPTH-1:0][pt.XLEN-1:0]     buf_data_in;
    logic   [DEPTH-1:0]                  buf_error_en;
@@ -248,8 +245,8 @@ import eh2_pkg::*;
    logic                               ibuf_sideeffect;
    logic                               ibuf_unsign;
    logic                               ibuf_write;
-   logic [ADDR_LSB_OFFSET-1:0]         ibuf_sz;
-   logic [BYTE_WIDTH-1:0]              ibuf_byteen;
+   logic [pt.XLEN_ADDR_OFF-1:0]        ibuf_sz;
+   logic [pt.XLEN_BYTES-1:0]           ibuf_byteen;
    logic [pt.XLEN-1:0]                 ibuf_addr;
    logic [pt.XLEN-1:0]                 ibuf_data;
    logic [TIMER_LOG2-1:0]              ibuf_timer;
@@ -262,12 +259,12 @@ import eh2_pkg::*;
    logic [DEPTH-1:0]                   ibuf_drainvec_vld;
    logic [DEPTH_LOG2-1:0]              ibuf_tag_in;
    logic [DEPTH_LOG2-1:0]              ibuf_dualtag_in;
-   logic [ADDR_LSB_OFFSET-1:0]         ibuf_sz_in;
+   logic [pt.XLEN_ADDR_OFF-1:0]        ibuf_sz_in;
    logic [pt.XLEN-1:0]                 ibuf_addr_in;
-   logic [BYTE_WIDTH-1:0]              ibuf_byteen_in;
+   logic [pt.XLEN_BYTES-1:0]           ibuf_byteen_in;
    logic [pt.XLEN-1:0]                 ibuf_data_in;
    logic [TIMER_LOG2-1:0]              ibuf_timer_in;
-   logic [BYTE_WIDTH-1:0]              ibuf_byteen_out;
+   logic [pt.XLEN_BYTES-1:0]           ibuf_byteen_out;
    logic [pt.XLEN-1:0]                 ibuf_data_out;
    logic                               ibuf_merge_en, ibuf_merge_in;
 
@@ -290,8 +287,8 @@ import eh2_pkg::*;
    logic                               obuf_aligned_in;
    logic [pt.XLEN-1:0]                 obuf_addr_in;
    logic [pt.BUS_WIDTH-1:0]            obuf_data_in;
-   logic [ADDR_LSB_OFFSET-1:0]         obuf_sz_in;
-   logic [pt.BUS_BYTE_WIDTH-1:0]       obuf_byteen_in;
+   logic [pt.XLEN_ADDR_OFF-1:0]        obuf_sz_in;
+   logic [pt.BUS_BYTES-1:0]            obuf_byteen_in;
    logic                               obuf_cmd_done_in, obuf_data_done_in;
    logic                               obuf_merge_in;
    logic [pt.LSU_BUS_TAG-1:0]          obuf_tag0_in;
@@ -300,7 +297,7 @@ import eh2_pkg::*;
 
    logic                               obuf_merge_en;
    logic [TIMER_LOG2-1:0]              obuf_wr_timer, obuf_wr_timer_in;
-   logic [pt.BUS_BYTE_WIDTH-1:0]       obuf_byteen0_in, obuf_byteen1_in;
+   logic [pt.BUS_BYTES-1:0]            obuf_byteen0_in, obuf_byteen1_in;
    logic [pt.BUS_WIDTH-1:0]            obuf_data0_in, obuf_data1_in;
 
    // Function to do 8 to 3 bit encoding
@@ -324,15 +321,15 @@ import eh2_pkg::*;
    //------------------------------------------------------------------------------
 
    // Buffer hit logic for bus load forwarding
-   assign ldst_byteen_hi_dc2[BYTE_WIDTH-1:0]   = ldst_byteen_ext_dc2[(BYTE_WIDTH*2)-1:BYTE_WIDTH];
-   assign ldst_byteen_lo_dc2[BYTE_WIDTH-1:0]   = ldst_byteen_ext_dc2[BYTE_WIDTH-1:0];
+   assign ldst_byteen_hi_dc2[pt.XLEN_BYTES-1:0]   = ldst_byteen_ext_dc2[(pt.XLEN_BYTES*2)-1:pt.XLEN_BYTES];
+   assign ldst_byteen_lo_dc2[pt.XLEN_BYTES-1:0]   = ldst_byteen_ext_dc2[pt.XLEN_BYTES-1:0];
    for (genvar i=0; i<DEPTH; i++) begin
       // We can't forward from RESP for ahb since multiple writes to the same address can be in RESP and we can't find out their age
-      assign ld_addr_hitvec_lo[i] = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == buf_addr[i][pt.XLEN-1:ADDR_LSB_OFFSET]) & buf_write[i] & ((buf_state[i] == WAIT) | (buf_state[i] == CMD)) & (lsu_pkt_dc2.tid ~^ tid) & lsu_busreq_dc2;
-      assign ld_addr_hitvec_hi[i] = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == buf_addr[i][pt.XLEN-1:ADDR_LSB_OFFSET]) & buf_write[i] & ((buf_state[i] == WAIT) | (buf_state[i] == CMD)) & (lsu_pkt_dc2.tid ~^ tid) & lsu_busreq_dc2;
+      assign ld_addr_hitvec_lo[i] = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == buf_addr[i][pt.XLEN-1:pt.XLEN_ADDR_OFF]) & buf_write[i] & ((buf_state[i] == WAIT) | (buf_state[i] == CMD)) & (lsu_pkt_dc2.tid ~^ tid) & lsu_busreq_dc2;
+      assign ld_addr_hitvec_hi[i] = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == buf_addr[i][pt.XLEN-1:pt.XLEN_ADDR_OFF]) & buf_write[i] & ((buf_state[i] == WAIT) | (buf_state[i] == CMD)) & (lsu_pkt_dc2.tid ~^ tid) & lsu_busreq_dc2;
    end
 
-   for (genvar j=0; j<BYTE_WIDTH; j++) begin
+   for (genvar j=0; j<pt.XLEN_BYTES; j++) begin
      assign ld_byte_hit_buf_lo[j] = |(ld_byte_hitvecfn_lo[j]) | ld_byte_ibuf_hit_lo[j];
      assign ld_byte_hit_buf_hi[j] = |(ld_byte_hitvecfn_hi[j]) | ld_byte_ibuf_hit_hi[j];
      for (genvar i=0; i<DEPTH; i++) begin
@@ -345,21 +342,21 @@ import eh2_pkg::*;
    end
 
    // Hit in the ibuf
-   assign ld_addr_ibuf_hit_lo = (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == ibuf_addr[pt.XLEN-1:ADDR_LSB_OFFSET]) & (lsu_pkt_dc2.tid ~^ tid) & ibuf_write & ibuf_valid & lsu_busreq_dc2;
-   assign ld_addr_ibuf_hit_hi = (end_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] == ibuf_addr[pt.XLEN-1:ADDR_LSB_OFFSET]) & (lsu_pkt_dc2.tid ~^ tid) & ibuf_write & ibuf_valid & lsu_busreq_dc2;
+   assign ld_addr_ibuf_hit_lo = (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == ibuf_addr[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & (lsu_pkt_dc2.tid ~^ tid) & ibuf_write & ibuf_valid & lsu_busreq_dc2;
+   assign ld_addr_ibuf_hit_hi = (end_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] == ibuf_addr[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & (lsu_pkt_dc2.tid ~^ tid) & ibuf_write & ibuf_valid & lsu_busreq_dc2;
 
-   for (genvar i=0; i<BYTE_WIDTH; i++) begin
+   for (genvar i=0; i<pt.XLEN_BYTES; i++) begin
       assign ld_byte_ibuf_hit_lo[i] = ld_addr_ibuf_hit_lo & ibuf_byteen[i] & ldst_byteen_lo_dc2[i];
       assign ld_byte_ibuf_hit_hi[i] = ld_addr_ibuf_hit_hi & ibuf_byteen[i] & ldst_byteen_hi_dc2[i];
    end
 
    always_comb begin
-      for (int i=0; i<BYTE_WIDTH; i++) begin
+      for (int i=0; i<pt.XLEN_BYTES; i++) begin
          ld_fwddata_buf_lo[(8*i)+:8] = {8{ld_byte_ibuf_hit_lo[i]}} & ibuf_data[(8*i)+:8];
          ld_fwddata_buf_hi[(8*i)+:8] = {8{ld_byte_ibuf_hit_hi[i]}} & ibuf_data[(8*i)+:8];
       end
       for (int i=0; i<DEPTH; i++) begin
-         for (int j=0; j<BYTE_WIDTH; j++) begin
+         for (int j=0; j<pt.XLEN_BYTES; j++) begin
             ld_fwddata_buf_lo[(8*j)+:8] |= {8{ld_byte_hitvecfn_lo[j][i]}} & buf_data[i][(8*j)+:8];
             ld_fwddata_buf_hi[(8*j)+:8] |= {8{ld_byte_hitvecfn_hi[j][i]}} & buf_data[i][(8*j)+:8];
          end
@@ -377,25 +374,25 @@ import eh2_pkg::*;
    assign ibuf_byp   = lsu_busreq_dc5 & ((lsu_pkt_dc5.load | no_word_merge_dc5) & ~ibuf_valid);    // Bypass if ibuf is empty and it's a load or no merge possible
    assign ibuf_wr_en = lsu_busreq_dc5 & lsu_commit_dc5 & (lsu_pkt_dc5.tid ~^ tid) & ~ibuf_byp;
    assign ibuf_rst   = (ibuf_drain_vld & ~ibuf_wr_en) | dec_tlu_force_halt;
-   assign ibuf_force_drain = lsu_busreq_dc2 & ~lsu_busreq_dc3 & ~lsu_busreq_dc4 & ~lsu_busreq_dc5 & ibuf_valid & (lsu_pkt_dc2.load | (ibuf_addr[pt.XLEN-1:ADDR_LSB_OFFSET] != lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET]));  // Move the ibuf to buf if there is a non-colaescable ld/st in dc2 but nothing in dc3/dc4/dc5
+   assign ibuf_force_drain = lsu_busreq_dc2 & ~lsu_busreq_dc3 & ~lsu_busreq_dc4 & ~lsu_busreq_dc5 & ibuf_valid & (lsu_pkt_dc2.load | (ibuf_addr[pt.XLEN-1:pt.XLEN_ADDR_OFF] != lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF]));  // Move the ibuf to buf if there is a non-colaescable ld/st in dc2 but nothing in dc3/dc4/dc5
    assign ibuf_drain_vld = ibuf_valid & (((ibuf_wr_en | (ibuf_timer == TIMER_MAX)) & ~(ibuf_merge_en & ibuf_merge_in)) | ibuf_byp | ibuf_force_drain | ibuf_sideeffect | ~ibuf_write | bus_coalescing_disable);
    assign ibuf_tag_in[DEPTH_LOG2-1:0] = (ibuf_merge_en & ibuf_merge_in) ? ibuf_tag[DEPTH_LOG2-1:0] : (ldst_dual_dc5 ? WrPtr1_dc5 : WrPtr0_dc5);
    assign ibuf_dualtag_in[DEPTH_LOG2-1:0] = WrPtr0_dc5;
    assign ibuf_sz_in[1:0] = {lsu_pkt_dc5.word, lsu_pkt_dc5.half} | ({2{(pt.XLEN == 64) & lsu_pkt_dc5.dword}}); // NOTE: Make sure lsu_pkt_dc3/dc4 are flopped in case of freeze (except the valid)
    assign ibuf_addr_in[pt.XLEN-1:0] = ldst_dual_dc5 ? end_addr_dc5[pt.XLEN-1:0] : lsu_addr_dc5[pt.XLEN-1:0];
-   assign ibuf_byteen_in[BYTE_WIDTH-1:0] = (ibuf_merge_en & ibuf_merge_in) ? (ibuf_byteen[BYTE_WIDTH-1:0] | ldst_byteen_lo_dc5[BYTE_WIDTH-1:0]) : (ldst_dual_dc5 ? ldst_byteen_hi_dc5[BYTE_WIDTH-1:0] : ldst_byteen_lo_dc5[BYTE_WIDTH-1:0]);
-   for (genvar i=0; i<BYTE_WIDTH; i++) begin
+   assign ibuf_byteen_in[pt.XLEN_BYTES-1:0] = (ibuf_merge_en & ibuf_merge_in) ? (ibuf_byteen[pt.XLEN_BYTES-1:0] | ldst_byteen_lo_dc5[pt.XLEN_BYTES-1:0]) : (ldst_dual_dc5 ? ldst_byteen_hi_dc5[pt.XLEN_BYTES-1:0] : ldst_byteen_lo_dc5[pt.XLEN_BYTES-1:0]);
+   for (genvar i=0; i<pt.XLEN_BYTES; i++) begin
       assign ibuf_data_in[8*i+:8] = (ibuf_merge_en & ibuf_merge_in) ? (ldst_byteen_lo_dc5[i] ? store_data_lo_dc5[8*i+:8] : ibuf_data[8*i+:8]) :
                                                                              (ldst_dual_dc5 ? store_data_hi_dc5[8*i+:8] : store_data_lo_dc5[8*i+:8]);
    end
    assign ibuf_timer_in = ibuf_wr_en ? '0 : (ibuf_timer < TIMER_MAX) ? (ibuf_timer + 1'b1) : ibuf_timer;
 
    assign ibuf_merge_en = lsu_busreq_dc5 & lsu_commit_dc5 & (lsu_pkt_dc5.tid ~^ tid) & lsu_pkt_dc5.store &
-                          ibuf_valid & ibuf_write & (lsu_addr_dc5[pt.XLEN-1:ADDR_LSB_OFFSET] == ibuf_addr[pt.XLEN-1:ADDR_LSB_OFFSET]) & ~is_sideeffects_dc5 & ~bus_coalescing_disable;
+                          ibuf_valid & ibuf_write & (lsu_addr_dc5[pt.XLEN-1:pt.XLEN_ADDR_OFF] == ibuf_addr[pt.XLEN-1:pt.XLEN_ADDR_OFF]) & ~is_sideeffects_dc5 & ~bus_coalescing_disable;
    assign ibuf_merge_in = ~ldst_dual_dc5;   // If it's a unaligned store, merge needs to happen on the way out of ibuf
 
    // ibuf signals going to bus buffer after merging
-   for (genvar i=0; i<BYTE_WIDTH; i++) begin
+   for (genvar i=0; i<pt.XLEN_BYTES; i++) begin
       assign ibuf_byteen_out[i] = (ibuf_merge_en & ~ibuf_merge_in) ? (ibuf_byteen[i] | ldst_byteen_lo_dc5[i]) : ibuf_byteen[i];
       assign ibuf_data_out[8*i+:8] = (ibuf_merge_en & ~ibuf_merge_in) ?
                                        (ldst_byteen_lo_dc5[i] ?
@@ -413,9 +410,9 @@ import eh2_pkg::*;
    rvdffs  #(.WIDTH(1))              ibuf_sideeffectff (.din(is_sideeffects_dc5),          .dout(ibuf_sideeffect), .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
    rvdffs  #(.WIDTH(1))              ibuf_unsignff     (.din(lsu_pkt_dc5.unsign),          .dout(ibuf_unsign),     .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
    rvdffs  #(.WIDTH(1))              ibuf_writeff      (.din(lsu_pkt_dc5.store),           .dout(ibuf_write),      .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
-   rvdffs  #(.WIDTH(ADDR_LSB_OFFSET)) ibuf_szff        (.din(ibuf_sz_in[ADDR_LSB_OFFSET-1:0]), .dout(ibuf_sz),     .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
+   rvdffs  #(.WIDTH(pt.XLEN_ADDR_OFF)) ibuf_szff        (.din(ibuf_sz_in[pt.XLEN_ADDR_OFF-1:0]), .dout(ibuf_sz),     .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
    rvdffe  #(.WIDTH(pt.XLEN))        ibuf_addrff       (.din(ibuf_addr_in[pt.XLEN-1:0]),   .dout(ibuf_addr),       .en(ibuf_wr_en),                                              .*);
-   rvdffs  #(.WIDTH(BYTE_WIDTH))     ibuf_byteenff     (.din(ibuf_byteen_in[BYTE_WIDTH-1:0]), .dout(ibuf_byteen),  .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
+   rvdffs  #(.WIDTH(pt.XLEN_BYTES))     ibuf_byteenff     (.din(ibuf_byteen_in[pt.XLEN_BYTES-1:0]), .dout(ibuf_byteen),  .en(ibuf_wr_en),                   .clk(lsu_bus_ibuf_c1_clk), .*);
    rvdffe  #(.WIDTH(pt.XLEN))        ibuf_dataff       (.din(ibuf_data_in[pt.XLEN-1:0]),   .dout(ibuf_data),       .en(ibuf_wr_en),                                              .*);
    rvdff   #(.WIDTH(TIMER_LOG2))     ibuf_timerff      (.din(ibuf_timer_in),               .dout(ibuf_timer),                                         .clk(lsu_free_c2_clk),     .*);
 
@@ -430,7 +427,7 @@ import eh2_pkg::*;
    assign obuf_wr_wait = (buf_numvld_wrcmd_any[3:0] == 4'b1) & (buf_numvld_cmd_any[3:0] == 4'b1) & (obuf_wr_timer != TIMER_MAX) &
                          ~bus_coalescing_disable & ~buf_nomerge[CmdPtr0] & ~buf_sideeffect[CmdPtr0] & ~obuf_force_wr_en;
    assign obuf_wr_timer_in = obuf_wr_en ? 3'b0: (((buf_numvld_cmd_any > 4'b0) & (obuf_wr_timer < TIMER_MAX)) ? (obuf_wr_timer + 1'b1) : obuf_wr_timer);
-   assign obuf_force_wr_en = lsu_busreq_dc2 & ~lsu_busreq_dc3 & ~lsu_busreq_dc4 & ~lsu_busreq_dc5 & ~ibuf_valid & (buf_numvld_cmd_any[3:0] == 4'b1) & (lsu_addr_dc2[pt.XLEN-1:ADDR_LSB_OFFSET] != buf_addr[CmdPtr0][pt.XLEN-1:ADDR_LSB_OFFSET]);   // Entry in dc2 can't merge with entry going to obuf and there is no entry in between
+   assign obuf_force_wr_en = lsu_busreq_dc2 & ~lsu_busreq_dc3 & ~lsu_busreq_dc4 & ~lsu_busreq_dc5 & ~ibuf_valid & (buf_numvld_cmd_any[3:0] == 4'b1) & (lsu_addr_dc2[pt.XLEN-1:pt.XLEN_ADDR_OFF] != buf_addr[CmdPtr0][pt.XLEN-1:pt.XLEN_ADDR_OFF]);   // Entry in dc2 can't merge with entry going to obuf and there is no entry in between
    assign ibuf_buf_byp = ibuf_byp & (buf_numvld_pend_any[3:0] == 4'b0) & (~lsu_pkt_dc5.store | no_dword_merge_dc5);
 
    assign obuf_wr_en = ((ibuf_buf_byp & lsu_commit_dc5 & (lsu_pkt_dc5.tid ~^ tid) & ~(is_sideeffects_dc5 & bus_sideeffect_pend)) |
@@ -460,34 +457,34 @@ import eh2_pkg::*;
    assign obuf_rdrsp_pend_en  = dec_tlu_force_halt | lsu_bus_clk_en;
    assign obuf_rdrsp_tag_in[pt.LSU_BUS_TAG-1:0] = (bus_cmd_sent & ~obuf_write & (bus_tid == tid)) ? obuf_tag0[pt.LSU_BUS_TAG-1:0] : obuf_rdrsp_tag[pt.LSU_BUS_TAG-1:0];
 
-   assign obuf_nosend_in      = (obuf_addr_in[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] == obuf_addr[pt.XLEN-1:BUS_ADDR_LSB_OFFSET]) & obuf_aligned_in & ~obuf_sideeffect & ~obuf_write & ~obuf_write_in & ~dec_tlu_external_ldfwd_disable &
+   assign obuf_nosend_in      = (obuf_addr_in[pt.XLEN-1:pt.BUS_ADDR_OFF] == obuf_addr[pt.XLEN-1:pt.BUS_ADDR_OFF]) & obuf_aligned_in & ~obuf_sideeffect & ~obuf_write & ~obuf_write_in & ~dec_tlu_external_ldfwd_disable &
                                 ((obuf_valid & ~obuf_nosend) | (obuf_rdrsp_pend & ~(bus_rsp_read & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag))));
 
-   assign obuf_byteen0_in[pt.BUS_BYTE_WIDTH-1:0] = ibuf_buf_byp ? (lsu_addr_dc5[ADDR_LSB_OFFSET] ?
-                                                                     {ldst_byteen_lo_dc5[BYTE_WIDTH-1:0],{BYTE_WIDTH{1'b0}}} :
-                                                                     {{BYTE_WIDTH{1'b0}},ldst_byteen_lo_dc5[BYTE_WIDTH-1:0]}) :
-                                                                  (buf_addr[CmdPtr0][ADDR_LSB_OFFSET] ?
-                                                                     {buf_byteen[CmdPtr0],{BYTE_WIDTH{1'b0}}} :
-                                                                     {{BYTE_WIDTH{1'b0}},buf_byteen[CmdPtr0]});
-   assign obuf_byteen1_in[pt.BUS_BYTE_WIDTH-1:0] = ibuf_buf_byp ? (end_addr_dc5[ADDR_LSB_OFFSET] ?
-                                                                     {ldst_byteen_hi_dc5[BYTE_WIDTH-1:0],{BYTE_WIDTH{1'b0}}} :
-                                                                     {{BYTE_WIDTH{1'b0}},ldst_byteen_hi_dc5[BYTE_WIDTH-1:0]}) :
-                                                                  (buf_addr[CmdPtr1][ADDR_LSB_OFFSET] ?
-                                                                     {buf_byteen[CmdPtr1],{BYTE_WIDTH{1'b0}}} :
-                                                                     {{BYTE_WIDTH{1'b0}},buf_byteen[CmdPtr1]});
-   assign obuf_data0_in[pt.BUS_WIDTH-1:0]  = ibuf_buf_byp ? (lsu_addr_dc5[ADDR_LSB_OFFSET] ?
+   assign obuf_byteen0_in[pt.BUS_BYTES-1:0]      = ibuf_buf_byp ? (lsu_addr_dc5[pt.XLEN_ADDR_OFF] ?
+                                                                     {ldst_byteen_lo_dc5[pt.XLEN_BYTES-1:0],{pt.XLEN_BYTES{1'b0}}} :
+                                                                     {{pt.XLEN_BYTES{1'b0}},ldst_byteen_lo_dc5[pt.XLEN_BYTES-1:0]}) :
+                                                                  (buf_addr[CmdPtr0][pt.XLEN_ADDR_OFF] ?
+                                                                     {buf_byteen[CmdPtr0],{pt.XLEN_BYTES{1'b0}}} :
+                                                                     {{pt.XLEN_BYTES{1'b0}},buf_byteen[CmdPtr0]});
+   assign obuf_byteen1_in[pt.BUS_BYTES-1:0]      = ibuf_buf_byp ? (end_addr_dc5[pt.XLEN_ADDR_OFF] ?
+                                                                     {ldst_byteen_hi_dc5[pt.XLEN_BYTES-1:0],{pt.XLEN_BYTES{1'b0}}} :
+                                                                     {{pt.XLEN_BYTES{1'b0}},ldst_byteen_hi_dc5[pt.XLEN_BYTES-1:0]}) :
+                                                                  (buf_addr[CmdPtr1][pt.XLEN_ADDR_OFF] ?
+                                                                     {buf_byteen[CmdPtr1],{pt.XLEN_BYTES{1'b0}}} :
+                                                                     {{pt.XLEN_BYTES{1'b0}},buf_byteen[CmdPtr1]});
+   assign obuf_data0_in[pt.BUS_WIDTH-1:0]  = ibuf_buf_byp ? (lsu_addr_dc5[pt.XLEN_ADDR_OFF] ?
                                                                {store_data_lo_dc5[pt.XLEN-1:0],{pt.XLEN{1'b0}}} :
                                                                {{pt.XLEN{1'b0}},store_data_lo_dc5[pt.XLEN-1:0]}) :
-                                                            (buf_addr[CmdPtr0][ADDR_LSB_OFFSET] ?
+                                                            (buf_addr[CmdPtr0][pt.XLEN_ADDR_OFF] ?
                                                                {buf_data[CmdPtr0],{pt.XLEN{1'b0}}} :
                                                                {{pt.XLEN{1'b0}},buf_data[CmdPtr0]});
-   assign obuf_data1_in[pt.BUS_WIDTH-1:0]  = ibuf_buf_byp ? (end_addr_dc5[ADDR_LSB_OFFSET] ?
+   assign obuf_data1_in[pt.BUS_WIDTH-1:0]  = ibuf_buf_byp ? (end_addr_dc5[pt.XLEN_ADDR_OFF] ?
                                                                {store_data_hi_dc5[pt.XLEN-1:0],{pt.XLEN{1'b0}}} :
                                                                {{pt.XLEN{1'b0}},store_data_hi_dc5[pt.XLEN-1:0]}) :
-                                                            (buf_addr[CmdPtr1][ADDR_LSB_OFFSET] ?
+                                                            (buf_addr[CmdPtr1][pt.XLEN_ADDR_OFF] ?
                                                                {buf_data[CmdPtr1],{pt.XLEN{1'b0}}} :
                                                                {{pt.XLEN{1'b0}},buf_data[CmdPtr1]});
-   for (genvar i=0 ;i<pt.BUS_BYTE_WIDTH; i++) begin
+   for (genvar i=0 ;i<pt.BUS_BYTES; i++) begin
       assign obuf_byteen_in[i]    = obuf_byteen0_in[i] | (obuf_merge_en & obuf_byteen1_in[i]);
       assign obuf_data_in[8*i+:8] = (obuf_merge_en & obuf_byteen1_in[i]) ? obuf_data1_in[8*i+:8] : obuf_data0_in[8*i+:8];
    end
@@ -601,7 +598,7 @@ import eh2_pkg::*;
    for (genvar i=0; i<DEPTH; i++) begin
 
       assign ibuf_drainvec_vld[i] = (ibuf_drain_vld & (i == ibuf_tag));
-      assign buf_byteen_in[i]     = ibuf_drainvec_vld[i] ? ibuf_byteen_out[BYTE_WIDTH-1:0] : ((ibuf_byp & ldst_dual_dc5 & (i == WrPtr1_dc5)) ? ldst_byteen_hi_dc5[BYTE_WIDTH-1:0] : ldst_byteen_lo_dc5[BYTE_WIDTH-1:0]);
+      assign buf_byteen_in[i]     = ibuf_drainvec_vld[i] ? ibuf_byteen_out[pt.XLEN_BYTES-1:0] : ((ibuf_byp & ldst_dual_dc5 & (i == WrPtr1_dc5)) ? ldst_byteen_hi_dc5[pt.XLEN_BYTES-1:0] : ldst_byteen_lo_dc5[pt.XLEN_BYTES-1:0]);
       assign buf_addr_in[i]       = ibuf_drainvec_vld[i] ? ibuf_addr[pt.XLEN-1:0] : ((ibuf_byp & ldst_dual_dc5 & (i == WrPtr1_dc5)) ? end_addr_dc5[pt.XLEN-1:0] : lsu_addr_dc5[pt.XLEN-1:0]);
       assign buf_dual_in[i]       = ibuf_drainvec_vld[i] ? ibuf_dual : ldst_dual_dc5;
       assign buf_samedw_in[i]     = ibuf_drainvec_vld[i] ? ibuf_samedw : ldst_samebeat_dc5;
@@ -655,7 +652,7 @@ import eh2_pkg::*;
                      buf_ldfwdtag_in[i]       = DEPTH_LOG2'(obuf_rdrsp_tag[pt.LSU_BUS_TAG-2:0]);
                      buf_data_en[i]           = buf_state_bus_en[i] & lsu_bus_clk_en & obuf_nosend & bus_rsp_read;
                      buf_error_en[i]          = buf_state_bus_en[i] & lsu_bus_clk_en & obuf_nosend & bus_rsp_read_error & (bus_rsp_read_tid == tid) & (bus_rsp_read_tag == obuf_rdrsp_tag);
-                     buf_data_in[i]           = buf_error_en[i] ? bus_rsp_rdata[pt.XLEN-1:0] : (buf_addr[i][ADDR_LSB_OFFSET] ? bus_rsp_rdata[(2*pt.XLEN)-1:pt.XLEN] : bus_rsp_rdata[pt.XLEN-1:0]);
+                     buf_data_in[i]           = buf_error_en[i] ? bus_rsp_rdata[pt.XLEN-1:0] : (buf_addr[i][pt.XLEN_ADDR_OFF] ? bus_rsp_rdata[(2*pt.XLEN)-1:pt.XLEN] : bus_rsp_rdata[pt.XLEN-1:0]);
            end
             RESP: begin
                      buf_nxtstate[i]           = (dec_tlu_force_halt | (buf_write[i] & ~(pt.BUILD_AXI_NATIVE & bus_rsp_write_error))) ? IDLE :    // Side-effect writes will be non-posted
@@ -674,7 +671,7 @@ import eh2_pkg::*;
                      buf_error_en[i]           = buf_state_bus_en[i] & lsu_bus_clk_en & ((bus_rsp_read_error  & (bus_rsp_read_tid == tid)  & (bus_rsp_read_tag  == (pt.LSU_BUS_TAG)'(i))) |
                                                                                          (bus_rsp_read_error  & (bus_rsp_read_tid == tid)  & buf_ldfwd[i] & (bus_rsp_read_tag == (pt.LSU_BUS_TAG)'(buf_ldfwdtag[i]))) |
                                                                                          (bus_rsp_write_error & (bus_rsp_write_tid == tid) & pt.BUILD_AXI_NATIVE & (bus_rsp_write_tag == (pt.LSU_BUS_TAG)'(i))));
-                     buf_data_in[i][pt.XLEN-1:0] = (buf_state_en[i] & ~buf_error_en[i]) ? (buf_addr[i][ADDR_LSB_OFFSET] ? bus_rsp_rdata[(2*pt.XLEN)-1:pt.XLEN] : bus_rsp_rdata[pt.XLEN-1:0]) : bus_rsp_rdata[pt.XLEN-1:0];
+                     buf_data_in[i][pt.XLEN-1:0] = (buf_state_en[i] & ~buf_error_en[i]) ? (buf_addr[i][pt.XLEN_ADDR_OFF] ? bus_rsp_rdata[(2*pt.XLEN)-1:pt.XLEN] : bus_rsp_rdata[pt.XLEN-1:0]) : bus_rsp_rdata[pt.XLEN-1:0];
                      buf_cmd_state_bus_en[i]  = '0;
             end
             DONE_PARTIAL: begin   // Other part of dual load hasn't returned
@@ -727,7 +724,7 @@ import eh2_pkg::*;
       rvdffs  #(.WIDTH(1))              buf_writeff      (.din(buf_write_in[i]),             .dout(buf_write[i]),      .en(buf_wr_en[i]),                                           .clk(lsu_bus_buf_c1_clk), .*);
       rvdffs  #(.WIDTH(2))              buf_szff         (.din(buf_sz_in[i]),                .dout(buf_sz[i]),         .en(buf_wr_en[i]),                                           .clk(lsu_bus_buf_c1_clk), .*);
       rvdffe  #(.WIDTH(pt.XLEN))        buf_addrff       (.din(buf_addr_in[i][pt.XLEN-1:0]), .dout(buf_addr[i]),       .en(buf_wr_en[i]),                                                                     .*);
-      rvdffs  #(.WIDTH(BYTE_WIDTH))     buf_byteenff     (.din(buf_byteen_in[i][BYTE_WIDTH-1:0]), .dout(buf_byteen[i]),.en(buf_wr_en[i]),                                           .clk(lsu_bus_buf_c1_clk), .*);
+      rvdffs  #(.WIDTH(pt.XLEN_BYTES))     buf_byteenff     (.din(buf_byteen_in[i][pt.XLEN_BYTES-1:0]), .dout(buf_byteen[i]),.en(buf_wr_en[i]),                                           .clk(lsu_bus_buf_c1_clk), .*);
       rvdffe  #(.WIDTH(pt.XLEN))        buf_dataff       (.din(buf_data_in[i][pt.XLEN-1:0]), .dout(buf_data[i]),       .en(buf_data_en[i]),                                                                   .*);
       rvdffsc #(.WIDTH(1))              buf_errorff      (.din(1'b1),                        .dout(buf_error[i]),      .en(buf_error_en[i]),                    .clear(buf_rst[i]), .clk(lsu_bus_buf_c1_clk), .*);
 
@@ -809,7 +806,7 @@ import eh2_pkg::*;
    always_comb begin
       bus_addr_match_pending = '0;
       for (int i=0; i<DEPTH; i++) begin
-         bus_addr_match_pending |= (pt.BUILD_AXI_NATIVE & obuf_valid & (obuf_addr[pt.XLEN-1:BUS_ADDR_LSB_OFFSET] == buf_addr[i][pt.XLEN-1:BUS_ADDR_LSB_OFFSET]) & (buf_state[i] == RESP) & ~((obuf_tag0 == (pt.LSU_BUS_TAG)'(i)) | (obuf_merge & (obuf_tag1 == (pt.LSU_BUS_TAG)'(i)))));
+         bus_addr_match_pending |= (pt.BUILD_AXI_NATIVE & obuf_valid & (obuf_addr[pt.XLEN-1:pt.BUS_ADDR_OFF] == buf_addr[i][pt.XLEN-1:pt.BUS_ADDR_OFF]) & (buf_state[i] == RESP) & ~((obuf_tag0 == (pt.LSU_BUS_TAG)'(i)) | (obuf_merge & (obuf_tag1 == (pt.LSU_BUS_TAG)'(i)))));
       end
    end
 

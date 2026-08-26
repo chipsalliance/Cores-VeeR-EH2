@@ -77,7 +77,7 @@ module eh2_dbg #(
    output logic                           sb_axi_wvalid,
    input  logic                           sb_axi_wready,
    output logic [pt.BUS_WIDTH-1:0]        sb_axi_wdata,
-   output logic [pt.BUS_BYTE_WIDTH-1:0]   sb_axi_wstrb,
+   output logic [pt.BUS_BYTES-1:0]        sb_axi_wstrb,
    output logic                           sb_axi_wlast,
 
    input  logic                           sb_axi_bvalid,

@@ -63,7 +63,7 @@ import eh2_pkg::*;
    output logic                            lsu_axi_wvalid,
    input  logic                            lsu_axi_wready,
    output logic [pt.BUS_WIDTH-1:0]         lsu_axi_wdata,
-   output logic [pt.BUS_BYTE_WIDTH-1:0]    lsu_axi_wstrb,
+   output logic [pt.BUS_BYTES-1:0]         lsu_axi_wstrb,
    output logic                            lsu_axi_wlast,
 
    input  logic                            lsu_axi_bvalid,
@@ -157,7 +157,7 @@ import eh2_pkg::*;
    output logic                            sb_axi_wvalid,
    input  logic                            sb_axi_wready,
    output logic [pt.BUS_WIDTH-1:0]         sb_axi_wdata,
-   output logic [pt.BUS_BYTE_WIDTH-1:0]    sb_axi_wstrb,
+   output logic [pt.BUS_BYTES-1:0]         sb_axi_wstrb,
    output logic                            sb_axi_wlast,
 
    input  logic                            sb_axi_bvalid,
@@ -201,7 +201,7 @@ import eh2_pkg::*;
    input  logic                         dma_axi_wvalid,
    output logic                         dma_axi_wready,
    input  logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata,
-   input  logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb,
+   input  logic [pt.BUS_BYTES-1:0]      dma_axi_wstrb,
    input  logic                         dma_axi_wlast,
 
    output logic                         dma_axi_bvalid,
@@ -536,7 +536,7 @@ import eh2_pkg::*;
    logic                           lsu_axi_wvalid;
    logic                           lsu_axi_wready;
    logic [pt.BUS_WIDTH-1:0]        lsu_axi_wdata;
-   logic [pt.BUS_BYTE_WIDTH-1:0]   lsu_axi_wstrb;
+   logic [pt.BUS_BYTES-1:0]        lsu_axi_wstrb;
    logic                           lsu_axi_wlast;
 
    logic                           lsu_axi_bvalid;
@@ -630,7 +630,7 @@ import eh2_pkg::*;
    logic                           sb_axi_wvalid;
    logic                           sb_axi_wready;
    logic [pt.BUS_WIDTH-1:0]        sb_axi_wdata;
-   logic [pt.BUS_BYTE_WIDTH-1:0]   sb_axi_wstrb;
+   logic [pt.BUS_BYTES-1:0]        sb_axi_wstrb;
    logic                           sb_axi_wlast;
 
    logic                           sb_axi_bvalid;
@@ -674,7 +674,7 @@ import eh2_pkg::*;
    logic                           dma_axi_wvalid;
    logic                           dma_axi_wready;
    logic [pt.BUS_WIDTH-1:0]        dma_axi_wdata;
-   logic [pt.BUS_BYTE_WIDTH-1:0]   dma_axi_wstrb;
+   logic [pt.BUS_BYTES-1:0]        dma_axi_wstrb;
    logic                           dma_axi_wlast;
 
    logic                           dma_axi_bvalid;
@@ -752,7 +752,7 @@ import eh2_pkg::*;
 
    assign  dma_axi_wvalid                         = '0;
    assign  dma_axi_wdata[pt.BUS_WIDTH-1:0]        = '0;
-   assign  dma_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0]   = '0;
+   assign  dma_axi_wstrb[pt.BUS_BYTES-1:0]        = '0;
    assign  dma_axi_wlast                          = '0;
 
    assign  dma_axi_bready                         = '0;

@@ -82,7 +82,6 @@ import eh2_pkg::*;
 
  );
 
-   localparam unsigned ADDR_LSB_OFFSET = $clog2(pt.DCCM_BYTE_WIDTH);
    localparam unsigned PAD_BITS = (pt.DCCM_BYTE_WIDTH - 1) * 8;
 
    logic                          double_ecc_error_hi_dc3, double_ecc_error_lo_dc3;
@@ -107,7 +106,7 @@ import eh2_pkg::*;
    //----------------------------------------Logic starts here---------------------------------------------------
    //------------------------------------------------------------------------------------------------------------
 
-   assign ldst_dual_dc3 = (lsu_addr_dc3[ADDR_LSB_OFFSET] != end_addr_dc3[ADDR_LSB_OFFSET]);
+   assign ldst_dual_dc3 = (lsu_addr_dc3[pt.DCCM_ADDR_OFF] != end_addr_dc3[pt.DCCM_ADDR_OFF]);
    assign is_ldst_dc3 = lsu_pkt_dc3.valid & (lsu_pkt_dc3.load | lsu_pkt_dc3.store) & addr_in_dccm_dc3 & lsu_dccm_rden_dc3;
    assign is_ldst_lo_dc3 = is_ldst_dc3 & ~(dec_tlu_core_ecc_disable | disable_ecc_check_lo_dc3);
    assign is_ldst_hi_dc3 = is_ldst_dc3 & (ldst_dual_dc3 | lsu_pkt_dc3.dma) & ~(dec_tlu_core_ecc_disable | disable_ecc_check_hi_dc3);
@@ -119,11 +118,11 @@ import eh2_pkg::*;
                                                         ({pt.DCCM_BYTE_WIDTH*2{lsu_pkt_dc3.qword}} & {pt.DCCM_BYTE_WIDTH*2{1'b1}} & (pt.XLEN == 64));
    assign store_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] = ldst_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] & {pt.DCCM_BYTE_WIDTH*2{~lsu_pkt_dc3.load}};
 
-   assign store_byteen_ext_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] = store_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] << lsu_addr_dc3[ADDR_LSB_OFFSET-1:0];
+   assign store_byteen_ext_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] = store_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] << lsu_addr_dc3[pt.DCCM_ADDR_OFF-1:0];
    assign store_byteen_hi_dc3[pt.DCCM_BYTE_WIDTH-1:0] = store_byteen_ext_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:pt.DCCM_BYTE_WIDTH];
    assign store_byteen_lo_dc3[pt.DCCM_BYTE_WIDTH-1:0] = store_byteen_ext_dc3[pt.DCCM_BYTE_WIDTH-1:0];
 
-   assign store_data_ext_dc3[pt.XLEN+PAD_BITS-1:0]   = {{PAD_BITS{1'b0}},store_data_dc3[pt.XLEN-1:0]} << {lsu_addr_dc3[ADDR_LSB_OFFSET-1:0], 3'b000};
+   assign store_data_ext_dc3[pt.XLEN+PAD_BITS-1:0]   = {{PAD_BITS{1'b0}},store_data_dc3[pt.XLEN-1:0]} << {lsu_addr_dc3[pt.DCCM_ADDR_OFF-1:0], 3'b000};
    assign store_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]  = {8'b0,store_data_ext_dc3[pt.XLEN+PAD_BITS-1:pt.XLEN]};
    assign store_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]  = store_data_ext_dc3[pt.XLEN-1:0];
 

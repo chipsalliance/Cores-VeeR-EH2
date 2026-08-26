@@ -166,7 +166,7 @@ import eh2_pkg::*;
    output logic                            lsu_axi_wvalid,
    input  logic                            lsu_axi_wready,
    output logic [pt.BUS_WIDTH-1:0]         lsu_axi_wdata,
-   output logic [pt.BUS_BYTE_WIDTH-1:0]    lsu_axi_wstrb,
+   output logic [pt.BUS_BYTES-1:0]         lsu_axi_wstrb,
    output logic                            lsu_axi_wlast,
 
    input  logic                            lsu_axi_bvalid,
@@ -260,7 +260,7 @@ import eh2_pkg::*;
    output logic                            sb_axi_wvalid,
    input  logic                            sb_axi_wready,
    output logic [pt.BUS_WIDTH-1:0]         sb_axi_wdata,
-   output logic [pt.BUS_BYTE_WIDTH-1:0]    sb_axi_wstrb,
+   output logic [pt.BUS_BYTES-1:0]         sb_axi_wstrb,
    output logic                            sb_axi_wlast,
 
    input  logic                            sb_axi_bvalid,
@@ -303,7 +303,7 @@ import eh2_pkg::*;
    input  logic                         dma_axi_wvalid,
    output logic                         dma_axi_wready,
    input  logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata,
-   input  logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb,
+   input  logic [pt.BUS_BYTES-1:0]      dma_axi_wstrb,
    input  logic                         dma_axi_wlast,
 
    output logic                         dma_axi_bvalid,
@@ -494,7 +494,7 @@ import eh2_pkg::*;
    logic [1:0]                   dma_axi_awburst_ahb;
    logic                         dma_axi_wvalid_ahb;
    logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata_ahb;
-   logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb_ahb;
+   logic [pt.BUS_BYTES-1:0]      dma_axi_wstrb_ahb;
    logic                         dma_axi_wlast_ahb;
    logic                         dma_axi_bready_ahb;
    logic                         dma_axi_arvalid_ahb;
@@ -515,7 +515,7 @@ import eh2_pkg::*;
    logic [1:0]                   dma_axi_awburst_int;
    logic                         dma_axi_wvalid_int;
    logic [pt.BUS_WIDTH-1:0]      dma_axi_wdata_int;
-   logic [pt.BUS_BYTE_WIDTH-1:0] dma_axi_wstrb_int;
+   logic [pt.BUS_BYTES-1:0]      dma_axi_wstrb_int;
    logic                         dma_axi_wlast_int;
    logic                         dma_axi_bready_int;
    logic                         dma_axi_arvalid_int;
@@ -1122,7 +1122,7 @@ import eh2_pkg::*;
                                       .dma_axi_awsize(dma_axi_awsize_int[2:0]),
                                       .dma_axi_wvalid(dma_axi_wvalid_int),
                                       .dma_axi_wdata(dma_axi_wdata_int[pt.BUS_WIDTH-1:0]),
-                                      .dma_axi_wstrb(dma_axi_wstrb_int[pt.BUS_BYTE_WIDTH-1:0]),
+                                      .dma_axi_wstrb(dma_axi_wstrb_int[pt.BUS_BYTES-1:0]),
                                       .dma_axi_bready(dma_axi_bready_int),
 
                                       .dma_axi_arvalid(dma_axi_arvalid_int),
@@ -1139,7 +1139,7 @@ import eh2_pkg::*;
       // AXI4 -> AHB Gasket for LSU
       axi4_to_ahb #(.NUM_THREADS(pt.NUM_THREADS),
                     .TAG(pt.LSU_BUS_TAG),
-                    .DATA_WIDTH(pt.BUS_WIDTH)) lsu_axi4_to_ahb (
+                    .BUS_WIDTH(pt.BUS_WIDTH)) lsu_axi4_to_ahb (
          .clk(free_l2clk),
          .free_clk(free_clk),
          .rst_l(core_rst_l),
@@ -1158,7 +1158,7 @@ import eh2_pkg::*;
          .axi_wvalid(lsu_axi_wvalid),
          .axi_wready(lsu_axi_wready_ahb),
          .axi_wdata(lsu_axi_wdata[pt.BUS_WIDTH-1:0]),
-         .axi_wstrb(lsu_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0]),
+         .axi_wstrb(lsu_axi_wstrb[pt.BUS_BYTES-1:0]),
          .axi_wlast(lsu_axi_wlast),
 
          .axi_bvalid(lsu_axi_bvalid_ahb),
@@ -1200,7 +1200,7 @@ import eh2_pkg::*;
 
       axi4_to_ahb #(.NUM_THREADS(pt.NUM_THREADS),
                     .TAG(pt.IFU_BUS_TAG),
-                    .DATA_WIDTH(64)) ifu_axi4_to_ahb (
+                    .BUS_WIDTH(64)) ifu_axi4_to_ahb (
          .clk(free_l2clk),
          .free_clk(free_clk),
          .rst_l(core_rst_l),
@@ -1261,7 +1261,7 @@ import eh2_pkg::*;
       // AXI4 -> AHB Gasket for System Bus
       axi4_to_ahb #(.NUM_THREADS(pt.NUM_THREADS),
                     .TAG(pt.SB_BUS_TAG),
-                    .DATA_WIDTH(pt.BUS_WIDTH)) sb_axi4_to_ahb (
+                    .BUS_WIDTH(pt.BUS_WIDTH)) sb_axi4_to_ahb (
          .clk_override(dec_tlu_bus_clk_override),
          .rst_l(dbg_rst_l),
          .clk(free_l2clk),
@@ -1280,7 +1280,7 @@ import eh2_pkg::*;
          .axi_wvalid(sb_axi_wvalid),
          .axi_wready(sb_axi_wready_ahb),
          .axi_wdata(sb_axi_wdata[pt.BUS_WIDTH-1:0]),
-         .axi_wstrb(sb_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0]),
+         .axi_wstrb(sb_axi_wstrb[pt.BUS_BYTES-1:0]),
          .axi_wlast(sb_axi_wlast),
 
          .axi_bvalid(sb_axi_bvalid_ahb),
@@ -1323,7 +1323,7 @@ import eh2_pkg::*;
       //AHB -> AXI4 Gasket for DMA
       ahb_to_axi4 #(.pt(pt),
                     .TAG(pt.DMA_BUS_TAG),
-                    .DATA_WIDTH(pt.BUS_WIDTH)) dma_ahb_to_axi4 (
+                    .BUS_WIDTH(pt.BUS_WIDTH)) dma_ahb_to_axi4 (
          .clk_override(dec_tlu_bus_clk_override),
          .rst_l(core_rst_l),
          .clk(free_l2clk),
@@ -1342,7 +1342,7 @@ import eh2_pkg::*;
          .axi_wvalid(dma_axi_wvalid_ahb),
          .axi_wready(dma_axi_wready),
          .axi_wdata(dma_axi_wdata_ahb[pt.BUS_WIDTH-1:0]),
-         .axi_wstrb(dma_axi_wstrb_ahb[pt.BUS_BYTE_WIDTH-1:0]),
+         .axi_wstrb(dma_axi_wstrb_ahb[pt.BUS_BYTES-1:0]),
          .axi_wlast(dma_axi_wlast_ahb),
 
          .axi_bvalid(dma_axi_bvalid),
@@ -1435,7 +1435,7 @@ import eh2_pkg::*;
    assign dma_axi_awburst_int[1:0]             = pt.BUILD_AHB_LITE ? dma_axi_awburst_ahb[1:0] : dma_axi_awburst[1:0];
    assign dma_axi_wvalid_int                   = pt.BUILD_AHB_LITE ? dma_axi_wvalid_ahb : dma_axi_wvalid;
    assign dma_axi_wdata_int[pt.BUS_WIDTH-1:0]  = pt.BUILD_AHB_LITE ? dma_axi_wdata_ahb[pt.BUS_WIDTH-1:0] : dma_axi_wdata;
-   assign dma_axi_wstrb_int[pt.BUS_BYTE_WIDTH-1:0] = pt.BUILD_AHB_LITE ? dma_axi_wstrb_ahb[pt.BUS_BYTE_WIDTH-1:0] : dma_axi_wstrb[pt.BUS_BYTE_WIDTH-1:0];
+   assign dma_axi_wstrb_int[pt.BUS_BYTES-1:0]  = pt.BUILD_AHB_LITE ? dma_axi_wstrb_ahb[pt.BUS_BYTES-1:0] : dma_axi_wstrb[pt.BUS_BYTES-1:0];
    assign dma_axi_wlast_int                    = pt.BUILD_AHB_LITE ? dma_axi_wlast_ahb : dma_axi_wlast;
    assign dma_axi_bready_int                   = pt.BUILD_AHB_LITE ? dma_axi_bready_ahb : dma_axi_bready;
    assign dma_axi_arvalid_int                  = pt.BUILD_AHB_LITE ? dma_axi_arvalid_ahb : dma_axi_arvalid;

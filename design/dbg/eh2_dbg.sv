@@ -242,6 +242,7 @@ module eh2_dbg #(
    logic                abmem_addr_in_dccm_region, abmem_addr_in_iccm_region, abmem_addr_in_pic_region;
    logic                abmem_addr_core_local;
    logic                abmem_addr_external;
+   logic                abmem_addr_in_32bit_addr;
 
    logic                sb_cmd_pending, sb_abmem_cmd_pending;
    logic                sb_abmem_cmd_write;
@@ -784,16 +785,15 @@ module eh2_dbg #(
    assign abmem_addr_core_local = (abmem_addr_in_dccm_region | abmem_addr_in_iccm_region | abmem_addr_in_pic_region);
    assign abmem_addr_external   = ~abmem_addr_core_local;
 
-   if (pt.XLEN == 32) begin
-      assign abmem_addr_in_dccm_region = (abmem_addr[31:28] == pt.DCCM_REGION) & pt.DCCM_ENABLE;
-      assign abmem_addr_in_iccm_region = (abmem_addr[31:28] == pt.ICCM_REGION) & pt.ICCM_ENABLE;
-      assign abmem_addr_in_pic_region  = (abmem_addr[31:28] == pt.PIC_REGION);
-   end else if (pt.XLEN == 64) begin
-      // TODO: Fix this logic as part of #101619 (adding proper MRAC support for 64-bit address space)
-      assign abmem_addr_in_dccm_region = (~(|abmem_addr[63:32])) & (abmem_addr[31:28] == pt.DCCM_REGION) & pt.DCCM_ENABLE;
-      assign abmem_addr_in_iccm_region = (~(|abmem_addr[63:32])) & (abmem_addr[31:28] == pt.ICCM_REGION) & pt.ICCM_ENABLE;
-      assign abmem_addr_in_pic_region  = (~(|abmem_addr[63:32])) & (abmem_addr[31:28] == pt.PIC_REGION);
+   if (pt.XLEN == 64) begin
+      assign abmem_addr_in_32bit_addr = ~(|abmem_addr[63:32]);
+   end else begin
+      assign abmem_addr_in_32bit_addr = 1'b1;
    end
+
+   assign abmem_addr_in_dccm_region = abmem_addr_in_32bit_addr & (abmem_addr[31:28] == pt.DCCM_REGION) & pt.DCCM_ENABLE;
+   assign abmem_addr_in_iccm_region = abmem_addr_in_32bit_addr & (abmem_addr[31:28] == pt.ICCM_REGION) & pt.ICCM_ENABLE;
+   assign abmem_addr_in_pic_region  = abmem_addr_in_32bit_addr & (abmem_addr[31:28] == pt.PIC_REGION);
 
    // interface for the core
    assign dbg_cmd_addr[pt.XLEN-1:0] = (command_reg[31:24] == 8'h2) ?

@@ -207,7 +207,7 @@ import eh2_pkg::*;
    if (pt.DCCM_ENABLE == 1) begin: GenDCCM
       rvrangecheck #(.CCM_SADR(pt.DCCM_SADR),
                      .CCM_SIZE(pt.DCCM_SIZE)) addr_dccm_rangecheck (
-         .addr(ahb_haddr_q[31:0]), // FIXME: This should support XLEN-bits wide address space
+         .addr(ahb_haddr_q[pt.XLEN-1:0]),
          .in_range(ahb_addr_in_dccm),
          .in_region(ahb_addr_in_dccm_region_nc)
       );
@@ -220,7 +220,7 @@ import eh2_pkg::*;
    if (pt.ICCM_ENABLE == 1) begin: GenICCM
       rvrangecheck #(.CCM_SADR(pt.ICCM_SADR),
                      .CCM_SIZE(pt.ICCM_SIZE)) addr_iccm_rangecheck (
-         .addr(ahb_haddr_q[31:0]), // FIXME: This should support XLEN-bits wide address space
+         .addr(ahb_haddr_q[pt.XLEN-1:0]),
          .in_range(ahb_addr_in_iccm),
          .in_region(ahb_addr_in_iccm_region_nc)
       );
@@ -228,14 +228,6 @@ import eh2_pkg::*;
       assign ahb_addr_in_iccm = '0;
       assign ahb_addr_in_iccm_region_nc = '0;
    end
-
-   // PIC memory address check
-   rvrangecheck #(.CCM_SADR(pt.PIC_BASE_ADDR),
-                  .CCM_SIZE(pt.PIC_SIZE)) addr_pic_rangecheck (
-      .addr(ahb_haddr_q[31:0]), // FIXME: This should support XLEN-bits wide address space
-      .in_range(ahb_addr_in_pic),
-      .in_region(ahb_addr_in_pic_region_nc)
-   );
 
    // Command Buffer - Holding for the commands to be sent for the AXI. It will be converted to the AXI signals.
    assign cmdbuf_rst         = (((axi_awvalid & axi_awready) | (axi_arvalid & axi_arready)) & ~cmdbuf_wr_en) | (ahb_hresp & ~cmdbuf_write);

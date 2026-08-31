@@ -1,0 +1,92 @@
+name: RISCOF tests
+
+on:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: Run RISCOF tests
+    runs-on: ubuntu-latest
+    container: ghcr.io/antmicro/cores-veer-el2:20260714
+    strategy:
+      fail-fast: false
+      matrix:
+        coverage: ["all"]
+    env:
+      DEBIAN_FRONTEND: "noninteractive"
+      CCACHE_DIR: "/opt/riscof/.cache/"
+      RISCOF_VERSION: "a02a5b17472e29139a1ef8d1826ac54145fd61d7"
+
+    steps:
+      - name: Setup repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          echo "PATH=$PATH" >> $GITHUB_ENV
+
+      - name: Install RISCOF
+        run: |
+          pip3 install git+https://github.com/riscv/riscof@$RISCOF_VERSION
+
+      - name: Clone tests
+        run: |
+          mkdir -p riscof
+          pushd riscof
+            riscof --verbose info arch-test --clone
+          popd
+
+      - name: Skip tests
+        run: |
+          pushd riscof/riscv-arch-test/riscv-test-suite
+            # We do not support PMP
+            rm -rf rv32i_m/pmp
+          popd
+
+      - name: Configure RISCOF
+        run: |
+          pushd riscof
+            # Copy RISCOF configuration
+            cp ../tools/riscof/config.ini ./
+            cp -r ../tools/riscof/spike ./
+            cp -r ../tools/riscof/veer ./
+            # Build the test list
+            riscof testlist --config=config.ini --suite=riscv-arch-test/riscv-test-suite/ --env=riscv-arch-test/riscv-test-suite/env
+          popd
+
+      - name: Build VeeR model
+        run: |
+          export RV_ROOT=`pwd`
+          pushd riscof
+            make -f $RV_ROOT/tools/Makefile verilator-build
+          popd
+
+      - name: Run tests
+        run: |
+          pushd riscof
+            riscof run --no-browser --config=config.ini --suite=riscv-arch-test/riscv-test-suite/ --env=riscv-arch-test/riscv-test-suite/env
+          popd
+
+      - name: Pack artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscof-report
+          path: |
+            riscof/riscof_work/report.html
+
+      - name: Check failure
+        run: |
+          if res=$(grep -no riscof/riscof_work/report.html -e "<tbody.*failed"); then
+            echo "Number of failed RISCOF tests: $(wc -l <<< "$res")" >&2
+            echo "Check the report in artifacts for details." >&2
+            exit 1
+          fi

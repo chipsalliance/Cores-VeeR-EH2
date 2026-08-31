@@ -11,9 +11,13 @@ on:
 
 jobs:
 
-  Test-EH2-Regression:
-    name: Test-EH2-Regression
-    uses: ./.github/workflows/test-eh2-regression.yml
+  Test-Regression:
+    name: Test Regression
+    uses: ./.github/workflows/test-regression.yml
+
+  Test-RISCOF:
+    name: Test RISCOF
+    uses: ./.github/workflows/test-riscof.yml
 
   Build-and-deploy-docs:
     name: Build-and-deploy-docs

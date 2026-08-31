@@ -30,7 +30,7 @@ module tb_top;
     logic                       nmi_int;
 
 `ifndef VERILATOR
-    bit          [31:0]         mem_signature_begin = 32'd0; // TODO:
+    bit          [31:0]         mem_signature_begin = 32'd0;
     bit          [31:0]         mem_signature_end   = 32'd0;
 `endif
 
@@ -1096,11 +1096,6 @@ endtask
 `define IRAM(bk) `ICCM_PATH.mem_bank[bk].iccm.iccm_bank.ram_core
 `endif
 
-initial begin
-    $dumpfile("waveform.vcd");
-    $dumpvars(4, tb_top);
-end
-
 task dump_signature ();
     integer fp, i;
 
@@ -1136,13 +1131,6 @@ task dump_signature ();
             `endif
             endcase
 
-`ifdef RV_DCCM_ADDR_XOR
-            // DCCM address infection (see el2_lsu_dccm_ctl.sv): the RAM stores
-            // (data ^ mask(word_addr)) and the core undoes it on read. This
-            // backdoor read bypasses the core datapath, so un-XOR the same
-            // mask here to recover the plain data for the signature.
-            data[pt.DCCM_DATA_WIDTH-1:0] = data[pt.DCCM_DATA_WIDTH-1:0] ^ {{(pt.DCCM_DATA_WIDTH-2*(pt.DCCM_BITS-2)){1'b0}}, i[pt.DCCM_BITS-1:2], i[pt.DCCM_BITS-1:2]};
-`endif
             $fwrite(fp, "%08X\n", data[31:0]);
         end else
 `endif

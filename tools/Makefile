@@ -63,7 +63,7 @@ ifdef debug
  IRUN_DEBUG = -access +rc
  IRUN_DEBUG_RUN = -input ${RV_ROOT}/testbench/input.tcl
  VCS_DEBUG = -debug_access
- VERILATOR_DEBUG = --trace
+ VERILATOR_DEBUG = --trace --trace-structs
  RIVIERA_DEBUG = +access +r
 endif
 
@@ -116,7 +116,7 @@ verilator-build: ${TBFILES} ${BUILD_DIR}/defines.h test_tb_top.cpp
 	$(VERILATOR) --timing --cc -CFLAGS ${CFLAGS} $(defines) \
 	  $(includes) -I${RV_ROOT}/testbench -f ${RV_ROOT}/testbench/flist \
 	  -Wno-WIDTH -Wno-UNOPTFLAT -Wno-IMPLICIT ${TBFILES} --top-module tb_top \
-	  -exe test_tb_top.cpp --autoflush --trace --trace-vcd $(VERILATOR_DEBUG)
+	  -exe test_tb_top.cpp --autoflush $(VERILATOR_DEBUG)
 	$(MAKE) -j -C obj_dir -f Vtb_top.mk $(VERILATOR_MAKE_FLAGS)
 	touch verilator-build
 
@@ -150,8 +150,8 @@ riviera-build: ${TBFILES} ${BUILD_DIR}/defines.h ${RV_ROOT}/testbench/flist.rivi
 #################### TEST Simulation Run ###############################
 
 verilator: program.hex verilator-build
-	# FIXME: Assuming here that either begin_signature or end_signature implies
-	# that both symbols are present.
+	# Assuming here that either begin_signature or end_signature implies that
+	# both symbols are present.
 	grep -E "(begin|end)_signature" program.sym >/dev/null 2>&1; \
 	if [ $$? -eq 0 ]; then \
 		BEG=`grep "begin_signature" program.sym | cut -d\  -f 1`;\

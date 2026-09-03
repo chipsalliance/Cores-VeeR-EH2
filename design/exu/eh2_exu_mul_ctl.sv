@@ -299,13 +299,8 @@ import eh2_pkg::*;
 //       return r;
 //   }
 //
-// uint_xlen_t xperm_n (uint_xlen_t rs1, uint_xlen_t rs2) { return xperm(rs1, rs2, 2); }
-// uint_xlen_t xperm_b (uint_xlen_t rs1, uint_xlen_t rs2) { return xperm(rs1, rs2, 3); }
-// uint_xlen_t xperm_h (uint_xlen_t rs1, uint_xlen_t rs2) { return xperm(rs1, rs2, 4); }
-// uint_xlen_t xperm_w (uint_xlen_t rs1, uint_xlen_t rs2) { return xperm(rs1, rs2, 5); }   Not part of RV32
-//
-// The xperm.[nbhw] instructions can be implemented with an XLEN/4-lane nibble-wide crossbarswitch.
-
+// uint_xlen_t xperm4 (uint_xlen_t rs1, uint_xlen_t rs2) { return xperm(rs1, rs2, 2); }
+// uint_xlen_t xperm8 (uint_xlen_t rs1, uint_xlen_t rs2) { return xperm(rs1, rs2, 3); }
 
    logic        [31:0]    xperm4_e2;
    logic        [31:0]    xperm8_e2;

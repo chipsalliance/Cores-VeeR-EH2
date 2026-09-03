@@ -84,6 +84,7 @@ bexti     =  [0100100..........101.....0010011]
 # Zbp (Ratified in Zbb)
 
 rev8      =  [011010011000.....101.....0010011] # (and in Zbkb)
+brev8     =  [011010000111.....101.....0010011] # (and in Zbkb)
 
 orc_b     =  [001010000111.....101.....0010011]
 
@@ -416,6 +417,7 @@ rv32i[clmulh]    =  { mul zbc     rs1 rs2 rd                       clmulh}
 rv32i[clmulr]    =  { mul zbc     rs1 rs2 rd                       clmulr}
 
 rv32i[rev8]          =  { alu zbb zbp rs1     rd         shimm5        grev  } # grevi24
+rv32i[brev8]         =  { mul zbb zbp rs1     rd         shimm5        grev  } # grevi7
 
 rv32i[orc_b]         =  { alu zbb zbp rs1     rd         shimm5        gorc  }  # gorci7
 
@@ -538,4 +540,3 @@ rv32i[amominu_w]  =  { lsu load store rs2 rs1 rd word atomic i0_only presync uns
 rv32i[amomaxu_w]  =  { lsu load store rs2 rs1 rd word atomic i0_only presync unsign}
 
 .end
-

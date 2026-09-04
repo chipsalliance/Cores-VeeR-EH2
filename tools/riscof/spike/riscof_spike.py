@@ -104,7 +104,7 @@ class spike(pluginTemplate):
           self.isa += 'c'
 
       # Check for bitmanip extensions
-      if "Zbb" in ispec["ISA"] or "Zbs" in ispec["ISA"] or "Zbc" in ispec["ISA"] or "Zba" in ispec["ISA"]:
+      if "Zbb" in ispec["ISA"] or "Zbs" in ispec["ISA"] or "Zbc" in ispec["ISA"] or "Zba" in ispec["ISA"] or "Zbkx" in ispec["ISA"] or "Zbkb" in ispec["ISA"]:
           self.isa += 'c'
 
       if "Zbb" in ispec["ISA"]:
@@ -115,6 +115,13 @@ class spike(pluginTemplate):
           self.isa += '_zbc'
       if "Zba" in ispec["ISA"]:
           self.isa += '_zba'
+      if "Zbkx" in ispec["ISA"]:
+          self.isa += '_zbkx'
+      if "Zbkb" in ispec["ISA"]:
+          self.isa += '_zbkb'
+
+      if "Zifencei" in ispec["ISA"]:
+          self.isa += '_zifencei'
 
       #TODO: The following assumes you are using the riscv-gcc toolchain. If
       #      not please change appropriately

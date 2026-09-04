@@ -148,8 +148,6 @@ class veer(pluginTemplate):
           # prefix with "-D". The following does precisely that.
           compile_macros= ' -D' + " -D".join(testentry['macros'])
 
-          # substitute all variables in the commands that we created in the initialize
-          # function
           isa  = testentry['isa'].lower()
 
           # Force the zicsr extension to -march.
@@ -157,6 +155,8 @@ class veer(pluginTemplate):
           if "zicsr" not in isa:
              isa += "_zicsr"
 
+          # substitute all variables in the commands that we created in the initialize
+          # function
           cmds = [
             self.compile_cmd.format(isa, self.xlen, test, elf, compile_macros),
             self.convert_cmd.format(isa, self.xlen, test, elf),

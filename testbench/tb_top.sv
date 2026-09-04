@@ -16,7 +16,11 @@
 // this is testbench file
 
 `ifdef VERILATOR
-module tb_top ( input bit core_clk );
+module tb_top ( 
+    input bit                   core_clk,
+    input bit [31:0]            mem_signature_begin,
+    input bit [31:0]            mem_signature_end
+);
 `else
 module tb_top;
     bit                         core_clk;
@@ -24,6 +28,11 @@ module tb_top;
     logic                       rst_l;
     logic                       porst_l;
     logic                       nmi_int;
+
+`ifndef VERILATOR
+    bit          [31:0]         mem_signature_begin = 32'd0; // TODO:
+    bit          [31:0]         mem_signature_end   = 32'd0;
+`endif
 
     logic        [31:0]         reset_vector;
     logic        [31:0]         nmi_vector;
@@ -326,6 +335,12 @@ module tb_top;
         if( mailbox_data_val & mailbox_write) begin
             $fwrite(fd,"%c", WriteData[7:0]);
             $write("%c", WriteData[7:0]);
+        end
+
+        if(mailbox_write && (WriteData[7:0] == 8'hFF || WriteData[7:0] == 8'hFE || WriteData[7:0] == 8'h01)) begin
+            if (mem_signature_begin < mem_signature_end) begin
+                dump_signature();
+            end
         end
         // End Of test monitor
         if(mailbox_write && WriteData[7:0] == 8'hff) begin
@@ -1081,6 +1096,69 @@ endtask
 `define IRAM(bk) `ICCM_PATH.mem_bank[bk].iccm.iccm_bank.ram_core
 `endif
 
+initial begin
+    $dumpfile("waveform.vcd");
+    $dumpvars(4, tb_top);
+end
+
+task dump_signature ();
+    integer fp, i;
+
+    $display("[%0t ns] Dumping memory signature (0x%08X - 0x%08X)...",$time,
+        mem_signature_begin,
+        mem_signature_end
+    );
+
+    fp = $fopen("veer.signature", "w");
+    for (i=mem_signature_begin; i<mem_signature_end; i=i+4) begin
+
+        // From DCCM
+`ifdef RV_DCCM_ENABLE
+        if (i >= `RV_DCCM_SADR && i < `RV_DCCM_EADR) begin
+            bit[38:0] data;
+            int bank, indx;
+            bank = get_dccm_bank(i, indx);
+
+            case (bank)
+            0: data = `DRAM(0)[indx];
+            1: data = `DRAM(1)[indx];
+            `ifdef RV_DCCM_NUM_BANKS_4
+            2: data = `DRAM(2)[indx];
+            3: data = `DRAM(3)[indx];
+            `endif
+            `ifdef RV_DCCM_NUM_BANKS_8
+            2: data = `DRAM(2)[indx];
+            3: data = `DRAM(3)[indx];
+            4: data = `DRAM(4)[indx];
+            5: data = `DRAM(5)[indx];
+            6: data = `DRAM(6)[indx];
+            7: data = `DRAM(7)[indx];
+            `endif
+            endcase
+
+`ifdef RV_DCCM_ADDR_XOR
+            // DCCM address infection (see el2_lsu_dccm_ctl.sv): the RAM stores
+            // (data ^ mask(word_addr)) and the core undoes it on read. This
+            // backdoor read bypasses the core datapath, so un-XOR the same
+            // mask here to recover the plain data for the signature.
+            data[pt.DCCM_DATA_WIDTH-1:0] = data[pt.DCCM_DATA_WIDTH-1:0] ^ {{(pt.DCCM_DATA_WIDTH-2*(pt.DCCM_BITS-2)){1'b0}}, i[pt.DCCM_BITS-1:2], i[pt.DCCM_BITS-1:2]};
+`endif
+            $fwrite(fp, "%08X\n", data[31:0]);
+        end else
+`endif
+        // From RAM
+        begin
+            $fwrite(fp, "%02X%02X%02X%02X\n",
+                lmem.mem[i+3],
+                lmem.mem[i+2],
+                lmem.mem[i+1],
+                lmem.mem[i+0]
+            );
+        end
+    end
+
+    $fclose(fp);
+endtask
 
 task slam_dccm_ram(input [31:0] addr, input[38:0] data);
 int bank, indx;

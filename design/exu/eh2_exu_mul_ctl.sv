@@ -70,6 +70,9 @@ import eh2_pkg::*;
    logic                ap_xperm4_e2;
    logic                ap_xperm8_e2;
 
+   logic                ap_zip_e2;
+   logic                ap_unzip_e2;
+
    if (pt.BITMANIP_ZBC == 1)
      begin
        assign ap_clmul_e2     =  mp_e2.clmul;
@@ -89,13 +92,19 @@ import eh2_pkg::*;
        assign ap_gorc_e2      =  mp_e2.gorc;
        assign ap_xperm4_e2    =  mp_e2.xperm4;
        assign ap_xperm8_e2    =  mp_e2.xperm8;
+
+       assign ap_zip_e2      =  mp_e2.zip;
+       assign ap_unzip_e2    =  mp_e2.unzip;
      end
    else
      begin
        assign ap_grev_e2      =  1'b0;
        assign ap_gorc_e2      =  1'b0;
-       assign ap_xperm4_e2   =  1'b0;
-       assign ap_xperm8_e2   =  1'b0;
+       assign ap_xperm4_e2    =  1'b0;
+       assign ap_xperm8_e2    =  1'b0;
+
+       assign ap_zip_e2      =  1'b0;
+       assign ap_unzip_e2    =  1'b0;
      end
 
 
@@ -279,6 +288,56 @@ import eh2_pkg::*;
    assign gorc_e2[31:0]       = ( {32{b_ff_e2[4]}} & {gorc8_e2[15:00],gorc8_e2[31:16]} ) | gorc8_e2[31:0];
 
 
+    // * * * * * * * * * * * * * * * * * *  BitManip  :  ZIP, UNZIP  * * * * * * * * * * * * * * * * * *
+    // ZIP effectively implements the old shfli instruction (shfli rd, rs1, imm) with a hardwired shamt of 15:
+    // zip -> shfli rd, rs1, 15
+   logic        [31:0]    zip8_e2;
+   logic        [31:0]    zip4_e2;
+   logic        [31:0]    zip2_e2;
+   logic        [31:0]    zip_e2;
+
+
+
+   assign zip8_e2[31:0]  = {a_ff_e2[31:24],a_ff_e2[15:08],a_ff_e2[23:16],a_ff_e2[07:00]};
+
+   assign zip4_e2[31:0]  = {zip8_e2[31:28],zip8_e2[23:20],zip8_e2[27:24],zip8_e2[19:16],
+                            zip8_e2[15:12],zip8_e2[07:04],zip8_e2[11:08],zip8_e2[03:00]};
+
+   assign zip2_e2[31:0]  = {zip4_e2[31:30],zip4_e2[27:26],zip4_e2[29:28],zip4_e2[25:24],
+                            zip4_e2[23:22],zip4_e2[19:18],zip4_e2[21:20],zip4_e2[17:16],
+                            zip4_e2[15:14],zip4_e2[11:10],zip4_e2[13:12],zip4_e2[09:08],
+                            zip4_e2[07:06],zip4_e2[03:02],zip4_e2[05:04],zip4_e2[01:00]};
+
+   assign zip_e2[31:0]   = {zip2_e2[31],zip2_e2[29],zip2_e2[30],zip2_e2[28],zip2_e2[27],zip2_e2[25],zip2_e2[26],zip2_e2[24],
+                            zip2_e2[23],zip2_e2[21],zip2_e2[22],zip2_e2[20],zip2_e2[19],zip2_e2[17],zip2_e2[18],zip2_e2[16],
+                            zip2_e2[15],zip2_e2[13],zip2_e2[14],zip2_e2[12],zip2_e2[11],zip2_e2[09],zip2_e2[10],zip2_e2[08],
+                            zip2_e2[07],zip2_e2[05],zip2_e2[06],zip2_e2[04],zip2_e2[03],zip2_e2[01],zip2_e2[02],zip2_e2[00]};
+
+   // UNZIP effectively implements the old unshfli instruction (unshfli rd, rs1, imm) with a hardwired shamt of 15:
+   // unzip -> unshfli rd, rs1, 15
+
+   logic        [31:0]    unzip1_e2;
+   logic        [31:0]    unzip2_e2;
+   logic        [31:0]    unzip4_e2;
+   logic        [31:0]    unzip_e2;
+
+
+   assign unzip1_e2[31:0] =  {a_ff_e2[31],a_ff_e2[29],a_ff_e2[30],a_ff_e2[28],a_ff_e2[27],a_ff_e2[25],a_ff_e2[26],a_ff_e2[24],
+                              a_ff_e2[23],a_ff_e2[21],a_ff_e2[22],a_ff_e2[20],a_ff_e2[19],a_ff_e2[17],a_ff_e2[18],a_ff_e2[16],
+                              a_ff_e2[15],a_ff_e2[13],a_ff_e2[14],a_ff_e2[12],a_ff_e2[11],a_ff_e2[09],a_ff_e2[10],a_ff_e2[08],
+                              a_ff_e2[07],a_ff_e2[05],a_ff_e2[06],a_ff_e2[04],a_ff_e2[03],a_ff_e2[01],a_ff_e2[02],a_ff_e2[00]};
+
+   assign unzip2_e2[31:0] =  {unzip1_e2[31:30],unzip1_e2[27:26],unzip1_e2[29:28],unzip1_e2[25:24],
+                              unzip1_e2[23:22],unzip1_e2[19:18],unzip1_e2[21:20],unzip1_e2[17:16],
+                              unzip1_e2[15:14],unzip1_e2[11:10],unzip1_e2[13:12],unzip1_e2[09:08],
+                              unzip1_e2[07:06],unzip1_e2[03:02],unzip1_e2[05:04],unzip1_e2[01:00]};
+
+   assign unzip4_e2[31:0] = {unzip2_e2[31:28],unzip2_e2[23:20],unzip2_e2[27:24],unzip2_e2[19:16],
+                             unzip2_e2[15:12],unzip2_e2[07:04],unzip2_e2[11:08],unzip2_e2[03:00]};
+
+   assign unzip_e2[31:0]  = {unzip4_e2[31:24],unzip4_e2[15:08],unzip4_e2[23:16],unzip4_e2[07:00]};
+
+
    // * * * * * * * * * * * * * * * * * *  BitManip  :  XPERM          * * * * * * * * * * * * * * * * *
 
 // These instructions operate on nibbles/bytes/half-words/words.
@@ -326,13 +385,15 @@ import eh2_pkg::*;
    // * * * * * * * * * * * * * * * * * *  BitManip  :  Common logic * * * * * * * * * * * * * * * * * *
 
 
-   assign bitmanip_sel_e2        =  ap_clmul_e2 | ap_clmulh_e2 | ap_clmulr_e2 | ap_grev_e2 | ap_gorc_e2 | ap_xperm4_e2 | ap_xperm8_e2;
+   assign bitmanip_sel_e2        =  ap_clmul_e2 | ap_clmulh_e2 | ap_clmulr_e2 | ap_grev_e2 | ap_gorc_e2 | ap_zip_e2 | ap_unzip_e2 | ap_xperm4_e2 | ap_xperm8_e2;
 
-   assign bitmanip_e2[31:0]      = ( {32{ap_clmul_e2}}       &       clmul_raw_e2[31:0]   ) |
+   assign bitmanip_e2[31:0]      = ( {32{ap_clmul_e2}}      &       clmul_raw_e2[31:0]   ) |
                                    ( {32{ap_clmulh_e2}}     & {1'b0,clmul_raw_e2[62:32]} ) |
                                    ( {32{ap_clmulr_e2}}     &       clmul_raw_e2[62:31]  ) |
                                    ( {32{ap_grev_e2}}       &       grev_e2[31:0]        ) |
                                    ( {32{ap_gorc_e2}}       &       gorc_e2[31:0]        ) |
+                                   ( {32{ap_zip_e2}}        &       zip_e2[31:0]         ) |
+                                   ( {32{ap_unzip_e2}}      &       unzip_e2[31:0]       ) |
                                    ( {32{ap_xperm4_e2}}     &       xperm4_e2[31:0]      ) |
                                    ( {32{ap_xperm8_e2}}     &       xperm8_e2[31:0]      );
 

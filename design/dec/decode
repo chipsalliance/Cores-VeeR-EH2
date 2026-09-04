@@ -63,6 +63,9 @@ pack31    =  [000010011111.....100.....0110011]
 
 packh     =  [0000100..........111.....0110011]
 
+zip       =  [000010001111.....001.....0010011]
+unzip     =  [000010001111.....101.....0010011]
+
 # Zba
 
 sh1add    =  [0010000..........010.....0110011]
@@ -358,6 +361,8 @@ rv32i = {
       zbc
       grev
       gorc
+      zip
+      unzip
       xperm4
       xperm8
       zbp
@@ -407,6 +412,9 @@ rv32i[sh3add]    =  { alu zba     rs1 rs2 rd                       sh3add}
 #rv32i[pack]       = { alu     zbp rs1 rs2 rd                       pack  zbe zbf}
 rv32i[zext_h]     = { alu zbb zbp rs1 rs2 rd                       pack  zbe zbf}   # pack with rs2=x0
 rv32i[pack{1-31}] = { alu     zbp rs1 rs2 rd                       pack  zbe zbf}
+
+rv32i[zip]       =  { mul     zbp rs1     rd         shimm5        zip  }
+rv32i[unzip]     =  { mul     zbp rs1     rd         shimm5        unzip  }
 
 rv32i[mul]       =  { mul         rs1 rs2 rd low                         }
 rv32i[mulh]      =  { mul         rs1 rs2 rd rs1_sign rs2_sign           }

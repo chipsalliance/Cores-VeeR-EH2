@@ -322,6 +322,8 @@ typedef struct packed {
                        logic clmulh;
                        logic clmulr;
                        logic zbc;
+                       logic zip;
+                       logic unzip;
                        logic xperm4;
                        logic xperm8;
                        logic zbp;
@@ -399,6 +401,8 @@ typedef struct packed {
                        logic clmulr;
                        logic grev;
                        logic gorc;
+                       logic zip;
+                       logic unzip;
                        logic xperm4;
                        logic xperm8;
                        } eh2_mul_pkt_t;

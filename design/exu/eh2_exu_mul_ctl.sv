@@ -64,14 +64,17 @@ import eh2_pkg::*;
    logic                ap_clmulh_e2;
    logic                ap_clmulr_e2;
 
-   // ZBP
-   logic                ap_grev_e2;
+   // ZBB
    logic                ap_gorc_e2;
-   logic                ap_xperm4_e2;
-   logic                ap_xperm8_e2;
 
+   // ZBKB
+   logic                ap_grev_e2;
    logic                ap_zip_e2;
    logic                ap_unzip_e2;
+
+   // ZBKX
+   logic                ap_xperm4_e2;
+   logic                ap_xperm8_e2;
 
    if (pt.BITMANIP_ZBC == 1)
      begin
@@ -86,12 +89,26 @@ import eh2_pkg::*;
        assign ap_clmulr_e2    =  1'b0;
      end
 
-   if (pt.BITMANIP_ZBP == 1)
+    if (pt.BITMANIP_ZBB == 1)
+       assign ap_gorc_e2     =  mp_e2.gorc;
+    else
+      assign ap_gorc_e2      =  1'b0;
+
+
+   if (pt.BITMANIP_ZBKX == 1)
      begin
-       assign ap_grev_e2      =  mp_e2.grev;
-       assign ap_gorc_e2      =  mp_e2.gorc;
        assign ap_xperm4_e2    =  mp_e2.xperm4;
        assign ap_xperm8_e2    =  mp_e2.xperm8;
+     end
+   else
+     begin
+       assign ap_xperm4_e2    =  1'b0;
+       assign ap_xperm8_e2    =  1'b0;
+     end
+
+    if (pt.BITMANIP_ZBKB == 1)
+     begin
+       assign ap_grev_e2     =  mp_e2.grev;
 
        assign ap_zip_e2      =  mp_e2.zip;
        assign ap_unzip_e2    =  mp_e2.unzip;
@@ -99,9 +116,6 @@ import eh2_pkg::*;
    else
      begin
        assign ap_grev_e2      =  1'b0;
-       assign ap_gorc_e2      =  1'b0;
-       assign ap_xperm4_e2    =  1'b0;
-       assign ap_xperm8_e2    =  1'b0;
 
        assign ap_zip_e2      =  1'b0;
        assign ap_unzip_e2    =  1'b0;

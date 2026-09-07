@@ -669,25 +669,18 @@ import eh2_pkg::*;
 
    logic i0_bitmanip_zbb_legal;
    logic i0_bitmanip_zbs_legal;
-   logic i0_bitmanip_zbe_legal;
+   logic i0_bitmanip_zbkb_legal;
+   logic i0_bitmanip_zbkx_legal;
    logic i0_bitmanip_zbc_legal;
-   logic i0_bitmanip_zbp_legal;
-   logic i0_bitmanip_zbf_legal;
    logic i0_bitmanip_zba_legal;
-   logic i0_bitmanip_zbb_zbp_legal;
-   logic i0_bitmanip_zbp_zbe_zbf_legal;
-   logic i0_bitmanip_zbb_zbp_zbe_zbf_legal;
    logic i0_bitmanip_legal;
+
    logic i1_bitmanip_zbb_legal;
    logic i1_bitmanip_zbs_legal;
-   logic i1_bitmanip_zbe_legal;
+   logic i1_bitmanip_zbkb_legal;
+   logic i1_bitmanip_zbkx_legal;
    logic i1_bitmanip_zbc_legal;
-   logic i1_bitmanip_zbp_legal;
-   logic i1_bitmanip_zbf_legal;
    logic i1_bitmanip_zba_legal;
-   logic i1_bitmanip_zbb_zbp_legal;
-   logic i1_bitmanip_zbp_zbe_zbf_legal;
-   logic i1_bitmanip_zbb_zbp_zbe_zbf_legal;
    logic i1_bitmanip_legal;
 
    logic i0_legal_except_csr;
@@ -970,6 +963,7 @@ end // always_comb begin
          i0_ap.cpop    =  i0_dp.cpop;
          i0_ap.sext_b  =  i0_dp.sext_b;
          i0_ap.sext_h  =  i0_dp.sext_h;
+         i0_ap.zext_h  =  i0_dp.zext_h;
          i0_ap.sh1add  =  i0_dp.sh1add;
          i0_ap.sh2add  =  i0_dp.sh2add;
          i0_ap.sh3add  =  i0_dp.sh3add;
@@ -1035,6 +1029,7 @@ end // always_comb begin
          i1_ap.cpop    =  i1_dp.cpop;
          i1_ap.sext_b  =  i1_dp.sext_b;
          i1_ap.sext_h  =  i1_dp.sext_h;
+         i1_ap.zext_h  =  i1_dp.zext_h;
          i1_ap.sh1add  =  i1_dp.sh1add;
          i1_ap.sh2add  =  i1_dp.sh2add;
          i1_ap.sh3add  =  i1_dp.sh3add;
@@ -1144,9 +1139,9 @@ end // always_comb begin
          if (i0_dp.load)                 i0_itype = LOAD;
          if (i0_dp.store)                i0_itype = STORE;
          if (i0_dp.pm_alu)               i0_itype = ALU;
-         if (i0_dp.zbb | i0_dp.zbs |
-             i0_dp.zbe | i0_dp.zbc |
-             i0_dp.zbp | i0_dp.zbf | i0_dp.zba)
+         if (i0_dp.zbb  | i0_dp.zbs  |
+             i0_dp.zbkb | i0_dp.zbkx |
+             i0_dp.zbc  | i0_dp.zba)
                                           i0_itype = BITMANIPU;
          if (i0_dp.atomic & ~(i0_dp.lr |  i0_dp.sc))
                                           i0_itype = ATOMIC;
@@ -1175,9 +1170,9 @@ end // always_comb begin
          if (i1_dp.pm_alu)               i1_itype = ALU;
          if (i1_dp.condbr)               i1_itype = CONDBR;
          if (i1_dp.jal)                  i1_itype = JAL;
-         if (i1_dp.zbb | i1_dp.zbs |
-             i1_dp.zbe | i1_dp.zbc |
-             i1_dp.zbp | i1_dp.zbf | i1_dp.zba)
+         if (i1_dp.zbb  | i1_dp.zbs  |
+             i1_dp.zbkb | i1_dp.zbkx |
+             i1_dp.zbc  | i1_dp.zba)
                                          i1_itype = BITMANIPU;
          if (i1_dp.atomic & ~(i1_dp.lr | i1_dp.sc))
                                          i1_itype = ATOMIC;
@@ -1803,7 +1798,36 @@ end
        assign i1_atomic_legal      =  1'b1;
      end
 
+   /*
+    * The <..>_legal signals below are set to 1 when the corresponding ISA extension
+    * is enabled on the struct generated from the configuration script.
+    * If the extension is not enabled, the logic expression of the else branch,
+    * will either set the legal signal to 1 or 0.
+    * i0/1_dp.zbb/zbkb come from the eh2_dec_dec_ctl module at the end of the file.
+    *    If `i0/1_dp.zbb` is asserted then the decoding unit received an instruction
+    *    belonging to the ZBB extension, but the extension is not enabled on the core itself.
+    *    Therefore, this instruction should not be allowed (i.e. set `i0/1_bitmanip_zbb_legal` to 0).
+    *    Assuming that `i0/1_dp.zbkb = 0`, the logic expression below becomes:
+    *             i0/1_bitmanip_zbb_legal = ~(1 & 1) = 0 .
+    *    (The combination of i0/1_dp.zbb = 1 and i0/1_dp.zbkb = 1 is not valid, since the eh2_dec_dec_ctl
+    *     module never asserts the zbb and zbkb signals simultaneously. Instructions that belong to both
+    *     the ZBB and the ZBKB extensions, only cause the assertion of the zbb signal, while the zbkb
+    *     signal is asserted only for pure ZBKB instructions)
+    *
+    *    If `i0_dp.zbb` is not asserted, the value of `i0_dp.zbkb` is treated as a don't care value
+    *    since the expression becomes i0_bitmanip_zbb_legal = ~(0 & x),
+    *    i.e. `i0_dp.zbb` being equal to zero is enough to zero-out the result of the AND operation.
+    *    Thus, the final expression is i0_bitmanip_zbb_legal = ~(0) = 1.
+    *    This is allowed since an instruction that does not belong to the ZBB extension, could belong
+    *    to the ZBKB extension set (i0/1_dp.zbkb is asserted only for pure ZBKB instructions).
 
+    * The same apply for the logic driving `i0/1_bitmanip_zbkb_legal`, while `i0/1_bitmanip_zbkx_legal`
+    * will be set to zero when the decoded instruction is a ZBKB instruction and the feature is not enabled
+    * on the core. If the decoded instruction does not assert the zbkx signal, we allow that instruction
+    * since it could be an instruction belonging to any other extension set.
+    * All the <..>_legal signals are AND-ed together in the end to drive the `i0_bitmanip_legal` signal
+    * which is the signal marking a valid bit manipulation instruction from any extension set.
+    */
    if       (pt.BITMANIP_ZBB == 1)
      begin
        assign i0_bitmanip_zbb_legal      =  1'b1;
@@ -1811,10 +1835,53 @@ end
      end
    else
      begin
-       assign i0_bitmanip_zbb_legal      = ~(i0_dp.zbb & ~i0_dp.zbp);
-       assign i1_bitmanip_zbb_legal      = ~(i1_dp.zbb & ~i1_dp.zbp);
+       assign i0_bitmanip_zbb_legal      = ~(i0_dp.zbb & ~i0_dp.zbkb);
+       assign i1_bitmanip_zbb_legal      = ~(i1_dp.zbb & ~i1_dp.zbkb);
      end
 
+   if       (pt.BITMANIP_ZBKB == 1)
+     begin
+       assign i0_bitmanip_zbkb_legal      =  1'b1;
+       assign i1_bitmanip_zbkb_legal      =  1'b1;
+     end
+   else
+     begin
+       assign i0_bitmanip_zbkb_legal      = ~(i0_dp.zbkb & ~i0_dp.zbb);
+       assign i1_bitmanip_zbkb_legal      = ~(i1_dp.zbkb & ~i1_dp.zbb);
+     end
+
+   if       (pt.BITMANIP_ZBKX == 1)
+     begin
+       assign i0_bitmanip_zbkx_legal      =  1'b1;
+       assign i1_bitmanip_zbkx_legal      =  1'b1;
+     end
+   else
+     begin
+       assign i0_bitmanip_zbkx_legal      = ~i0_dp.zbkx;
+       assign i1_bitmanip_zbkx_legal      = ~i1_dp.zbkx;
+     end
+
+   if       (pt.BITMANIP_ZBA == 1)
+     begin
+       assign i0_bitmanip_zba_legal      =  1'b1;
+       assign i1_bitmanip_zba_legal      =  1'b1;
+     end
+   else
+     begin
+       assign i0_bitmanip_zba_legal      = ~i0_dp.zba;
+       assign i1_bitmanip_zba_legal      = ~i1_dp.zba;
+     end
+
+   if       (pt.BITMANIP_ZBC == 1)
+     begin
+       assign i0_bitmanip_zbc_legal      =  1'b1;
+       assign i1_bitmanip_zbc_legal      =  1'b1;
+     end
+   else
+     begin
+       assign i0_bitmanip_zbc_legal      = ~i0_dp.zbc;
+       assign i1_bitmanip_zbc_legal      = ~i1_dp.zbc;
+     end
 
    if       (pt.BITMANIP_ZBS == 1)
      begin
@@ -1828,106 +1895,9 @@ end
      end
 
 
-   if       (pt.BITMANIP_ZBE == 1)
-     begin
-       assign i0_bitmanip_zbe_legal      =  1'b1;
-       assign i1_bitmanip_zbe_legal      =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbe_legal      = ~(i0_dp.zbe & ~i0_dp.zbp & ~i0_dp.zbf);
-       assign i1_bitmanip_zbe_legal      = ~(i1_dp.zbe & ~i1_dp.zbp & ~i1_dp.zbf);
-     end
+   assign i0_bitmanip_legal =  i0_bitmanip_zbb_legal & i0_bitmanip_zbs_legal & i0_bitmanip_zbkb_legal & i0_bitmanip_zbkx_legal & i0_bitmanip_zbc_legal & i0_bitmanip_zba_legal;
 
-
-   if       (pt.BITMANIP_ZBC == 1)
-     begin
-       assign i0_bitmanip_zbc_legal      =  1'b1;
-       assign i1_bitmanip_zbc_legal      =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbc_legal      = ~i0_dp.zbc;
-       assign i1_bitmanip_zbc_legal      = ~i1_dp.zbc;
-     end
-
-
-   if       (pt.BITMANIP_ZBP == 1)
-     begin
-       assign i0_bitmanip_zbp_legal      =  1'b1;
-       assign i1_bitmanip_zbp_legal      =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbp_legal      = ~(i0_dp.zbp & ~i0_dp.zbb & ~i0_dp.zbe & ~i0_dp.zbf);
-       assign i1_bitmanip_zbp_legal      = ~(i1_dp.zbp & ~i1_dp.zbb & ~i1_dp.zbe & ~i1_dp.zbf);
-     end
-
-
-   if       (pt.BITMANIP_ZBF == 1)
-     begin
-       assign i0_bitmanip_zbf_legal      =  1'b1;
-       assign i1_bitmanip_zbf_legal      =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbf_legal      = ~(i0_dp.zbf & ~i0_dp.zbp & ~i0_dp.zbe);
-       assign i1_bitmanip_zbf_legal      = ~(i1_dp.zbf & ~i1_dp.zbp & ~i1_dp.zbe);
-     end
-
-
-   if (pt.BITMANIP_ZBA == 1)
-     begin
-       assign i0_bitmanip_zba_legal      =  1'b1;
-       assign i1_bitmanip_zba_legal      =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zba_legal      = ~i0_dp.zba;
-       assign i1_bitmanip_zba_legal      = ~i1_dp.zba;
-     end
-
-
-   if     ( (pt.BITMANIP_ZBB == 1) | (pt.BITMANIP_ZBP == 1) )
-     begin
-       assign i0_bitmanip_zbb_zbp_legal  =  1'b1;
-       assign i1_bitmanip_zbb_zbp_legal  =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbb_zbp_legal  = ~(i0_dp.zbb & i0_dp.zbp & ~i0_dp.zbf);                                          // added ~ZBF to exclude ZEXT.H
-       assign i1_bitmanip_zbb_zbp_legal  = ~(i1_dp.zbb & i1_dp.zbp & ~i1_dp.zbf);                                          // added ~ZBF to exclude ZEXT.H
-     end
-
-
-   if     ( (pt.BITMANIP_ZBP == 1) | (pt.BITMANIP_ZBE == 1)  | (pt.BITMANIP_ZBF == 1))
-     begin
-       assign i0_bitmanip_zbp_zbe_zbf_legal      =  1'b1;
-       assign i1_bitmanip_zbp_zbe_zbf_legal      =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbp_zbe_zbf_legal      = ~(i0_dp.zbp & i0_dp.zbe &  i0_dp.zbf & ~i0_dp.zbb);                     // added ~ZBB to exclude ZEXT.H
-       assign i1_bitmanip_zbp_zbe_zbf_legal      = ~(i1_dp.zbp & i1_dp.zbe &  i1_dp.zbf & ~i1_dp.zbb);                     // added ~ZBB to exclude ZEXT.H
-     end
-
-
-   if     ( (pt.BITMANIP_ZBB == 1) | (pt.BITMANIP_ZBP == 1) | (pt.BITMANIP_ZBE == 1)  | (pt.BITMANIP_ZBF == 1))
-     begin
-       assign i0_bitmanip_zbb_zbp_zbe_zbf_legal  =  1'b1;
-       assign i1_bitmanip_zbb_zbp_zbe_zbf_legal  =  1'b1;
-     end
-   else
-     begin
-       assign i0_bitmanip_zbb_zbp_zbe_zbf_legal  = ~(i0_dp.zbp & i0_dp.zbe &  i0_dp.zbf &  i0_dp.zbb);                     // added only for ZEXT.H
-       assign i1_bitmanip_zbb_zbp_zbe_zbf_legal  = ~(i1_dp.zbp & i1_dp.zbe &  i1_dp.zbf &  i1_dp.zbb);                     // added only for ZEXT.H
-     end
-
-
-
-   assign i0_bitmanip_legal =  i0_bitmanip_zbb_legal & i0_bitmanip_zbs_legal & i0_bitmanip_zbe_legal & i0_bitmanip_zbc_legal & i0_bitmanip_zbp_legal & i0_bitmanip_zbf_legal & i0_bitmanip_zba_legal & i0_bitmanip_zbb_zbp_legal & i0_bitmanip_zbp_zbe_zbf_legal & i0_bitmanip_zbb_zbp_zbe_zbf_legal;
-
-   assign i1_bitmanip_legal =  i1_bitmanip_zbb_legal & i1_bitmanip_zbs_legal & i1_bitmanip_zbe_legal & i1_bitmanip_zbc_legal & i1_bitmanip_zbp_legal & i1_bitmanip_zbf_legal & i1_bitmanip_zba_legal & i1_bitmanip_zbb_zbp_legal & i1_bitmanip_zbp_zbe_zbf_legal & i1_bitmanip_zbb_zbp_zbe_zbf_legal;
+   assign i1_bitmanip_legal =  i1_bitmanip_zbb_legal & i1_bitmanip_zbs_legal & i1_bitmanip_zbkb_legal & i1_bitmanip_zbkx_legal & i1_bitmanip_zbc_legal & i1_bitmanip_zba_legal;
 
 
 
@@ -3603,11 +3573,18 @@ assign out.sext_b = (i[29]&!i[27]&i[22]&!i[20]&!i[14]&!i[13]&i[12]&!i[5]&i[4]&!i
 
 assign out.sext_h = (i[29]&!i[27]&i[22]&i[20]&!i[14]&!i[13]&i[12]&!i[5]&i[4]&!i[2]);
 
+assign out.zext_h = (!i[29]&i[27]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[12]
+    &!i[6]&i[5]&i[4]&!i[2]);
+
 assign out.min = (i[27]&i[25]&i[14]&!i[13]&!i[6]&i[5]&!i[2]);
 
 assign out.max = (i[27]&i[25]&i[14]&i[13]&!i[6]&i[5]&!i[2]);
 
-assign out.pack = (!i[29]&i[27]&!i[25]&!i[12]&!i[6]&i[5]&i[4]&!i[2]);
+assign out.pack = (!i[29]&i[27]&!i[25]&i[24]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]
+    &i[27]&!i[25]&i[23]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&i[27]
+    &!i[25]&i[22]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&i[27]&!i[25]
+    &i[21]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&i[27]&!i[25]&i[20]
+    &!i[12]&!i[6]&i[5]&i[4]&!i[2]);
 
 assign out.packh = (i[27]&!i[25]&i[13]&i[12]&!i[6]&i[5]&!i[2]);
 
@@ -3615,9 +3592,10 @@ assign out.rol = (i[29]&!i[27]&!i[14]&i[12]&!i[6]&i[5]&i[4]&!i[2]);
 
 assign out.ror = (i[29]&!i[27]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
 
-assign out.zbb = (!i[29]&i[27]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[13]&!i[12]&i[5]
-    &i[4]&!i[2]) | (i[29]&i[14]&!i[13]&i[12]&!i[5]&i[4]&!i[2]) | (i[30]
-    &i[13]&!i[6]&i[5]&i[4]&!i[2]) | (i[30]&i[14]&!i[12]&!i[6]&i[5]&!i[2]) | (
+assign out.zbb = (!i[30]&i[29]&i[14]&!i[13]&i[12]&!i[5]&i[4]&!i[2]) | (i[29]&!i[20]
+    &i[14]&!i[13]&i[12]&!i[5]&i[4]&!i[2]) | (!i[29]&i[27]&!i[24]&!i[23]
+    &!i[22]&!i[21]&!i[20]&!i[13]&!i[12]&i[5]&i[4]&!i[2]) | (i[30]&i[14]
+    &!i[12]&!i[6]&i[5]&!i[2]) | (i[30]&i[13]&!i[6]&i[5]&i[4]&!i[2]) | (
     i[29]&!i[27]&!i[13]&i[12]&!i[6]&i[4]&!i[2]) | (i[27]&i[25]&i[14]&!i[6]
     &i[5]&!i[2]);
 
@@ -3632,7 +3610,15 @@ assign out.bext = (i[30]&!i[29]&i[27]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
 assign out.zbs = (i[29]&i[27]&!i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]) | (i[30]&!i[29]
     &i[27]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
 
-assign out.zbe = (!i[30]&!i[29]&i[27]&!i[25]&!i[6]&i[5]&i[4]&!i[2]);
+assign out.zbkb = (i[30]&i[29]&i[27]&i[20]&i[14]&!i[13]&i[12]&!i[5]&i[4]&!i[2]) | (
+    !i[30]&!i[29]&i[27]&!i[13]&i[12]&!i[5]&i[4]&!i[2]) | (!i[29]&i[27]
+    &!i[25]&i[24]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&i[27]&!i[25]
+    &i[23]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&i[27]&!i[25]&i[22]
+    &!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&i[27]&!i[25]&i[21]&!i[12]
+    &!i[6]&i[5]&i[4]&!i[2]) | (!i[30]&i[27]&!i[25]&i[14]&i[12]&!i[6]&i[5]
+    &!i[2]) | (!i[29]&i[27]&!i[25]&i[20]&!i[12]&!i[6]&i[5]&i[4]&!i[2]);
+
+assign out.zbkx = (i[29]&i[27]&!i[12]&!i[6]&i[5]&i[4]&!i[2]);
 
 assign out.clmul = (i[27]&i[25]&!i[14]&!i[13]&!i[6]&i[5]&i[4]&!i[2]);
 
@@ -3653,14 +3639,6 @@ assign out.unzip = (!i[30]&i[27]&i[23]&i[14]&!i[13]&i[12]&!i[5]&i[4]&!i[2]);
 assign out.xperm4 = (i[29]&i[27]&i[13]&!i[6]&i[5]&i[4]&!i[2]);
 
 assign out.xperm8 = (i[29]&i[27]&i[14]&!i[6]&i[5]&!i[2]);
-
-assign out.zbp = (!i[30]&!i[29]&i[27]&!i[13]&i[12]&!i[5]&i[4]&!i[2]) | (i[30]&!i[27]
-    &!i[14]&i[12]&!i[6]&i[5]&i[4]&!i[2]) | (i[30]&i[14]&!i[12]&!i[6]&i[5]
-    &!i[2]) | (i[27]&!i[25]&i[13]&!i[6]&i[5]&i[4]&!i[2]) | (i[30]&i[13]
-    &!i[6]&i[5]&i[4]&!i[2]) | (i[27]&!i[25]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (
-    i[29]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
-
-assign out.zbf = (!i[30]&!i[29]&i[27]&!i[25]&!i[6]&i[5]&i[4]&!i[2]);
 
 assign out.sh1add = (i[29]&!i[27]&!i[14]&!i[12]&!i[6]&i[5]&i[4]&!i[2]);
 

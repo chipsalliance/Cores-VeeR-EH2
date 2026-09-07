@@ -214,6 +214,7 @@ typedef struct packed {
                        logic cpop;
                        logic sext_b;
                        logic sext_h;
+                       logic zext_h;
                        logic min;
                        logic max;
                        logic pack;
@@ -303,6 +304,7 @@ typedef struct packed {
                        logic cpop;
                        logic sext_b;
                        logic sext_h;
+                       logic zext_h;
                        logic min;
                        logic max;
                        logic pack;
@@ -317,7 +319,6 @@ typedef struct packed {
                        logic binv;
                        logic bext;
                        logic zbs;
-                       logic zbe;
                        logic clmul;
                        logic clmulh;
                        logic clmulr;
@@ -326,8 +327,8 @@ typedef struct packed {
                        logic unzip;
                        logic xperm4;
                        logic xperm8;
-                       logic zbp;
-                       logic zbf;
+                       logic zbkb;
+                       logic zbkx;
                        logic sh1add;
                        logic sh2add;
                        logic sh3add;

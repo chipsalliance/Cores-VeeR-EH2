@@ -82,11 +82,13 @@ import eh2_pkg::*;
    logic                  ap_sext_h;
    logic                  ap_min;
    logic                  ap_max;
+   logic                  ap_orc_b;
+   logic                  ap_zbb;
+
+   // Zbb/Zbkb
    logic                  ap_rol;
    logic                  ap_ror;
    logic                  ap_rev8;
-   logic                  ap_orc_b;
-   logic                  ap_zbb;
 
    // Zbs
    logic                  ap_bset;
@@ -94,7 +96,7 @@ import eh2_pkg::*;
    logic                  ap_binv;
    logic                  ap_bext;
 
-   // Zbp
+   // Zbkb
    logic                  ap_pack;
    logic                  ap_packh;
 
@@ -103,8 +105,6 @@ import eh2_pkg::*;
    logic                  ap_sh2add;
    logic                  ap_sh3add;
    logic                  ap_zba;
-
-
 
    if (pt.BITMANIP_ZBB == 1)
      begin
@@ -122,27 +122,26 @@ import eh2_pkg::*;
        assign ap_ctz          =  1'b0;
        assign ap_cpop         =  1'b0;
        assign ap_sext_b       =  1'b0;
-       assign ap_sext_h       =  1'b0;
        assign ap_min          =  1'b0;
        assign ap_max          =  1'b0;
      end
 
 
-   if ( (pt.BITMANIP_ZBB == 1) | (pt.BITMANIP_ZBP == 1) )
+   if ( (pt.BITMANIP_ZBB == 1) | (pt.BITMANIP_ZBKB == 1) )
      begin
        assign ap_rol          =  ap.rol;
        assign ap_ror          =  ap.ror;
-       assign ap_rev8         =  ap.grev & (b_ff[4:0] == 5'b11000);
        assign ap_orc_b        =  ap.gorc & (b_ff[4:0] == 5'b00111);
        assign ap_zbb          =  ap.zbb;
+       assign ap_rev8         =  ap.grev & (b_ff[4:0] == 5'b11000);
      end
    else
      begin
        assign ap_rol          =  1'b0;
        assign ap_ror          =  1'b0;
-       assign ap_rev8         =  1'b0;
        assign ap_orc_b        =  1'b0;
        assign ap_zbb          =  1'b0;
+       assign ap_rev8         =  1'b0;
      end
 
 
@@ -162,7 +161,7 @@ import eh2_pkg::*;
      end
 
 
-   if ( (pt.BITMANIP_ZBB == 1) | (pt.BITMANIP_ZBP == 1) | (pt.BITMANIP_ZBE == 1) | (pt.BITMANIP_ZBF == 1) )
+   if ( (pt.BITMANIP_ZBKB == 1) )
      begin
        assign ap_pack         =  ap.pack;
        assign ap_packh        =  ap.packh;
@@ -366,8 +365,6 @@ import eh2_pkg::*;
 
    assign bitmanip_sext_result[31:0]   = ( {32{ap_sext_b}} & { {24{a_ff[7]}} ,a_ff[7:0]  } ) |
                                          ( {32{ap_sext_h}} & { {16{a_ff[15]}},a_ff[15:0] } );
-
-
 
 
    // * * * * * * * * * * * * * * * * * *  BitManip  :  MIN,MAX,MINU,MAXU  * * * * * * * * * * * * * * *

@@ -15,18 +15,15 @@ max       =  [0000101..........110.....0110011]
 minu      =  [0000101..........101.....0110011]
 maxu      =  [0000101..........111.....0110011]
 
-rol       =  [0110000..........001.....0110011]
-ror       =  [0110000..........101.....0110011]
-rori      =  [0110000..........101.....0010011]
+rol       =  [0110000..........001.....0110011]  # (also in ratified Zbkb)
+ror       =  [0110000..........101.....0110011]  # (also in ratified Zbkb)
+rori      =  [0110000..........101.....0010011]  # (also in ratified Zbkb)
 
-# Zbp (Ratified in Zbb)
+andn      =  [0100000..........111.....0110011]  # (also in ratified Zbkb)
+orn       =  [0100000..........110.....0110011]  # (also in ratified Zbkb)
+xnor      =  [0100000..........100.....0110011]  # (also in ratified Zbkb)
 
-andn      =  [0100000..........111.....0110011]
-orn       =  [0100000..........110.....0110011]
-xnor      =  [0100000..........100.....0110011]
-
-# Zbp (Ratified in Zbkb)
-
+# Zbkb
 #pack     =  [0000100..........100.....0110011]
 # for all values of rs2
 pack1     =  [000010000001.....100.....0110011]
@@ -63,6 +60,9 @@ pack31    =  [000010011111.....100.....0110011]
 
 packh     =  [0000100..........111.....0110011]
 
+rev8      =  [011010011000.....101.....0010011]
+brev8     =  [011010000111.....101.....0010011]
+
 zip       =  [000010001111.....001.....0010011]
 unzip     =  [000010001111.....101.....0010011]
 
@@ -84,20 +84,16 @@ bclri     =  [0100100..........001.....0010011]
 binvi     =  [0110100..........001.....0010011]
 bexti     =  [0100100..........101.....0010011]
 
-# Zbp (Ratified in Zbb)
-
-rev8      =  [011010011000.....101.....0010011] # (and in Zbkb)
-brev8     =  [011010000111.....101.....0010011] # (and in Zbkb)
-
+# Zbb
 orc_b     =  [001010000111.....101.....0010011]
 
-# Zbc/Zbkc
+# Zbc
 
 clmul     =  [0000101..........001.....0110011]
 clmulr    =  [0000101..........010.....0110011]
 clmulh    =  [0000101..........011.....0110011]
 
-# Zbp (Zbkx)
+# Zbkx
 
 xperm4    =  [0010100..........010.....0110011] # was xperm_n
 xperm8    =  [0010100..........100.....0110011] # was xperm_b
@@ -342,6 +338,7 @@ rv32i = {
       cpop
       sext_b
       sext_h
+      zext_h
       min
       max
       pack
@@ -354,7 +351,8 @@ rv32i = {
       binv
       bext
       zbs
-      zbe
+      zbkb
+      zbkx
       clmul
       clmulh
       clmulr
@@ -365,8 +363,6 @@ rv32i = {
       unzip
       xperm4
       xperm8
-      zbp
-      zbf
       sh1add
       sh2add
       sh3add
@@ -381,22 +377,39 @@ rv32i = {
 
 .decode
 
+# Zbb extension
 rv32i[clz]       =  { alu zbb     rs1     rd                       clz   }
 rv32i[ctz]       =  { alu zbb     rs1     rd                       ctz   }
 rv32i[cpop]      =  { alu zbb     rs1     rd                       cpop  }
 rv32i[sext_b]    =  { alu zbb     rs1     rd                       sext_b}
 rv32i[sext_h]    =  { alu zbb     rs1     rd                       sext_h}
+rv32i[zext_h]    =  { alu zbb     rs1 rs2 rd                       zext_h  }  # pack with rs2=x0
+rv32i[orc_b]     =  { alu zbb     rs1     rd         shimm5        gorc  }  # gorci7
+
 rv32i[min]       =  { alu zbb     rs1 rs2 rd                sub    min   }
 rv32i[max]       =  { alu zbb     rs1 rs2 rd                sub    max   }
 rv32i[minu]      =  { alu zbb     rs1 rs2 rd  unsign        sub    min   }
 rv32i[maxu]      =  { alu zbb     rs1 rs2 rd  unsign        sub    max   }
-rv32i[andn]      =  { alu zbb zbp rs1 rs2 rd                       land  }
-rv32i[orn]       =  { alu zbb zbp rs1 rs2 rd                       lor   }
-rv32i[xnor]      =  { alu zbb zbp rs1 rs2 rd                       lxor  }
-rv32i[packh]     =  { alu     zbp rs1 rs2 rd                       packh zbe zbf}
-rv32i[rol]       =  { alu zbb zbp rs1 rs2 rd                       rol   }
-rv32i[ror]       =  { alu zbb zbp rs1 rs2 rd                       ror   }
-rv32i[rori]      =  { alu zbb zbp rs1     rd         shimm5        ror   }
+
+# Zbb/Zbkb extension
+rv32i[rol]       =  { alu zbb rs1 rs2 rd                       rol   }
+rv32i[ror]       =  { alu zbb rs1 rs2 rd                       ror   }
+rv32i[rori]      =  { alu zbb rs1     rd         shimm5        ror   }
+rv32i[andn]      =  { alu zbb rs1 rs2 rd                       land  }
+rv32i[orn]       =  { alu zbb rs1 rs2 rd                       lor   }
+rv32i[xnor]      =  { alu zbb rs1 rs2 rd                       lxor  }
+rv32i[rev8]      =  { alu zbb rs1     rd         shimm5        grev  } # grevi24
+
+
+# Zbkb extension
+#rv32i[pack]      =  { alu     rs1 rs2 rd                       pack  zbkb}
+rv32i[pack{1-31}] =  { alu     rs1 rs2 rd                       pack  zbkb}
+rv32i[packh]      =  { alu     rs1 rs2 rd                       packh zbkb}
+rv32i[brev8]      =  { mul     rs1     rd         shimm5        grev  zbkb} # grevi7
+rv32i[zip]        =  { mul     rs1     rd         shimm5        zip   zbkb}
+rv32i[unzip]      =  { mul     rs1     rd         shimm5        unzip zbkb}
+
+# Zbs extension
 rv32i[bset]      =  { alu zbs     rs1 rs2 rd                       bset  }
 rv32i[bclr]      =  { alu zbs     rs1 rs2 rd                       bclr  }
 rv32i[binv]      =  { alu zbs     rs1 rs2 rd                       binv  }
@@ -405,39 +418,32 @@ rv32i[bseti]     =  { alu zbs     rs1     rd         shimm5        bset  }
 rv32i[bclri]     =  { alu zbs     rs1     rd         shimm5        bclr  }
 rv32i[binvi]     =  { alu zbs     rs1     rd         shimm5        binv  }
 rv32i[bexti]     =  { alu zbs     rs1     rd         shimm5        bext  }
+
+# Zba extension
 rv32i[sh1add]    =  { alu zba     rs1 rs2 rd                       sh1add}
 rv32i[sh2add]    =  { alu zba     rs1 rs2 rd                       sh2add}
 rv32i[sh3add]    =  { alu zba     rs1 rs2 rd                       sh3add}
 
-#rv32i[pack]       = { alu     zbp rs1 rs2 rd                       pack  zbe zbf}
-rv32i[zext_h]     = { alu zbb zbp rs1 rs2 rd                       pack  zbe zbf}   # pack with rs2=x0
-rv32i[pack{1-31}] = { alu     zbp rs1 rs2 rd                       pack  zbe zbf}
-
-rv32i[zip]       =  { mul     zbp rs1     rd         shimm5        zip  }
-rv32i[unzip]     =  { mul     zbp rs1     rd         shimm5        unzip  }
-
+# M extension
 rv32i[mul]       =  { mul         rs1 rs2 rd low                         }
 rv32i[mulh]      =  { mul         rs1 rs2 rd rs1_sign rs2_sign           }
 rv32i[mulhu]     =  { mul         rs1 rs2 rd                             }
 rv32i[mulhsu]    =  { mul         rs1 rs2 rd rs1_sign                    }
-rv32i[clmul]     =  { mul zbc     rs1 rs2 rd                       clmul }
-rv32i[clmulh]    =  { mul zbc     rs1 rs2 rd                       clmulh}
-rv32i[clmulr]    =  { mul zbc     rs1 rs2 rd                       clmulr}
-
-rv32i[rev8]          =  { alu zbb zbp rs1     rd         shimm5        grev  } # grevi24
-rv32i[brev8]         =  { mul zbb zbp rs1     rd         shimm5        grev  } # grevi7
-
-rv32i[orc_b]         =  { alu zbb zbp rs1     rd         shimm5        gorc  }  # gorci7
-
-rv32i[xperm4]   =  { mul     zbp rs1 rs2 rd                       xperm4}
-rv32i[xperm8]   =  { mul     zbp rs1 rs2 rd                       xperm8}
-
-
 rv32i[div]       =  { div rs1 rs2 rd             i0_only}
 rv32i[divu]      =  { div rs1 rs2 rd unsign      i0_only}
 rv32i[rem]       =  { div rs1 rs2 rd         rem i0_only}
 rv32i[remu]      =  { div rs1 rs2 rd unsign  rem i0_only}
 
+# Zbc extension
+rv32i[clmul]     =  { mul zbc     rs1 rs2 rd                       clmul }
+rv32i[clmulh]    =  { mul zbc     rs1 rs2 rd                       clmulh}
+rv32i[clmulr]    =  { mul zbc     rs1 rs2 rd                       clmulr}
+
+# Zbkx extension
+rv32i[xperm4]    =  { mul     zbkx rs1 rs2 rd                       xperm4}
+rv32i[xperm8]    =  { mul     zbkx rs1 rs2 rd                       xperm8}
+
+# Base ISA
 rv32i[add]       =  { alu rs1 rs2   rd add pm_alu }
 rv32i[addi]      =  { alu rs1 imm12 rd add pm_alu }
 

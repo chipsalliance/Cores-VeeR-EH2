@@ -1,0 +1,37 @@
+name: EH2 microarchitectural tests
+
+on:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  eh2-regression-tests:
+    name: EH2 microarchitectural tests
+    runs-on: ubuntu-latest
+    container: ghcr.io/antmicro/cores-veer-el2:20260714
+    strategy:
+      matrix:
+        test: ["beh_lib", "exu"]
+    env:
+      DEBIAN_FRONTEND: "noninteractive"
+      CCACHE_DIR: "/opt/regression/.cache/"
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt -qqy update && sudo apt -qqy install z3
+
+      - name: Setup repository
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          RV_ROOT=`pwd`
+          echo "RV_ROOT=$RV_ROOT" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: |
+          make -f verification/block/${{ matrix.test}}/Makefile test-all

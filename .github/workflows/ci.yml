@@ -19,6 +19,10 @@ jobs:
     name: Test RISCOF
     uses: ./.github/workflows/test-riscof.yml
 
+  Test-uarch:
+    name: Test Microarchitecture
+    uses: ./.github/workflows/test-uarch.yml
+
   Build-and-deploy-docs:
     name: Build-and-deploy-docs
     permissions:

@@ -4,11 +4,11 @@ This repository contains the VeeR EH2 RISC-V Core design RTL.
 
 ## Overview
 
-VeeR EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and subset of bit manipulation instructions (Zb*) extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability.
+VeeR EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and the Zbb, Zbkb and Zbkx bit manipulation extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability.
 
 ## License
 
-By contributing to this project, you agree that your contribution is governed by [Apache-2.0](LICENSE).  
+By contributing to this project, you agree that your contribution is governed by [Apache-2.0](LICENSE).
 Files under the [tools](tools/) directory may be available under a different license. Please review individual files for details.
 
 ## Directory Structure
@@ -20,7 +20,7 @@ Files under the [tools](tools/) directory may be available under a different lic
     │   ├── dmi                 #   DMI block
     │   ├── exu                 #   EXU (ALU/MUL/DIV)
     │   ├── ifu                 #   Fetch & Branch Prediction
-    │   ├── include             
+    │   ├── include
     │   ├── lib
     │   └── lsu                 #   Load/Store
     ├── docs
@@ -28,7 +28,7 @@ Files under the [tools](tools/) directory may be available under a different lic
     └── testbench               # (Very) simple testbench
         ├── asm                 #   Example assembly files
         └── hex                 #   Canned demo hex files
- 
+
 ## Dependencies
 
 - Verilator **(4.102 or later)** must be installed on the system if running with Verilator
@@ -55,13 +55,16 @@ VeeR can be configured by running the `$RV_ROOT/configs/veer.config` script:
 
 For example to build with a DCCM of size 64 Kb:
 
-`% $RV_ROOT/configs/veer.config -dccm_size=64`  
+`% $RV_ROOT/configs/veer.config -dccm_size=64`
 
-This will update the **default** snapshot in `$PWD/snapshots/default/` with parameters for a 64K DCCM.  
+This will update the **default** snapshot in `$PWD/snapshots/default/` with parameters for a 64K DCCM.
 
-Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot `dccm64` and refer to it during the build.  
+Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot `dccm64` and refer to it during the build.
 
-There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be selected via 
+Note: By default the only bit manipulation extension enabled is `Zbb`. To enable `Zbkb`, `Zbkx`, add `set=bitmanip_zbkb=1`, `set=bitmanip_zbkx=1`, respectively,
+to the configuration parameters passed to the `veer.config` script.
+
+There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be selected via
 the `-target=name` option to veer.config. See [configs/README.md](configs/README.md) for a description of these targets.
 
 **Building an FPGA speed optimized model:**
@@ -91,20 +94,20 @@ While in a work directory:
 
    Example for bash shell: `export RV_ROOT=/path/to/veer`
    Example for csh or its derivatives: `setenv RV_ROOT /path/to/veer`
-    
+
 1. Create your specific configuration
 
-   *(Skip if default is sufficient)*  
+   *(Skip if default is sufficient)*
    *(Name your snapshot to distinguish it from the default. Without an explicit name, it will update/override the __default__ snapshot)*
-   
+
    For example if `mybuild` is the name for the snapshot, set the `BUILD_PATH` environment variable:
-    
+
    `setenv BUILD_PATH snapshots/mybuild`
-   
+
    And then:
-     
-   `$RV_ROOT/configs/veer.config [configuration options..] -snapshot=mybuild`  
-    
+
+   `$RV_ROOT/configs/veer.config [configuration options..] -snapshot=mybuild`
+
    Snapshots are placed in the `$BUILD_PATH` directory
 
 1. Running a simple Hello World program (verilator)
@@ -115,8 +118,8 @@ This command will build a verilator model of VeeR EH2 with AXI bus, and
 execute a short sequence of instructions that writes out "HELLO WORLD"
 to the bus.
 
-    
-The simulation produces output on the screen like:  
+
+The simulation produces output on the screen like:
 
 ```
 VerilatorTB: Start of sim
@@ -136,12 +139,12 @@ See "exec.log" for execution trace with register updates..
 
 The simulation generates the following files:
 
-* `console.log` contains what the cpu writes to the console address of 0xd0580000.  
-* `exec.log` shows instruction trace with GPR updates.  
-* `trace_port.csv` contains a log of the trace port.   
+* `console.log` contains what the cpu writes to the console address of 0xd0580000.
+* `exec.log` shows instruction trace with GPR updates.
+* `trace_port.csv` contains a log of the trace port.
 
 When `debug=1` is provided, a vcd file `sim.vcd` is created and can be browsed by gtkwave or similar waveform viewers.
-  
+
 You can re-execute simulation using: `./obj_dir/Vtb_top` or `make -f $RV_ROOT/tools/Makefile verilator`
 
 The simulation run/build command has the following generic form:
@@ -156,16 +159,16 @@ where:
 <simulator> - can be 'verilator' (by default) 'irun' - Cadence xrun, 'vcs' - Synopsys VCS, 'vlog' - Mentor Questa
               if not provided, 'make' cleans work directory, builds verilator executable and runs a test.
 debug=1     - allows VCD generation for verilator and VCS and SHM waves for irun option.
-<target>    - predefined CPU configurations 'default' ( by default), 'default_mt', 'typical_pd', 'high_perf' 
-TEST        - allows to run a C (<test>.c) or assembly (<test>.s) test, hello_world is run by default 
+<target>    - predefined CPU configurations 'default' ( by default), 'default_mt', 'typical_pd', 'high_perf'
+TEST        - allows to run a C (<test>.c) or assembly (<test>.s) test, hello_world is run by default
 TEST_DIR    - alternative to test source directory testbench/asm
-<snap>      - run and build executable model of custom CPU configuration, remember to provide 'snapshot' argument 
+<snap>      - run and build executable model of custom CPU configuration, remember to provide 'snapshot' argument
               for runs on custom configurations.
 CONF_PARAMS - allows to provide veer.config command line arguments like -set=dccm_size=32 or -unset=iccm_enable..
 ```
 
 Example:
-     
+
 ```shell
 make -f $RV_ROOT/tools/Makefile verilator TEST=cmark
 ```
@@ -178,7 +181,7 @@ If you want to compile a test only, you can run:
 make -f $RV_ROOT/tools/Makefile program.hex TEST=<test> [TEST_DIR=/path/to/dir]
 ```
 
-The `Makefile` uses  `$RV_ROOT/testbench/linker.ld` file by default to build the test executable.  
+The `Makefile` uses  `$RV_ROOT/testbench/linker.ld` file by default to build the test executable.
 The user can provide a test-specific linker file in `<test_name>.ld` to build the test executable,
  in the same directory with the test source.
 
@@ -196,7 +199,7 @@ hello_world_dccm  - the same as above, but takes the string from preloaded DCCM.
 hello_world_iccm  - the same as hello_world, but loads ICCM via LSU-DMA bridge and then executes from ICCM
 cmark             - coremark benchmark running with code and data in external memories
 cmark_dccm        - the same as above, running data and stack from DCCM (faster)
-cmark_iccm        - the same as above, but preloading and running from ICCM 
+cmark_iccm        - the same as above, but preloading and running from ICCM
 cmark_mt          - coremark benchmark running with code and data in external memories for MT configs
 cmark_dccm_mt     - the same as above, running data and stack from DCCM (faster) for MT configs
 cmark_iccm_mt     - the same as above, but preloading and running from ICCM for MT configs

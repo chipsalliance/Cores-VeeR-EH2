@@ -1152,7 +1152,7 @@ end // always_comb begin
          if ( dec_i0_csr_ren_d &  dec_i0_csr_wen_unq_d)     i0_itype = CSRRW;
          if (i0_dp.ebreak)                i0_itype = EBREAK;
          if (i0_dp.ecall)                 i0_itype = ECALL;
-         if (i0_dp.fence) i0_itype = FENCE;
+         if (i0_dp.fence)                 i0_itype = FENCE;
          if (i0_dp.fence_i)               i0_itype = FENCEI;  // fencei will set this even with fence attribute
          if (i0_dp.mret)                  i0_itype = MRET;
          if (i0_dp.condbr)                i0_itype = CONDBR;
@@ -3430,10 +3430,10 @@ assign out.legal = predecode.legal1 | predecode.legal2 | predecode.legal3 | pred
 
 // general decode equations
 
-assign out.alu = (!i[5]&i[2]) | (i[30]&!i[29]&i[4]) | (i[30]&!i[14]&i[4]) | (!i[30]
-    &i[29]&i[12]&i[4]) | (!i[29]&i[27]&i[14]&i[5]) | (!i[25]&!i[20]&i[12]
-    &i[4]) | (!i[27]&!i[25]&i[4]) | (!i[12]&!i[5]&i[4]) | (i[13]&!i[5]
-    &i[4]) | (!i[3]&i[2]) | (i[6]);
+assign out.alu = (i[30]&!i[29]&i[4]) | (!i[30]&i[29]&i[12]&i[4]) | (i[30]&!i[14]
+    &i[4]) | (!i[29]&i[27]&i[14]&i[5]) | (!i[25]&!i[20]&i[12]&i[4]) | (
+    !i[5]&i[2]) | (!i[27]&!i[25]&i[4]) | (i[13]&!i[5]&i[4]) | (!i[12]
+    &!i[5]&i[4]) | (!i[3]&i[2]) | (i[6]);
 
 assign out.rs1 = (!i[13]&i[11]&!i[2]) | (!i[6]&i[5]&i[3]) | (!i[13]&i[10]&!i[2]) | (
     i[19]&i[13]&!i[2]) | (!i[13]&i[9]&!i[2]) | (i[18]&i[13]&!i[2]) | (
@@ -3472,7 +3472,7 @@ assign out.sub = (i[30]&!i[14]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[29]&!i[25]&!i
 assign out.land = (!i[27]&!i[25]&i[14]&i[13]&i[12]&!i[6]&!i[2]) | (i[14]&i[13]&i[12]
     &!i[5]&!i[2]);
 
-assign out.lor = (!i[5]&i[3]) | (!i[29]&!i[25]&i[14]&i[13]&!i[12]&i[4]&!i[2]) | (
+assign out.lor = (!i[29]&!i[25]&i[14]&i[13]&!i[12]&i[4]&!i[2]) | (!i[5]&i[3]) | (
     i[5]&i[4]&i[2]) | (!i[12]&i[6]&i[4]) | (i[13]&i[6]&i[4]) | (i[14]
     &i[13]&!i[12]&!i[5]&!i[2]) | (i[7]&i[6]&i[4]) | (i[8]&i[6]&i[4]) | (
     i[9]&i[6]&i[4]) | (i[10]&i[6]&i[4]) | (i[11]&i[6]&i[4]);
@@ -3489,7 +3489,7 @@ assign out.srl = (!i[30]&!i[27]&!i[25]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
 assign out.slt = (!i[29]&!i[25]&!i[14]&i[13]&!i[6]&i[4]&!i[2]) | (!i[14]&i[13]&!i[5]
     &i[4]&!i[2]);
 
-assign out.unsign = (i[31]&i[30]&!i[6]&i[3]) | (!i[14]&i[13]&i[12]&!i[5]&!i[2]) | (
+assign out.unsign = (i[31]&i[30]&!i[6]&i[5]&i[3]) | (!i[14]&i[13]&i[12]&!i[5]&!i[2]) | (
     i[14]&!i[5]&!i[4]) | (i[13]&i[6]&!i[4]&!i[2]) | (i[25]&i[14]&i[12]
     &!i[6]&i[5]&!i[2]) | (!i[25]&!i[14]&i[13]&i[12]&!i[6]&!i[2]);
 
@@ -3534,10 +3534,10 @@ assign out.presync = (!i[6]&i[3]) | (!i[13]&i[7]&i[6]&i[4]) | (!i[13]&i[8]&i[6]&
     i[17]&i[13]&i[6]&i[4]) | (i[18]&i[13]&i[6]&i[4]) | (i[19]&i[13]&i[6]
     &i[4]);
 
-assign out.postsync = (i[12]&!i[5]&i[3]) | (!i[22]&!i[13]&!i[12]&i[6]&i[4]) | (
-    i[28]&i[27]&!i[6]&i[3]) | (!i[13]&i[7]&i[6]&i[4]) | (!i[13]&i[8]&i[6]
-    &i[4]) | (!i[13]&i[9]&i[6]&i[4]) | (!i[13]&i[10]&i[6]&i[4]) | (!i[13]
-    &i[11]&i[6]&i[4]) | (i[15]&i[13]&i[6]&i[4]) | (i[16]&i[13]&i[6]&i[4]) | (
+assign out.postsync = (!i[22]&!i[13]&!i[12]&i[6]&i[4]) | (i[28]&i[27]&!i[6]&i[3]) | (
+    i[12]&!i[5]&i[3]) | (!i[13]&i[7]&i[6]&i[4]) | (!i[13]&i[8]&i[6]&i[4]) | (
+    !i[13]&i[9]&i[6]&i[4]) | (!i[13]&i[10]&i[6]&i[4]) | (!i[13]&i[11]
+    &i[6]&i[4]) | (i[15]&i[13]&i[6]&i[4]) | (i[16]&i[13]&i[6]&i[4]) | (
     i[17]&i[13]&i[6]&i[4]) | (i[18]&i[13]&i[6]&i[4]) | (i[19]&i[13]&i[6]
     &i[4]);
 
@@ -3655,8 +3655,8 @@ assign out.pm_alu = (i[28]&i[20]&!i[13]&!i[12]&i[4]) | (!i[30]&!i[29]&!i[27]&!i[
 
 assign out.atomic = (!i[6]&i[5]&i[3]);
 
-assign out.lr = (i[28]&!i[27]&!i[6]&i[3]);
+assign out.lr = (i[28]&!i[27]&!i[6]&i[5]&i[3]);
 
-assign out.sc = (i[28]&i[27]&!i[6]&i[3]);
+assign out.sc = (i[28]&i[27]&!i[6]&i[5]&i[3]);
 
 endmodule

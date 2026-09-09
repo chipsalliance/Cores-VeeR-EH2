@@ -48,8 +48,8 @@ assign reg_wr_en = c_wr_en;
 // synchronizers  
 always @ ( posedge clk or negedge rst_n) begin
     if(!rst_n) begin
-        rden <= '0;
-        wren <= '0;
+        rden <= 3'h0;
+        wren <= 3'h0;
     end
     else begin
         rden <= {rden[1:0], rd_en};

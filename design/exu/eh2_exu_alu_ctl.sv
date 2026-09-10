@@ -80,6 +80,7 @@ import eh2_pkg::*;
    logic                  ap_cpop;
    logic                  ap_sext_b;
    logic                  ap_sext_h;
+   logic                  ap_zext_h;
    logic                  ap_min;
    logic                  ap_max;
    logic                  ap_orc_b;
@@ -113,6 +114,7 @@ import eh2_pkg::*;
        assign ap_cpop         =  ap.cpop;
        assign ap_sext_b       =  ap.sext_b;
        assign ap_sext_h       =  ap.sext_h;
+       assign ap_zext_h       =  ap.zext_h;
        assign ap_min          =  ap.min;
        assign ap_max          =  ap.max;
      end
@@ -122,6 +124,7 @@ import eh2_pkg::*;
        assign ap_ctz          =  1'b0;
        assign ap_cpop         =  1'b0;
        assign ap_sext_b       =  1'b0;
+       assign ap_zext_h       =  1'b0;
        assign ap_min          =  1'b0;
        assign ap_max          =  1'b0;
      end
@@ -367,6 +370,13 @@ import eh2_pkg::*;
                                          ( {32{ap_sext_h}} & { {16{a_ff[15]}},a_ff[15:0] } );
 
 
+  // * * * * * * * * * * * * * * * * * *  BitManip  :  ZEXT_H  * * * * * * * * * * * * * * * * *
+
+   logic       [31:0]     bitmanip_zexth_result;
+
+   assign bitmanip_zexth_result[31:0]  = {32{ap_zext_h}} & {16'b0, a_ff[15:0]};
+
+
    // * * * * * * * * * * * * * * * * * *  BitManip  :  MIN,MAX,MINU,MAXU  * * * * * * * * * * * * * * *
 
    logic                  bitmanip_minmax_sel;
@@ -467,6 +477,7 @@ import eh2_pkg::*;
                                                       {26'b0, bitmanip_clz_ctz_result[5:0]} |
                                                       {26'b0, bitmanip_cpop_result[5:0]}    |
                                                        bitmanip_sext_result[31:0]    |
+                                                       bitmanip_zexth_result[31:0]   |
                                                        bitmanip_minmax_result[31:0]  |
                                                        bitmanip_pack_result[31:0]    |
                                                        bitmanip_packh_result[31:0]   |

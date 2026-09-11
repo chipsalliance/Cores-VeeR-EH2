@@ -281,21 +281,21 @@ module rvdffpcie #( parameter WIDTH=31 )
 
 
 `ifndef RV_PHYSICAL
-   if (WIDTH == 31) begin: genblock
+   if (WIDTH inside {31, 63}) begin: genblock
 `endif
 
 `ifdef RV_FPGA_OPTIMIZE
       rvdffs #(WIDTH) dff ( .* );
 `else
 
-      rvdfflie #(.WIDTH(WIDTH), .LEFT(19)) dff (.*);
+      rvdfflie #(.WIDTH(WIDTH), .LEFT(WIDTH - 12)) dff (.*);
 
 `endif
 
 `ifndef RV_PHYSICAL
    end
    else
-      $error("%m: rvdffpc width must be 31");
+      $error("%m: rvdffpc width must be 31 or 63");
 `endif
 endmodule
 
@@ -1059,31 +1059,55 @@ module rvmaskandmatch #( parameter WIDTH=32 )
 
 endmodule // rvmaskandmatch
 
-
 // Check if the S_ADDR <= addr < E_ADDR
-module rvrangecheck  #(CCM_SADR = 32'h0,
-                       CCM_SIZE  = 128) (
-   input  logic [31:0]   addr,                             // Address to be checked for range
-   output logic          in_range,                            // S_ADDR <= start_addr < E_ADDR
-   output logic          in_region
+// CCM_SADR must fit in 32-bit address space
+module rvrangecheck  #(
+   parameter logic [`RV_XLEN-1:0] CCM_SADR = {`RV_XLEN{1'b0}},
+   parameter int                  CCM_SIZE  = 128
+) (
+   input  logic [`RV_XLEN-1:0] addr,     // Address to be checked for range
+   output logic                in_range, // S_ADDR <= addr < E_ADDR
+   output logic                in_region
 );
 
    localparam REGION_BITS = 4;
    localparam MASK_BITS = 10 + $clog2(CCM_SIZE);
 
-   logic [31:0]          start_addr;
-   logic [3:0]           region;
+   logic [31:0]    start_addr;
 
-   assign start_addr[31:0]        = CCM_SADR;
-   assign region[REGION_BITS-1:0] = start_addr[31:(32-REGION_BITS)];
+   assign start_addr[31:0] = CCM_SADR[31:0];
 
-   assign in_region = (addr[31:(32-REGION_BITS)] == region[REGION_BITS-1:0]);
-   if (CCM_SIZE  == 48)
-    assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]) & ~(&addr[MASK_BITS-1 : MASK_BITS-2]);
-   else
-    assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]);
+   if (`RV_XLEN == 32) begin
+      assign in_region = (addr[31:(32-REGION_BITS)] == start_addr[31:(32-REGION_BITS)]);
+      if (CCM_SIZE == 48)
+         assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]) & ~(&addr[MASK_BITS-1 : MASK_BITS-2]);
+      else
+         assign in_range  = (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]);
+   end else if (`RV_XLEN == 64) begin
+      // This module assumes that CCM_SADR is placed in region 0-15 (32-bit address space) so we skip checking the others
+      assign in_region = (|addr[63:32]) ? 1'b0 : (addr[31:(32-REGION_BITS)] == start_addr[31:(32-REGION_BITS)]);
 
+      if (CCM_SIZE == 48) begin
+         assign in_range = (|addr[63:32]) ? 1'b0 : (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]) & ~(&addr[MASK_BITS-1 : MASK_BITS-2]);
+      end else begin
+         assign in_range = (|addr[63:32]) ? 1'b0 : (addr[31:MASK_BITS] == start_addr[31:MASK_BITS]);
+      end
+   end
 endmodule  // rvrangechecker
+
+// Calculate index of the memory region
+// For regions 16-31 in RV64, it needs to be increased by 16 to retrieve mrac register index
+module rv_region_idx (
+   input  logic [`RV_XLEN-1:0] addr,
+   output logic [`RV_XLENW-2:0] region_idx
+);
+   if (`RV_XLEN == 32) begin
+      assign region_idx = addr[31:28];
+   end else if (`RV_XLEN == 64) begin
+      assign region_idx = |addr[63:60] ? {1'b1, addr[63:60]} :
+                          |addr[59:32] ? 5'h10 : {1'b0, addr[31:28]} ;
+   end
+endmodule // rv_region_idx
 
 // 16 bit even parity generator
 module rveven_paritygen #(WIDTH = 16)  (
@@ -1168,7 +1192,7 @@ endmodule // rvecc_decode
 
 module rvecc_encode_64  (
                       input [63:0] din,
-                      output [6:0] ecc_out
+                      output [7:0] ecc_out
                       );
   assign ecc_out[0] = din[0]^din[1]^din[3]^din[4]^din[6]^din[8]^din[10]^din[11]^din[13]^din[15]^din[17]^din[19]^din[21]^din[23]^din[25]^din[26]^din[28]^din[30]^din[32]^din[34]^din[36]^din[38]^din[40]^din[42]^din[44]^din[46]^din[48]^din[50]^din[52]^din[54]^din[56]^din[57]^din[59]^din[61]^din[63];
 
@@ -1184,17 +1208,25 @@ module rvecc_encode_64  (
 
    assign ecc_out[6] = din[57]^din[58]^din[59]^din[60]^din[61]^din[62]^din[63];
 
+   assign ecc_out[7] = (^din[63:0] ^ (^ecc_out[6:0]));
+
 endmodule // rvecc_encode_64
 
 
 module rvecc_decode_64  (
                       input         en,
                       input [63:0]  din,
-                      input [6:0]   ecc_in,
-                      output        ecc_error
+                      input [7:0]   ecc_in,
+                      input         sed_ded,
+                      output [63:0] dout,
+                      output [7:0]  ecc_out,
+                      output        single_ecc_error,
+                      output        double_ecc_error
                       );
 
-   logic [6:0]                      ecc_check;
+   logic [7:0]  ecc_check;
+   logic [71:0] error_mask;
+   logic [71:0] din_plus_parity, dout_plus_parity;
 
    // Generate the ecc bits
    assign ecc_check[0] = ecc_in[0]^din[0]^din[1]^din[3]^din[4]^din[6]^din[8]^din[10]^din[11]^din[13]^din[15]^din[17]^din[19]^din[21]^din[23]^din[25]^din[26]^din[28]^din[30]^din[32]^din[34]^din[36]^din[38]^din[40]^din[42]^din[44]^din[46]^din[48]^din[50]^din[52]^din[54]^din[56]^din[57]^din[59]^din[61]^din[63];
@@ -1211,7 +1243,23 @@ module rvecc_decode_64  (
 
    assign ecc_check[6] = ecc_in[6]^din[57]^din[58]^din[59]^din[60]^din[61]^din[62]^din[63];
 
-   assign ecc_error = en & (ecc_check[6:0] != 0);  // all errors in the sed_ded case will be recorded as DE
+   // This is the parity bit
+   assign ecc_check[7] = ((^din[63:0])^(^ecc_in[7:0])) & ~sed_ded;
+
+   assign single_ecc_error = en & (ecc_check[7:0] != 0) & ecc_check[7];   // this will never be on for sed_ded
+   assign double_ecc_error = en & (ecc_check[7:0] != 0) & ~ecc_check[7];  // all errors in the sed_ded case will be recorded as DE
+
+   // Generate the mask for error correcting
+   for (genvar i=1; i<73; i++) begin
+      assign error_mask[i-1] = (ecc_check[6:0] == i);
+   end
+
+   // Generate the corrected data
+   assign din_plus_parity[71:0] = {ecc_in[7], din[63:57], ecc_in[6], din[56:26], ecc_in[5], din[25:11], ecc_in[4], din[10:4], ecc_in[3], din[3:1], ecc_in[2], din[0], ecc_in[1:0]};
+
+   assign dout_plus_parity[71:0] = single_ecc_error ? (error_mask[71:0] ^ din_plus_parity[71:0]) : din_plus_parity[71:0];
+   assign dout[63:0]             = {dout_plus_parity[70:64], dout_plus_parity[62:32], dout_plus_parity[30:16], dout_plus_parity[14:8], dout_plus_parity[6:4], dout_plus_parity[2]};
+   assign ecc_out[7:0]           = {(dout_plus_parity[71] ^ (ecc_check[7:0] == 8'b10000000)), dout_plus_parity[63], dout_plus_parity[31], dout_plus_parity[15], dout_plus_parity[7], dout_plus_parity[3], dout_plus_parity[1:0]};
 
  endmodule // rvecc_decode_64
 
@@ -1272,4 +1320,3 @@ module rvoclkhdr
 `endif
 
 endmodule
-

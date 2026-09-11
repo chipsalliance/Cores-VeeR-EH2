@@ -33,7 +33,7 @@ import eh2_pkg::*;
 
    input logic                 dbg_cmd_write,  // dbg cmd is write
    input logic [1:0]           dbg_cmd_type,   // dbg type
-   input logic [31:0]          dbg_cmd_addr,   // expand to 31:0
+   input logic [pt.XLEN-1:0]   dbg_cmd_addr,
 
    input logic exu_flush_final,                // all flush sources: primary/secondary alu's, trap
 
@@ -72,8 +72,8 @@ import eh2_pkg::*;
    input logic [31:0]  ifu_i0_instr,           // i0 instruction from the aligner
    input logic [31:0]  ifu_i1_instr,
 
-   input logic [31:1]  ifu_i0_pc,              // i0 pc from the aligner
-   input logic [31:1] ifu_i1_pc,
+   input logic [pt.XLEN-1:1] ifu_i0_pc,        // i0 pc from the aligner
+   input logic [pt.XLEN-1:1] ifu_i1_pc,
 
    input logic   dec_i0_decode_d,              // i0 decode
    input logic   dec_i1_decode_d,
@@ -95,8 +95,8 @@ import eh2_pkg::*;
    output logic [31:0] i0_instr_d,         // i0 inst at decode
    output logic [31:0] i1_instr_d,         // i1 inst at decode
 
-   output logic [31:1] i0_pc_d,            // i0 pc at decode
-   output logic [31:1] i1_pc_d,
+   output logic [pt.XLEN-1:1] i0_pc_d,     // i0 pc at decode
+   output logic [pt.XLEN-1:1] i1_pc_d,
 
    output logic i0_pc4_d,                  // i0 is 4B inst else 2B
    output logic i1_pc4_d,
@@ -411,8 +411,8 @@ import eh2_pkg::*;
    assign i1_icaf_d = ib1.icaf;
    assign i0_icaf_d = ib0.icaf;
 
-   assign i1_pc_d[31:1] = ib1.pc;
-   assign i0_pc_d[31:1] = ib0.pc;
+   assign i1_pc_d[pt.XLEN-1:1] = ib1.pc;
+   assign i0_pc_d[pt.XLEN-1:1] = ib0.pc;
 
    assign i1_pc4_d = ib1.pc4;
    assign i0_pc4_d = ib0.pc4;

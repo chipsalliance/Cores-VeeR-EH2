@@ -33,15 +33,15 @@ import eh2_pkg::*;
    input logic              clk,
    input logic              rst_l,                       // reset
 
-   input logic [31:0]       start_addr_dc1,              // start address for lsu
-   input logic [31:0]       end_addr_dc1,                // end address for lsu
-   input logic [31:0]       start_addr_dc2,              // start address for lsu
-   input logic [31:0]       end_addr_dc2,                // end address for lsu
-   input logic [31:0]       rs1_dc1,
+   input logic [pt.XLEN-1:0] start_addr_dc1,              // start address for lsu
+   input logic [pt.XLEN-1:0] end_addr_dc1,                // end address for lsu
+   input logic [pt.XLEN-1:0] start_addr_dc2,              // start address for lsu
+   input logic [pt.XLEN-1:0] end_addr_dc2,                // end address for lsu
+   input logic [pt.XLEN-1:0] rs1_dc1,
    input eh2_lsu_pkt_t     lsu_pkt_dc1,                 // packet in dc1
    input eh2_lsu_pkt_t     lsu_pkt_dc2,                 // packet in dc1
 
-   input logic [31:0]  dec_tlu_mrac_ff,           // CSR read
+   input logic [pt.XLEN-1:0]  dec_tlu_mrac_ff,           // CSR read
 
    output logic        is_sideeffects_dc2,          // is sideffects space
    output logic        is_sideeffects_dc3,
@@ -73,8 +73,8 @@ import eh2_pkg::*;
    logic        start_addr_in_dccm_region_dc2, end_addr_in_dccm_region_dc2;
    logic        start_addr_in_pic_region_dc2, end_addr_in_pic_region_dc2;
    logic        addr_in_dccm_dc2, addr_in_pic_dc2;
-   logic [3:0]  rs1_region_dc1, rs1_region_dc2;              // region from the rs operand of the agu
-   logic [4:0]  csr_idx;
+   logic [pt.XLENW-2:0]  rs1_region_dc1, rs1_region_dc2;              // region from the rs operand of the agu
+   logic [pt.XLENW-1:0]  csr_idx;
    logic        addr_in_iccm;
    logic        start_addr_dccm_or_pic_dc2;
    logic        base_reg_dccm_or_pic_dc1, base_reg_dccm_or_pic_dc2;
@@ -83,12 +83,14 @@ import eh2_pkg::*;
    logic [3:0]  access_fault_mscause_dc2;
    logic [3:0]  misaligned_fault_mscause_dc2;
    logic        non_dccm_access_ok;
+   logic [pt.XLENW-2:0] start_addr_dc2_region_idx;
+   logic [pt.XLENW-2:0] end_addr_dc2_region_idx;
 
    if (pt.DCCM_ENABLE == 1) begin: Gen_dccm_enable
       // Start address check
       rvrangecheck #(.CCM_SADR(pt.DCCM_SADR),
                      .CCM_SIZE(pt.DCCM_SIZE)) start_addr_dccm_rangecheck (
-         .addr(start_addr_dc1[31:0]),
+         .addr(start_addr_dc1[pt.XLEN-1:0]),
          .in_range(start_addr_in_dccm_dc1),
          .in_region(start_addr_in_dccm_region_dc1)
       );
@@ -96,7 +98,7 @@ import eh2_pkg::*;
       // End address check
       rvrangecheck #(.CCM_SADR(pt.DCCM_SADR),
                      .CCM_SIZE(pt.DCCM_SIZE)) end_addr_dccm_rangecheck (
-         .addr(end_addr_dc1[31:0]),
+         .addr(end_addr_dc1[pt.XLEN-1:0]),
          .in_range(end_addr_in_dccm_dc1),
          .in_region(end_addr_in_dccm_region_dc1)
       );
@@ -107,19 +109,11 @@ import eh2_pkg::*;
       assign end_addr_in_dccm_region_dc1 = '0;
    end
 
-   // ICCM region check
-   if (pt.ICCM_ENABLE == 1) begin : check_iccm
-     assign addr_in_iccm =  (start_addr_dc2[31:28] == pt.ICCM_REGION);
-   end
-   else begin
-     assign addr_in_iccm = 1'b0;
-   end
-
    // PIC memory check
    // Start address check
    rvrangecheck #(.CCM_SADR(pt.PIC_BASE_ADDR),
                   .CCM_SIZE(pt.PIC_SIZE)) start_addr_pic_rangecheck (
-      .addr(start_addr_dc1[31:0]),
+      .addr(start_addr_dc1[pt.XLEN-1:0]),
       .in_range(start_addr_in_pic_dc1),
       .in_region(start_addr_in_pic_region_dc1)
    );
@@ -127,17 +121,39 @@ import eh2_pkg::*;
    // End address check
    rvrangecheck #(.CCM_SADR(pt.PIC_BASE_ADDR),
                   .CCM_SIZE(pt.PIC_SIZE)) end_addr_pic_rangecheck (
-      .addr(end_addr_dc1[31:0]),
+      .addr(end_addr_dc1[pt.XLEN-1:0]),
       .in_range(end_addr_in_pic_dc1),
       .in_region(end_addr_in_pic_region_dc1)
    );
 
-   assign rs1_region_dc1[3:0] = rs1_dc1[31:28];
-   assign start_addr_dccm_or_pic_dc2  = start_addr_in_dccm_region_dc2 | start_addr_in_pic_region_dc2;
-   assign base_reg_dccm_or_pic_dc1    = ((rs1_region_dc1[3:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE) | (rs1_region_dc1[3:0] == pt.PIC_REGION);
+   rv_region_idx rs1_region_idx (
+      .addr(rs1_dc1),
+      .region_idx(rs1_region_dc1)
+   );
 
-   assign addr_in_dccm_region_dc1 = (rs1_region_dc1[3:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE;  // We don't need to look at final address since lsu will take an exception if final region is different
-   assign addr_in_pic_region_dc1  = (rs1_region_dc1[3:0] == pt.PIC_REGION);   // We don't need to look at final address since lsu will take an exception if final region is different
+   rv_region_idx start_dc2_region_idx (
+      .addr(start_addr_dc2),
+      .region_idx(start_addr_dc2_region_idx)
+   );
+
+   rv_region_idx end_dc2_region_idx (
+      .addr(end_addr_dc2),
+      .region_idx(end_addr_dc2_region_idx)
+   );
+
+   // ICCM region check
+   if (pt.ICCM_ENABLE == 1) begin : check_iccm
+     assign addr_in_iccm =  (start_addr_dc2_region_idx == pt.ICCM_REGION);
+   end
+   else begin
+     assign addr_in_iccm = 1'b0;
+   end
+
+   assign start_addr_dccm_or_pic_dc2  = start_addr_in_dccm_region_dc2 | start_addr_in_pic_region_dc2;
+   assign base_reg_dccm_or_pic_dc1    = ((rs1_region_dc1[pt.XLENW-2:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE) | (rs1_region_dc1[pt.XLENW-2:0] == pt.PIC_REGION);
+
+   assign addr_in_dccm_region_dc1 = (rs1_region_dc1[pt.XLENW-2:0] == pt.DCCM_REGION) & pt.DCCM_ENABLE;  // We don't need to look at final address since lsu will take an exception if final region is different
+   assign addr_in_pic_region_dc1  = (rs1_region_dc1[pt.XLENW-2:0] == pt.PIC_REGION);   // We don't need to look at final address since lsu will take an exception if final region is different
    assign addr_in_dccm_dc1        = (start_addr_in_dccm_dc1 & end_addr_in_dccm_dc1);
    assign addr_in_pic_dc1         = (start_addr_in_pic_dc1 & end_addr_in_pic_dc1);
 
@@ -146,29 +162,30 @@ import eh2_pkg::*;
 
    assign addr_external_dc1  = ~(addr_in_dccm_region_dc1 | addr_in_pic_region_dc1);  // look at the region based on rs1_dc1 for timing since this goes to busreq -> nbload_dc1 -> instbuf
    assign addr_external_dc2  = ~(start_addr_in_dccm_region_dc2 | start_addr_in_pic_region_dc2);  // look at the region based on rs1_dc1 for timing since this goes to busreq -> nbload_dc1 -> instbuf
-   assign csr_idx[4:0]       = {start_addr_dc2[31:28], 1'b1};
+   assign csr_idx[4:0]         = {start_addr_dc2_region_idx, 1'b1};
    assign is_sideeffects_dc2 = dec_tlu_mrac_ff[csr_idx] & ~(start_addr_in_dccm_region_dc2 | start_addr_in_pic_region_dc2 | addr_in_iccm);  //every region has the 2 LSB indicating ( 1: sideeffects/no_side effects, and 0: cacheable ). Ignored in internal regions
    assign is_aligned_dc2    = (lsu_pkt_dc2.word & (start_addr_dc2[1:0] == 2'b0)) |
                               (lsu_pkt_dc2.half & (start_addr_dc2[0] == 1'b0)) |
                               lsu_pkt_dc2.by;
 
+   // TODO: Make DATA_ACCESS_* parameters XLEN-bit wide
    assign non_dccm_access_ok = (~(|{pt.DATA_ACCESS_ENABLE0,pt.DATA_ACCESS_ENABLE1,pt.DATA_ACCESS_ENABLE2,pt.DATA_ACCESS_ENABLE3,pt.DATA_ACCESS_ENABLE4,pt.DATA_ACCESS_ENABLE5,pt.DATA_ACCESS_ENABLE6,pt.DATA_ACCESS_ENABLE7})) |
-                               (((pt.DATA_ACCESS_ENABLE0 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK0)) == (pt.DATA_ACCESS_ADDR0 | pt.DATA_ACCESS_MASK0)) |
-                                 (pt.DATA_ACCESS_ENABLE1 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK1)) == (pt.DATA_ACCESS_ADDR1 | pt.DATA_ACCESS_MASK1)) |
-                                 (pt.DATA_ACCESS_ENABLE2 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK2)) == (pt.DATA_ACCESS_ADDR2 | pt.DATA_ACCESS_MASK2)) |
-                                 (pt.DATA_ACCESS_ENABLE3 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK3)) == (pt.DATA_ACCESS_ADDR3 | pt.DATA_ACCESS_MASK3)) |
-                                 (pt.DATA_ACCESS_ENABLE4 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK4)) == (pt.DATA_ACCESS_ADDR4 | pt.DATA_ACCESS_MASK4)) |
-                                 (pt.DATA_ACCESS_ENABLE5 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK5)) == (pt.DATA_ACCESS_ADDR5 | pt.DATA_ACCESS_MASK5)) |
-                                 (pt.DATA_ACCESS_ENABLE6 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK6)) == (pt.DATA_ACCESS_ADDR6 | pt.DATA_ACCESS_MASK6)) |
-                                 (pt.DATA_ACCESS_ENABLE7 & ((start_addr_dc2[31:0] | pt.DATA_ACCESS_MASK7)) == (pt.DATA_ACCESS_ADDR7 | pt.DATA_ACCESS_MASK7)))   &
-                                ((pt.DATA_ACCESS_ENABLE0 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK0)) == (pt.DATA_ACCESS_ADDR0 | pt.DATA_ACCESS_MASK0)) |
-                                 (pt.DATA_ACCESS_ENABLE1 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK1)) == (pt.DATA_ACCESS_ADDR1 | pt.DATA_ACCESS_MASK1)) |
-                                 (pt.DATA_ACCESS_ENABLE2 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK2)) == (pt.DATA_ACCESS_ADDR2 | pt.DATA_ACCESS_MASK2)) |
-                                 (pt.DATA_ACCESS_ENABLE3 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK3)) == (pt.DATA_ACCESS_ADDR3 | pt.DATA_ACCESS_MASK3)) |
-                                 (pt.DATA_ACCESS_ENABLE4 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK4)) == (pt.DATA_ACCESS_ADDR4 | pt.DATA_ACCESS_MASK4)) |
-                                 (pt.DATA_ACCESS_ENABLE5 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK5)) == (pt.DATA_ACCESS_ADDR5 | pt.DATA_ACCESS_MASK5)) |
-                                 (pt.DATA_ACCESS_ENABLE6 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK6)) == (pt.DATA_ACCESS_ADDR6 | pt.DATA_ACCESS_MASK6)) |
-                                 (pt.DATA_ACCESS_ENABLE7 & ((end_addr_dc2[31:0]   | pt.DATA_ACCESS_MASK7)) == (pt.DATA_ACCESS_ADDR7 | pt.DATA_ACCESS_MASK7))));
+                               (((pt.DATA_ACCESS_ENABLE0 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK0)) == (pt.DATA_ACCESS_ADDR0 | pt.DATA_ACCESS_MASK0)) |
+                                 (pt.DATA_ACCESS_ENABLE1 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK1)) == (pt.DATA_ACCESS_ADDR1 | pt.DATA_ACCESS_MASK1)) |
+                                 (pt.DATA_ACCESS_ENABLE2 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK2)) == (pt.DATA_ACCESS_ADDR2 | pt.DATA_ACCESS_MASK2)) |
+                                 (pt.DATA_ACCESS_ENABLE3 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK3)) == (pt.DATA_ACCESS_ADDR3 | pt.DATA_ACCESS_MASK3)) |
+                                 (pt.DATA_ACCESS_ENABLE4 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK4)) == (pt.DATA_ACCESS_ADDR4 | pt.DATA_ACCESS_MASK4)) |
+                                 (pt.DATA_ACCESS_ENABLE5 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK5)) == (pt.DATA_ACCESS_ADDR5 | pt.DATA_ACCESS_MASK5)) |
+                                 (pt.DATA_ACCESS_ENABLE6 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK6)) == (pt.DATA_ACCESS_ADDR6 | pt.DATA_ACCESS_MASK6)) |
+                                 (pt.DATA_ACCESS_ENABLE7 & ((start_addr_dc2[pt.XLEN-1:0] | pt.DATA_ACCESS_MASK7)) == (pt.DATA_ACCESS_ADDR7 | pt.DATA_ACCESS_MASK7)))   &
+                                ((pt.DATA_ACCESS_ENABLE0 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK0)) == (pt.DATA_ACCESS_ADDR0 | pt.DATA_ACCESS_MASK0)) |
+                                 (pt.DATA_ACCESS_ENABLE1 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK1)) == (pt.DATA_ACCESS_ADDR1 | pt.DATA_ACCESS_MASK1)) |
+                                 (pt.DATA_ACCESS_ENABLE2 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK2)) == (pt.DATA_ACCESS_ADDR2 | pt.DATA_ACCESS_MASK2)) |
+                                 (pt.DATA_ACCESS_ENABLE3 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK3)) == (pt.DATA_ACCESS_ADDR3 | pt.DATA_ACCESS_MASK3)) |
+                                 (pt.DATA_ACCESS_ENABLE4 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK4)) == (pt.DATA_ACCESS_ADDR4 | pt.DATA_ACCESS_MASK4)) |
+                                 (pt.DATA_ACCESS_ENABLE5 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK5)) == (pt.DATA_ACCESS_ADDR5 | pt.DATA_ACCESS_MASK5)) |
+                                 (pt.DATA_ACCESS_ENABLE6 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK6)) == (pt.DATA_ACCESS_ADDR6 | pt.DATA_ACCESS_MASK6)) |
+                                 (pt.DATA_ACCESS_ENABLE7 & ((end_addr_dc2[pt.XLEN-1:0]   | pt.DATA_ACCESS_MASK7)) == (pt.DATA_ACCESS_ADDR7 | pt.DATA_ACCESS_MASK7))));
 
    // Access fault logic
    // 0. Unmapped local memory fault: Addr in dccm region but not in dccm offset OR Addr in picm region but not in picm offset OR DCCM -> PIC cross when DCCM/PIC in same region
@@ -203,7 +220,7 @@ import eh2_pkg::*;
    // Misaligned happens due to 2 reasons (Atomic instructions (LR/SC/AMO) will never take misaligned as per spec)
    // 0. Region cross
    // 1. sideeffects access which are not aligned
-   assign regcross_misaligned_fault_dc2 = (start_addr_dc2[31:28] != end_addr_dc2[31:28]);
+   assign regcross_misaligned_fault_dc2 = (start_addr_dc2_region_idx != end_addr_dc2_region_idx);
    assign sideeffect_misaligned_fault_dc2 = (is_sideeffects_dc2 & ~is_aligned_dc2);
    assign misaligned_fault_dc2 = (regcross_misaligned_fault_dc2 | (sideeffect_misaligned_fault_dc2 & addr_external_dc2)) & lsu_pkt_dc2.valid & ~lsu_pkt_dc2.dma & ~lsu_pkt_dc2.atomic;
    assign misaligned_fault_mscause_dc2[3:0] = regcross_misaligned_fault_dc2 ? 4'h2 : sideeffect_misaligned_fault_dc2 ? 4'h1 : 4'h0;//sideeffect_misaligned_fault_dc2;

@@ -6,11 +6,11 @@ package eh2_pkg;
 typedef struct packed {
                        logic [1:0] trace_rv_i_valid_ip;
                        logic [63:0] trace_rv_i_insn_ip;
-                       logic [63:0] trace_rv_i_address_ip;
+                       logic [(`RV_XLEN*2)-1:0] trace_rv_i_address_ip;
                        logic [1:0] trace_rv_i_exception_ip;
                        logic [4:0] trace_rv_i_ecause_ip;
                        logic [1:0] trace_rv_i_interrupt_ip;
-                       logic [31:0] trace_rv_i_tval_ip;
+                       logic [`RV_XLEN-1:0] trace_rv_i_tval_ip;
                        } eh2_trace_pkt_t;
 
 
@@ -72,7 +72,7 @@ typedef struct packed {
 
 typedef struct packed {
                        logic ret;
-                       logic [31:1] prett;  // predicted ret target
+                       logic [`RV_XLEN-1:1] prett;  // predicted ret target
                        logic br_error;
                        logic br_start_error;
                        logic bank;
@@ -97,7 +97,7 @@ typedef struct packed {
                         logic                icaf_second;
                         logic                dbecc;
                         logic                icaf;
-                        logic [31:1]         pc;
+                        logic [`RV_XLEN-1:1] pc;
                         eh2_br_pkt_t         brp;
                         logic [31:0]         inst;
                         eh2_predecode_pkt_t predecode;
@@ -117,7 +117,7 @@ typedef struct packed {
                        } eh2_br_tlu_pkt_t;
 
 typedef struct packed {// data bits - upper 19b not likely to change
-                       logic [31:1] prett;
+                       logic [`RV_XLEN-1:1] prett;
                        logic boffset;
                        logic [1:0] hist;
                        logic bank;
@@ -270,6 +270,7 @@ typedef struct packed {
                        logic half;
                        logic word;
                        logic dword;
+                       logic qword;
                        logic load;
                        logic store;
                        logic pipe;   // which pipe is load/store
@@ -295,7 +296,7 @@ typedef struct packed {
                       logic amo_valid;
                       logic exc_type;    //0: MisAligned, 1: Access Fault
                       logic [3:0] mscause;
-                      logic [31:0] addr;
+                      logic [`RV_XLEN-1:0] addr;
                       } eh2_lsu_error_pkt_t;
 
 typedef struct packed {
@@ -474,7 +475,7 @@ typedef struct packed {
                         logic        load;
                         logic        execute;
                         logic        m;
-                        logic [31:0] tdata2;
+                        logic [`RV_XLEN-1:0] tdata2;
             } eh2_trigger_pkt_t;
 
 

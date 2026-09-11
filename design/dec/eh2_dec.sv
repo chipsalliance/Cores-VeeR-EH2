@@ -65,15 +65,15 @@ import eh2_pkg::*;
    output logic dec_extint_stall,
    input logic lsu_fastint_stall_any,
 
-   input logic [31:0] lsu_rs1_dc1,
+   input logic [pt.XLEN-1:0] lsu_rs1_dc1,
 
    output logic [pt.NUM_THREADS-1:0] dec_pause_state_cg,             // to top for active state clock gating
 
    input logic rst_l,                        // reset, active low
-   input logic [31:1] rst_vec,               // reset vector, from core pins
+   input logic [pt.XLEN-1:1] rst_vec,        // reset vector, from core pins
 
-   input logic        nmi_int,               // NMI pin
-   input logic [31:1] nmi_vec,               // NMI vector, from pins
+   input logic               nmi_int,        // NMI pin
+   input logic [pt.XLEN-1:1] nmi_vec,        // NMI vector, from pins
 
    input logic  [pt.NUM_THREADS-1:0] i_cpu_halt_req,              // Asynchronous Halt request to CPU
    input logic  [pt.NUM_THREADS-1:0] i_cpu_run_req,               // Asynchronous Restart request to CPU
@@ -115,7 +115,7 @@ import eh2_pkg::*;
    input logic                                 lsu_nonblock_load_data_tid,
    input logic                                 lsu_nonblock_load_data_error,     // nonblock load bus error
    input logic [pt.LSU_NUM_NBLOAD_WIDTH-1:0]   lsu_nonblock_load_data_tag,       // -> corresponding tag
-   input logic [31:0]                          lsu_nonblock_load_data,           // nonblock load data
+   input logic [pt.XLEN-1:0]                   lsu_nonblock_load_data,           // nonblock load data
 
    input logic [pt.NUM_THREADS-1:0] lsu_pmu_load_external_dc3,
    input logic [pt.NUM_THREADS-1:0] lsu_pmu_store_external_dc3,
@@ -147,7 +147,7 @@ import eh2_pkg::*;
    input logic        dbg_cmd_tid,     // thread for debug register read
    input logic        dbg_cmd_write,   // command is a write
    input logic  [1:0] dbg_cmd_type,    // command type
-   input logic [31:0] dbg_cmd_addr,    // command address
+   input logic  [pt.XLEN-1:0] dbg_cmd_addr,    // command address
    input logic  [1:0] dbg_cmd_wrdata,  // command write data, for fence/fence_i
 
 
@@ -181,7 +181,7 @@ import eh2_pkg::*;
 
    input logic [pt.NUM_THREADS-1:0] lsu_imprecise_error_store_any,
    input logic [pt.NUM_THREADS-1:0] lsu_imprecise_error_load_any,
-   input logic [pt.NUM_THREADS-1:0][31:0]  lsu_imprecise_error_addr_any,   // LSU imprecise bus error address
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:0]  lsu_imprecise_error_addr_any,   // LSU imprecise bus error address
 
 
    input logic [pt.NUM_THREADS-1:0]      exu_flush_final,            // Pipe is being flushed this cycle
@@ -190,47 +190,47 @@ import eh2_pkg::*;
    input logic [pt.NUM_THREADS-1:0]      exu_i0_flush_lower_e4,        // to TLU - lower branch flush
    input logic [pt.NUM_THREADS-1:0]      exu_i1_flush_lower_e4,        // to TLU - lower branch flush
 
-   input logic [31:1] exu_i0_flush_path_e4, // pipe 0 correct path for mp, merge with lower path
-   input logic [31:1] exu_i1_flush_path_e4, // pipe 1 correct path for mp, merge with lower path
+   input logic [pt.XLEN-1:1] exu_i0_flush_path_e4, // pipe 0 correct path for mp, merge with lower path
+   input logic [pt.XLEN-1:1] exu_i1_flush_path_e4, // pipe 1 correct path for mp, merge with lower path
 
    input logic         exu_div_wren,        // final div write enable to GPR
-   input logic [31:0]  exu_div_result,      // final div result
+   input logic [pt.XLEN-1:0]  exu_div_result,  // final div result
 
-   input logic [31:0] exu_mul_result_e3,    // 32b mul result
+   input logic [pt.XLEN-1:0] exu_mul_result_e3, // 32b mul result
 
-   input logic [31:0] exu_i0_csr_rs1_e1,       // rs1 for csr instruction
+   input logic [pt.XLEN-1:0] exu_i0_csr_rs1_e1, // rs1 for csr instruction
 
-   input logic [31:0] lsu_result_dc3,       // load result
-   input logic [31:0] lsu_result_corr_dc4, // load result - corrected data for writing gprs; not for bypassing
+   input logic [pt.XLEN-1:0] lsu_result_dc3,      // load result
+   input logic [pt.XLEN-1:0] lsu_result_corr_dc4, // load result - corrected data for writing gprs; not for bypassing
 
    input logic        lsu_sc_success_dc5,   // store conditional matched ( 1 = success, which means the GPR should write 0 )
    input logic        dma_dccm_stall_any,   // stall any load/store at decode, pmu event
    input logic        dma_iccm_stall_any,   // iccm stalled, pmu event
 
-   input logic [31:1] lsu_fir_addr, // Fast int address
+   input logic [pt.XLEN-1:1] lsu_fir_addr, // Fast int address
    input logic [1:0]  lsu_fir_error, // Fast int lookup error
 
    input logic       iccm_dma_sb_error,     // ICCM DMA single bit error
 
-   input logic [pt.NUM_THREADS-1:0][31:1] exu_npc_e4,           // next PC
+   input logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_npc_e4,  // next PC
 
-   input logic [31:0] exu_i0_result_e1,     // alu result e1
-   input logic [31:0] exu_i1_result_e1,
+   input logic [pt.XLEN-1:0] exu_i0_result_e1,  // alu result e1
+   input logic [pt.XLEN-1:0] exu_i1_result_e1,
 
-   input logic [31:0] exu_i0_result_e4,     // alu result e4
-   input logic [31:0] exu_i1_result_e4,
+   input logic [pt.XLEN-1:0] exu_i0_result_e4,  // alu result e4
+   input logic [pt.XLEN-1:0] exu_i1_result_e4,
 
 
    input logic [pt.NUM_THREADS-1:0]       ifu_i0_valid, ifu_i1_valid,    // fetch valids to instruction buffer
    input logic [pt.NUM_THREADS-1:0] [31:0]  ifu_i0_instr, ifu_i1_instr,    // fetch inst's to instruction buffer
-   input logic [pt.NUM_THREADS-1:0] [31:1]  ifu_i0_pc, ifu_i1_pc,          // pc's for instruction buffer
+   input logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] ifu_i0_pc, ifu_i1_pc,    // pc's for instruction buffer
    input logic [pt.NUM_THREADS-1:0]         ifu_i0_pc4, ifu_i1_pc4,        // indication of 4B or 2B for corresponding inst
 
    input eh2_predecode_pkt_t  [pt.NUM_THREADS-1:0] ifu_i0_predecode,
    input eh2_predecode_pkt_t  [pt.NUM_THREADS-1:0] ifu_i1_predecode,
 
-   input logic  [31:1] exu_i0_pc_e1,                  // pc's for e1 from the alu's
-   input logic  [31:1] exu_i1_pc_e1,
+   input logic  [pt.XLEN-1:1] exu_i0_pc_e1,  // pc's for e1 from the alu's
+   input logic  [pt.XLEN-1:1] exu_i1_pc_e1,
 
    input logic [pt.NUM_THREADS-1:0] timer_int,                             // Timer interrupt pending (from pin)
    input logic [pt.NUM_THREADS-1:0] soft_int,                             // Software interrupt pending (from pin)
@@ -242,7 +242,7 @@ import eh2_pkg::*;
 
    output logic [pt.NUM_THREADS-1:0][3:0] dec_tlu_meicurpl,               // to PIC, Current priv level
    output logic [pt.NUM_THREADS-1:0][3:0] dec_tlu_meipt,                  // to PIC
-   output logic [31:2] dec_tlu_meihap, // Fast ext int base
+   output logic [pt.XLEN-1:2] dec_tlu_meihap, // Fast ext int base
 
    input logic [70:0] ifu_ic_debug_rd_data,           // diagnostic icache read data
    input logic ifu_ic_debug_rd_data_valid,            // diagnostic icache read data valid
@@ -264,7 +264,7 @@ import eh2_pkg::*;
 
    output logic dec_debug_wdata_rs1_d,       // insert debug write data into rs1 at decode
 
-   output logic [31:0] dec_dbg_rddata,       // debug command read data
+   output logic [pt.XLEN-1:0] dec_dbg_rddata,  // debug command read data
 
    output logic dec_dbg_cmd_done,            // abstract command is done
    output logic dec_dbg_cmd_fail,            // abstract command failed (illegal reg address)
@@ -299,13 +299,13 @@ import eh2_pkg::*;
    input logic        exu_i1_br_way_e4,             // way hit or repl
    input logic        exu_i0_br_way_e4,             // way hit or repl
 
-   output logic [31:0] gpr_i0_rs1_d,               // gpr rs1 data
-   output logic [31:0] gpr_i0_rs2_d,               // gpr rs2 data
-   output logic [31:0] gpr_i1_rs1_d,
-   output logic [31:0] gpr_i1_rs2_d,
+   output logic [pt.XLEN-1:0] gpr_i0_rs1_d,  // gpr rs1 data
+   output logic [pt.XLEN-1:0] gpr_i0_rs2_d,  // gpr rs2 data
+   output logic [pt.XLEN-1:0] gpr_i1_rs1_d,
+   output logic [pt.XLEN-1:0] gpr_i1_rs2_d,
 
-   output logic [31:0] dec_i0_immed_d,              // immediate data
-   output logic [31:0] dec_i1_immed_d,
+   output logic [pt.XLEN-1:0] dec_i0_immed_d,  // immediate data
+   output logic [pt.XLEN-1:0] dec_i1_immed_d,
 
    output logic [pt.BTB_TOFFSET_SIZE:1] dec_i0_br_immed_d,           // br immediate data
    output logic [pt.BTB_TOFFSET_SIZE:1] dec_i1_br_immed_d,
@@ -319,16 +319,16 @@ import eh2_pkg::*;
    output logic          dec_i0_select_pc_d,        // select pc onto rs1 for jal's
    output logic          dec_i1_select_pc_d,
 
-   output logic [31:1] dec_i0_pc_d, dec_i1_pc_d,    // pc's at decode
+   output logic [pt.XLEN-1:1] dec_i0_pc_d, dec_i1_pc_d,  // pc's at decode
    output logic         dec_i0_rs1_bypass_en_d,     // rs1 bypass enable
    output logic         dec_i0_rs2_bypass_en_d,     // rs2 bypass enable
    output logic         dec_i1_rs1_bypass_en_d,
    output logic         dec_i1_rs2_bypass_en_d,
 
-   output logic [31:0] i0_rs1_bypass_data_d,       // rs1 bypass data
-   output logic [31:0] i0_rs2_bypass_data_d,       // rs2 bypass data
-   output logic [31:0] i1_rs1_bypass_data_d,
-   output logic [31:0] i1_rs2_bypass_data_d,
+   output logic [pt.XLEN-1:0] i0_rs1_bypass_data_d,  // rs1 bypass data
+   output logic [pt.XLEN-1:0] i0_rs2_bypass_data_d,  // rs2 bypass data
+   output logic [pt.XLEN-1:0] i1_rs1_bypass_data_d,
+   output logic [pt.XLEN-1:0] i1_rs2_bypass_data_d,
    output logic [pt.NUM_THREADS-1:0]        dec_ib3_valid_d,           // ib3 buffer valid
    output logic [pt.NUM_THREADS-1:0]        dec_ib2_valid_d,           // ib2 buffer valid
 
@@ -354,29 +354,29 @@ import eh2_pkg::*;
 
    output logic        dec_i1_valid_e1,            // i1 valid at e1 stage
 
-   output logic [pt.NUM_THREADS-1:0][31:1] pred_correct_npc_e2, // npc e2 if the prediction is correct
+   output logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] pred_correct_npc_e2, // npc e2 if the prediction is correct
 
-   output logic        dec_i0_rs1_bypass_en_e3,    // rs1 bypass enable e3
-   output logic        dec_i0_rs2_bypass_en_e3,    // rs2 bypass enable e3
+   output logic        dec_i0_rs1_bypass_en_e3,  // rs1 bypass enable e3
+   output logic        dec_i0_rs2_bypass_en_e3,  // rs2 bypass enable e3
    output logic        dec_i1_rs1_bypass_en_e3,
    output logic        dec_i1_rs2_bypass_en_e3,
-   output logic [31:0] i0_rs1_bypass_data_e3,      // rs1 bypass data e3
-   output logic [31:0] i0_rs2_bypass_data_e3,      // rs2 bypass data e3
-   output logic [31:0] i1_rs1_bypass_data_e3,
-   output logic [31:0] i1_rs2_bypass_data_e3,
+   output logic [pt.XLEN-1:0] i0_rs1_bypass_data_e3,  // rs1 bypass data e3
+   output logic [pt.XLEN-1:0] i0_rs2_bypass_data_e3,  // rs2 bypass data e3
+   output logic [pt.XLEN-1:0] i1_rs1_bypass_data_e3,
+   output logic [pt.XLEN-1:0] i1_rs2_bypass_data_e3,
    output logic        dec_i0_sec_decode_e3,       // secondary decode e3
    output logic        dec_i1_sec_decode_e3,
-   output logic [31:1] dec_i0_pc_e3,               // pc at e3
-   output logic [31:1] dec_i1_pc_e3,
+   output logic [pt.XLEN-1:1] dec_i0_pc_e3,        // pc at e3
+   output logic [pt.XLEN-1:1] dec_i1_pc_e3,
 
    output logic        dec_i0_rs1_bypass_en_e2,    // rs1 bypass enable e2
    output logic        dec_i0_rs2_bypass_en_e2,    // rs2 bypass enable e2
    output logic        dec_i1_rs1_bypass_en_e2,
    output logic        dec_i1_rs2_bypass_en_e2,
-   output logic [31:0] i0_rs1_bypass_data_e2,      // rs1 bypass data e2
-   output logic [31:0] i0_rs2_bypass_data_e2,      // rs2 bypass data e2
-   output logic [31:0] i1_rs1_bypass_data_e2,
-   output logic [31:0] i1_rs2_bypass_data_e2,
+   output logic [pt.XLEN-1:0] i0_rs1_bypass_data_e2,  // rs1 bypass data e2
+   output logic [pt.XLEN-1:0] i0_rs2_bypass_data_e2,  // rs2 bypass data e2
+   output logic [pt.XLEN-1:0] i1_rs1_bypass_data_e2,
+   output logic [pt.XLEN-1:0] i1_rs2_bypass_data_e2,
 
    output eh2_br_tlu_pkt_t dec_tlu_br0_wb_pkt,         // slot 0 branch predictor update packet
    output eh2_br_tlu_pkt_t dec_tlu_br1_wb_pkt,         // slot 1 branch predictor update packet
@@ -406,14 +406,14 @@ import eh2_pkg::*;
    output logic [pt.BTB_TOFFSET_SIZE-1:0] i1_predict_toffset_d,               // DEC predict branch tgt
 
 
-   output logic [31:0] i0_result_e4_eff,           // alu result e4
-   output logic [31:0] i1_result_e4_eff,
+   output logic [pt.XLEN-1:0] i0_result_e4_eff,    // alu result e4
+   output logic [pt.XLEN-1:0] i1_result_e4_eff,
 
    output   logic dec_tlu_i0_valid_e4,             // slot 0 instruction is valid at e4
    output   logic dec_tlu_i1_valid_e4,             // slot 1 instruction is valid at e4, implies i0_valid_e4
 
-   output logic [31:0] i0_result_e2,               // i0 result data e2
-   output logic [31:0] dec_tlu_mrac_ff,            // CSR for memory region control
+   output logic [pt.XLEN-1:0] i0_result_e2,        // i0 result data e2
+   output logic [pt.XLEN-1:0] dec_tlu_mrac_ff,     // CSR for memory region control
 
    output logic [4:1] dec_i0_data_en,              // clock-gate control logic
    output logic [4:1] dec_i0_ctl_en,
@@ -449,7 +449,7 @@ import eh2_pkg::*;
    output logic dec_i0_tid_e4, // needed to maintain RS in BP
    output logic dec_i1_tid_e4,
 
-   output logic [pt.NUM_THREADS-1:0] [31:1] dec_tlu_flush_path_wb,  // flush pc
+   output logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] dec_tlu_flush_path_wb,  // flush pc
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_lower_wb, // commit has a flush (exception, int, mispredict at e4)
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_mp_wb,    // commit has a flush (mispredict at e4)
    output logic [pt.NUM_THREADS-1:0]        dec_tlu_flush_lower_wb1,
@@ -507,21 +507,21 @@ import eh2_pkg::*;
    logic [4:0]  dec_i0_waddr_wb;
    logic        dec_i0_wen_wb;
    logic        dec_i0_tid_wb;
-   logic [31:0] dec_i0_wdata_wb;
+   logic [pt.XLEN-1:0] dec_i0_wdata_wb;
 
    logic [4:0]  dec_i1_waddr_wb;
    logic        dec_i1_wen_wb;
    logic        dec_i1_tid_wb;
-   logic [31:0] dec_i1_wdata_wb;
+   logic [pt.XLEN-1:0] dec_i1_wdata_wb;
 
    logic        dec_i0_csr_wen_wb;      // csr write enable at wb
    logic [11:0] dec_i0_csr_rdaddr_d;      // read address for csr
    logic [11:0] dec_i0_csr_wraddr_wb;      // write address for csryes
    logic        dec_i0_csr_is_mcpc_e4;
 
-   logic [31:0] dec_i0_csr_wrdata_wb;    // csr write data at wb
+   logic [pt.XLEN-1:0] dec_i0_csr_wrdata_wb;   // csr write data at wb
 
-   logic [31:0] dec_i0_csr_rddata_d;    // csr read data at wb
+   logic [pt.XLEN-1:0] dec_i0_csr_rddata_d;    // csr read data at wb
    logic        dec_i0_csr_legal_d;            // csr indicates legal operation
    logic        dec_i0_csr_global_d;
 
@@ -593,31 +593,31 @@ import eh2_pkg::*;
 
    logic [31:0]               dec_i0_inst_wb1;
    logic [31:0]               dec_i1_inst_wb1;
-   logic [31:1]               dec_i0_pc_wb1;
-   logic [31:1]               dec_i1_pc_wb1;
+   logic [pt.XLEN-1:1]        dec_i0_pc_wb1;
+   logic [pt.XLEN-1:1]        dec_i1_pc_wb1;
    logic [pt.NUM_THREADS-1:0] dec_tlu_i1_valid_wb1, dec_tlu_i0_valid_wb1,  dec_tlu_int_valid_wb1;
    logic [pt.NUM_THREADS-1:0] [4:0] dec_tlu_exc_cause_wb1;
-   logic [pt.NUM_THREADS-1:0] [31:0] dec_tlu_mtval_wb1;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:0] dec_tlu_mtval_wb1;
    logic [pt.NUM_THREADS-1:0]   dec_tlu_i0_exc_valid_wb1, dec_tlu_i1_exc_valid_wb1;
 
    logic dec_i0_tid_d;
    logic dec_i1_tid_d;
 
 
-   logic [1:0] [31:0] gpr_i0rs1_d;               // gpr rs1 data
-   logic [1:0] [31:0] gpr_i0rs2_d;               // gpr rs2 data
-   logic [1:0] [31:0] gpr_i1rs1_d;
-   logic [1:0] [31:0] gpr_i1rs2_d;
+   logic [1:0] [pt.XLEN-1:0] gpr_i0rs1_d;  // gpr rs1 data
+   logic [1:0] [pt.XLEN-1:0] gpr_i0rs2_d;  // gpr rs2 data
+   logic [1:0] [pt.XLEN-1:0] gpr_i1rs1_d;
+   logic [1:0] [pt.XLEN-1:0] gpr_i1rs2_d;
 
-   logic [31:1] dec_tlu_i0_pc_e4;                // pc e4
-   logic [31:1] dec_tlu_i1_pc_e4;
+   logic [pt.XLEN-1:1] dec_tlu_i0_pc_e4;   // pc e4
+   logic [pt.XLEN-1:1] dec_tlu_i1_pc_e4;
    logic        dec_i0_debug_valid_wb;
 
 
    assign clk_override = dec_tlu_dec_clk_override;
 
 
-   assign dec_dbg_rddata[31:0] = (dec_i0_debug_valid_wb) ? dec_i0_wdata_wb[31:0] : '0;
+   assign dec_dbg_rddata[pt.XLEN-1:0] = (dec_i0_debug_valid_wb) ? dec_i0_wdata_wb[pt.XLEN-1:0] : '0;
 
 // multithreaded signals
 
@@ -632,8 +632,8 @@ import eh2_pkg::*;
 
    logic [pt.NUM_THREADS-1:0] [31:0] i0_instr_d;         // i0 inst at decode
    logic [pt.NUM_THREADS-1:0] [31:0] i1_instr_d;         // i1 inst at decode
-   logic [pt.NUM_THREADS-1:0] [31:1] i0_pc_d;            // i0 pc at decode
-   logic [pt.NUM_THREADS-1:0] [31:1] i1_pc_d;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] i0_pc_d;     // i0 pc at decode
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] i1_pc_d;
    logic [pt.NUM_THREADS-1:0] i0_pc4_d;                  // i0 is 4B inst else 2B
    logic [pt.NUM_THREADS-1:0] i1_pc4_d;
    logic [pt.NUM_THREADS-1:0] [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] i0_bp_index;            // i0 branch index
@@ -782,10 +782,10 @@ import eh2_pkg::*;
                                        .raddr2(dec_i1_rs1_d[4:0]), .rden2(dec_i1_rs1_en_d),
                                        .raddr3(dec_i1_rs2_d[4:0]), .rden3(dec_i1_rs2_en_d),
 
-                                       .wtid0(dec_i0_tid_wb),              .waddr0(dec_i0_waddr_wb[4:0]),            .wen0(dec_i0_wen_wb),            .wd0(dec_i0_wdata_wb[31:0]),
-                                       .wtid1(dec_i1_tid_wb),              .waddr1(dec_i1_waddr_wb[4:0]),            .wen1(dec_i1_wen_wb),            .wd1(dec_i1_wdata_wb[31:0]),
-                                       .wtid2(lsu_nonblock_load_data_tid), .waddr2(dec_nonblock_load_waddr[i][4:0]), .wen2(dec_nonblock_load_wen[i]), .wd2(lsu_nonblock_load_data[31:0]),
-                                       .wtid3(div_tid_wb),                 .waddr3(div_waddr_wb[4:0]),               .wen3(exu_div_wren),             .wd3(exu_div_result[31:0]),
+                                       .wtid0(dec_i0_tid_wb),              .waddr0(dec_i0_waddr_wb[4:0]),            .wen0(dec_i0_wen_wb),            .wd0(dec_i0_wdata_wb[pt.XLEN-1:0]),
+                                       .wtid1(dec_i1_tid_wb),              .waddr1(dec_i1_waddr_wb[4:0]),            .wen1(dec_i1_wen_wb),            .wd1(dec_i1_wdata_wb[pt.XLEN-1:0]),
+                                       .wtid2(lsu_nonblock_load_data_tid), .waddr2(dec_nonblock_load_waddr[i][4:0]), .wen2(dec_nonblock_load_wen[i]), .wd2(lsu_nonblock_load_data[pt.XLEN-1:0]),
+                                       .wtid3(div_tid_wb),                 .waddr3(div_waddr_wb[4:0]),               .wen3(exu_div_wren),             .wd3(exu_div_result[pt.XLEN-1:0]),
 
                                        // outputs
                                        .rd0(gpr_i0rs1_d[i]), .rd1(gpr_i0rs2_d[i]),
@@ -808,10 +808,10 @@ import eh2_pkg::*;
 
 
    if (pt.NUM_THREADS == 1) begin: genst
-      assign gpr_i0_rs1_d[31:0] = gpr_i0rs1_d[0];
-      assign gpr_i0_rs2_d[31:0] = gpr_i0rs2_d[0];
-      assign gpr_i1_rs1_d[31:0] = gpr_i1rs1_d[0];
-      assign gpr_i1_rs2_d[31:0] = gpr_i1rs2_d[0];
+      assign gpr_i0_rs1_d[pt.XLEN-1:0] = gpr_i0rs1_d[0];
+      assign gpr_i0_rs2_d[pt.XLEN-1:0] = gpr_i0rs2_d[0];
+      assign gpr_i1_rs1_d[pt.XLEN-1:0] = gpr_i1rs1_d[0];
+      assign gpr_i1_rs2_d[pt.XLEN-1:0] = gpr_i1rs2_d[0];
 
       assign dec_i0_tid_d = 1'b0;
       assign dec_i1_tid_d = 1'b0;
@@ -826,10 +826,10 @@ import eh2_pkg::*;
 
    else begin: genmt
 
-      assign gpr_i0_rs1_d[31:0] = gpr_i0rs1_d[1] | gpr_i0rs1_d[0];
-      assign gpr_i0_rs2_d[31:0] = gpr_i0rs2_d[1] | gpr_i0rs2_d[0];
-      assign gpr_i1_rs1_d[31:0] = gpr_i1rs1_d[1] | gpr_i1rs1_d[0];
-      assign gpr_i1_rs2_d[31:0] = gpr_i1rs2_d[1] | gpr_i1rs2_d[0];
+      assign gpr_i0_rs1_d[pt.XLEN-1:0] = gpr_i0rs1_d[1] | gpr_i0rs1_d[0];
+      assign gpr_i0_rs2_d[pt.XLEN-1:0] = gpr_i0rs2_d[1] | gpr_i0rs2_d[0];
+      assign gpr_i1_rs1_d[pt.XLEN-1:0] = gpr_i1rs1_d[1] | gpr_i1rs1_d[0];
+      assign gpr_i1_rs2_d[pt.XLEN-1:0] = gpr_i1rs2_d[1] | gpr_i1rs2_d[0];
 
 
 
@@ -903,10 +903,10 @@ import eh2_pkg::*;
                                      ({32{i1_sel_i0_d[1]}} & i0_instr_d[1]) |
                                      ({32{i1_sel_i1_d[1]}} & i1_instr_d[1]);
 
-      assign dec_i1_pc_d           = ({31{i1_sel_i0_d[0]}} & i0_pc_d[0]) |
-                                     ({31{i1_sel_i1_d[0]}} & i1_pc_d[0]) |
-                                     ({31{i1_sel_i0_d[1]}} & i0_pc_d[1]) |
-                                     ({31{i1_sel_i1_d[1]}} & i1_pc_d[1]);
+      assign dec_i1_pc_d           = ({pt.XLEN-1{i1_sel_i0_d[0]}} & i0_pc_d[0]) |
+                                     ({pt.XLEN-1{i1_sel_i1_d[0]}} & i1_pc_d[0]) |
+                                     ({pt.XLEN-1{i1_sel_i0_d[1]}} & i0_pc_d[1]) |
+                                     ({pt.XLEN-1{i1_sel_i1_d[1]}} & i1_pc_d[1]);
 
       assign dec_i1_pc4_d          = (i1_sel_i0_d[0] & i0_pc4_d[0]) |
                                      (i1_sel_i1_d[0] & i1_pc4_d[0]) |
@@ -999,7 +999,7 @@ import eh2_pkg::*;
      for (genvar i=0; i<pt.NUM_THREADS; i++) begin : tracep
 
         assign trace_rv_trace_pkt[i].trace_rv_i_insn_ip    = { dec_i1_inst_wb1[31:0],     dec_i0_inst_wb1[31:0] };
-        assign trace_rv_trace_pkt[i].trace_rv_i_address_ip = { dec_i1_pc_wb1[31:1], 1'b0, dec_i0_pc_wb1[31:1], 1'b0 };
+        assign trace_rv_trace_pkt[i].trace_rv_i_address_ip = { dec_i1_pc_wb1[pt.XLEN-1:1], 1'b0, dec_i0_pc_wb1[pt.XLEN-1:1], 1'b0 };
 
         assign trace_rv_trace_pkt[i].trace_rv_i_valid_ip =     {
                                                                                            dec_tlu_i1_valid_wb1[i] | dec_tlu_i1_exc_valid_wb1[i],
@@ -1010,11 +1010,10 @@ import eh2_pkg::*;
 
         assign trace_rv_trace_pkt[i].trace_rv_i_ecause_ip =     dec_tlu_exc_cause_wb1[i][4:0];  // replicate across ports
         assign trace_rv_trace_pkt[i].trace_rv_i_interrupt_ip = {1'b0, dec_tlu_int_valid_wb1[i]};
-        assign trace_rv_trace_pkt[i].trace_rv_i_tval_ip =    dec_tlu_mtval_wb1[i][31:0];        // replicate across ports
+        assign trace_rv_trace_pkt[i].trace_rv_i_tval_ip =    dec_tlu_mtval_wb1[i][pt.XLEN-1:0];        // replicate across ports
      end
 
 
 // end trace
 
 endmodule // dec
-

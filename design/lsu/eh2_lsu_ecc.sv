@@ -36,12 +36,12 @@ import eh2_pkg::*;
    input logic                          clk_override,        // Disable clock gating
    input logic                          scan_mode,             // scan mode
    input logic                          rst_l,
-   input eh2_lsu_pkt_t                 lsu_pkt_dc3,        // packet in dc3
+   input eh2_lsu_pkt_t                  lsu_pkt_dc3,        // packet in dc3
    input logic                          lsu_dccm_rden_dc3,  // dccm rden
    input logic                          addr_in_dccm_dc3,   // address in dccm
    input logic [pt.DCCM_BITS-1:0]       lsu_addr_dc3,    // start address
    input logic [pt.DCCM_BITS-1:0]       end_addr_dc3,    // end address
-   input logic [31:0]                   store_data_dc3,  // store data
+   input logic [pt.XLEN-1:0]            store_data_dc3,  // store data
    input logic [pt.DCCM_DATA_WIDTH-1:0] stbuf_data_any,
 
    input logic [pt.DCCM_DATA_WIDTH-1:0] dccm_data_hi_dc3,     // raw data from mem
@@ -63,11 +63,11 @@ import eh2_pkg::*;
    input logic                           access_fault_dc3,
 
    input logic                           dma_dccm_spec_wen,
-   input logic  [31:0]                   dma_dccm_wdata_lo,
-   input logic  [31:0]                   dma_dccm_wdata_hi,
+   input logic  [pt.XLEN-1:0]            dma_dccm_wdata_lo,
+   input logic  [pt.XLEN-1:0]            dma_dccm_wdata_hi,
 
-   output logic [pt.DCCM_FDATA_WIDTH-1:0]  dccm_wr_data_hi,
-   output logic [pt.DCCM_FDATA_WIDTH-1:0]  dccm_wr_data_lo,
+   output logic [pt.DCCM_FDATA_WIDTH-1:0] dccm_wr_data_hi,
+   output logic [pt.DCCM_FDATA_WIDTH-1:0] dccm_wr_data_lo,
 
    output logic [pt.DCCM_DATA_WIDTH-1:0] sec_data_hi_dc3,
    output logic [pt.DCCM_DATA_WIDTH-1:0] sec_data_lo_dc3,
@@ -82,53 +82,56 @@ import eh2_pkg::*;
 
  );
 
-   logic        double_ecc_error_hi_dc3, double_ecc_error_lo_dc3;
+   localparam unsigned PAD_BITS = (pt.DCCM_BYTE_WIDTH - 1) * 8;
+
+   logic                          double_ecc_error_hi_dc3, double_ecc_error_lo_dc3;
    logic [pt.DCCM_ECC_WIDTH-1:0]  dccm_wdata_ecc_hi_any, dccm_wdata_ecc_lo_any;
 
-   logic        ldst_dual_dc3;
-   logic        is_ldst_dc3;
-   logic        is_ldst_hi_dc3, is_ldst_lo_dc3;
-   logic [7:0]  ldst_byteen_dc3;
-   logic [7:0]  store_byteen_dc3;
-   logic [7:0]  store_byteen_ext_dc3;
-   logic [pt.DCCM_BYTE_WIDTH-1:0]       store_byteen_hi_dc3, store_byteen_lo_dc3;
+   logic                              ldst_dual_dc3;
+   logic                              is_ldst_dc3;
+   logic                              is_ldst_hi_dc3, is_ldst_lo_dc3;
+   logic [(pt.DCCM_BYTE_WIDTH*2)-1:0] ldst_byteen_dc3;
+   logic [(pt.DCCM_BYTE_WIDTH*2)-1:0] store_byteen_dc3;
+   logic [(pt.DCCM_BYTE_WIDTH*2)-1:0] store_byteen_ext_dc3;
+   logic [pt.DCCM_BYTE_WIDTH-1:0] store_byteen_hi_dc3, store_byteen_lo_dc3;
 
-   logic [55:0] store_data_ext_dc3;
-   logic [pt.DCCM_DATA_WIDTH-1:0]  store_data_hi_dc3, store_data_lo_dc3;
-   logic [6:0]                  ecc_out_hi_nc, ecc_out_lo_nc;
+   logic [pt.XLEN+PAD_BITS-1:0]   store_data_ext_dc3;
+   logic [pt.DCCM_DATA_WIDTH-1:0] store_data_hi_dc3, store_data_lo_dc3;
+   logic [pt.DCCM_ECC_WIDTH-1:0]  ecc_out_hi_nc, ecc_out_lo_nc;
 
-   logic                       single_ecc_error_hi_raw_dc3, single_ecc_error_lo_raw_dc3;
+   logic                           single_ecc_error_hi_raw_dc3, single_ecc_error_lo_raw_dc3;
    logic  [pt.DCCM_DATA_WIDTH-1:0] sec_data_hi_dc5_ff, sec_data_lo_dc5_ff;
 
    //------------------------------------------------------------------------------------------------------------
    //----------------------------------------Logic starts here---------------------------------------------------
    //------------------------------------------------------------------------------------------------------------
 
-   assign ldst_dual_dc3 = (lsu_addr_dc3[2] != end_addr_dc3[2]);
+   assign ldst_dual_dc3 = (lsu_addr_dc3[pt.DCCM_ADDR_OFF] != end_addr_dc3[pt.DCCM_ADDR_OFF]);
    assign is_ldst_dc3 = lsu_pkt_dc3.valid & (lsu_pkt_dc3.load | lsu_pkt_dc3.store) & addr_in_dccm_dc3 & lsu_dccm_rden_dc3;
    assign is_ldst_lo_dc3 = is_ldst_dc3 & ~(dec_tlu_core_ecc_disable | disable_ecc_check_lo_dc3);
    assign is_ldst_hi_dc3 = is_ldst_dc3 & (ldst_dual_dc3 | lsu_pkt_dc3.dma) & ~(dec_tlu_core_ecc_disable | disable_ecc_check_hi_dc3);
 
-   assign ldst_byteen_dc3[7:0] = ({8{lsu_pkt_dc3.by}}   & 8'b0000_0001) |
-                                 ({8{lsu_pkt_dc3.half}} & 8'b0000_0011) |
-                                 ({8{lsu_pkt_dc3.word}} & 8'b0000_1111) |
-                                 ({8{lsu_pkt_dc3.dword}} & 8'b1111_1111);
-   assign store_byteen_dc3[7:0] = ldst_byteen_dc3[7:0] & {8{~lsu_pkt_dc3.load}};
+   assign ldst_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] = ({pt.DCCM_BYTE_WIDTH*2{lsu_pkt_dc3.by}}    & (pt.DCCM_BYTE_WIDTH*2)'('b0000_0001)) |
+                                                        ({pt.DCCM_BYTE_WIDTH*2{lsu_pkt_dc3.half}}  & (pt.DCCM_BYTE_WIDTH*2)'('b0000_0011)) |
+                                                        ({pt.DCCM_BYTE_WIDTH*2{lsu_pkt_dc3.word}}  & (pt.DCCM_BYTE_WIDTH*2)'('b0000_1111)) |
+                                                        ({pt.DCCM_BYTE_WIDTH*2{lsu_pkt_dc3.dword}} & (pt.DCCM_BYTE_WIDTH*2)'('b1111_1111)) |
+                                                        ({pt.DCCM_BYTE_WIDTH*2{lsu_pkt_dc3.qword}} & {pt.DCCM_BYTE_WIDTH*2{1'b1}} & (pt.XLEN == 64));
+   assign store_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] = ldst_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] & {pt.DCCM_BYTE_WIDTH*2{~lsu_pkt_dc3.load}};
 
-   assign store_byteen_ext_dc3[7:0] = store_byteen_dc3[7:0] << lsu_addr_dc3[1:0];
-   assign store_byteen_hi_dc3[pt.DCCM_BYTE_WIDTH-1:0] = store_byteen_ext_dc3[7:4];
-   assign store_byteen_lo_dc3[pt.DCCM_BYTE_WIDTH-1:0] = store_byteen_ext_dc3[3:0];
+   assign store_byteen_ext_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] = store_byteen_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:0] << lsu_addr_dc3[pt.DCCM_ADDR_OFF-1:0];
+   assign store_byteen_hi_dc3[pt.DCCM_BYTE_WIDTH-1:0] = store_byteen_ext_dc3[(pt.DCCM_BYTE_WIDTH*2)-1:pt.DCCM_BYTE_WIDTH];
+   assign store_byteen_lo_dc3[pt.DCCM_BYTE_WIDTH-1:0] = store_byteen_ext_dc3[pt.DCCM_BYTE_WIDTH-1:0];
 
-   assign store_data_ext_dc3[55:0] = {24'b0,store_data_dc3[31:0]} << {lsu_addr_dc3[1:0], 3'b000};
-   assign store_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]  = {8'b0,store_data_ext_dc3[55:32]};
-   assign store_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]  = store_data_ext_dc3[31:0];
+   assign store_data_ext_dc3[pt.XLEN+PAD_BITS-1:0]   = {{PAD_BITS{1'b0}},store_data_dc3[pt.XLEN-1:0]} << {lsu_addr_dc3[pt.DCCM_ADDR_OFF-1:0], 3'b000};
+   assign store_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]  = {8'b0,store_data_ext_dc3[pt.XLEN+PAD_BITS-1:pt.XLEN]};
+   assign store_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]  = store_data_ext_dc3[pt.XLEN-1:0];
 
 
    // Merge store data and sec data
    // This is used for loads as well for ecc error case. store_byteen will be 0 for loads
    for (genvar i=0; i<pt.DCCM_BYTE_WIDTH; i++) begin
-      assign store_ecc_data_hi_dc3[(8*i)+7:(8*i)] = store_byteen_hi_dc3[i]  ? store_data_hi_dc3[(8*i)+7:(8*i)] : ({8{addr_in_dccm_dc3}} & sec_data_hi_dc3[(8*i)+7:(8*i)]);
-      assign store_ecc_data_lo_dc3[(8*i)+7:(8*i)] = store_byteen_lo_dc3[i]  ? store_data_lo_dc3[(8*i)+7:(8*i)] : ({8{addr_in_dccm_dc3}} & sec_data_lo_dc3[(8*i)+7:(8*i)]);
+      assign store_ecc_data_hi_dc3[8*i+:8] = store_byteen_hi_dc3[i]  ? store_data_hi_dc3[8*i+:8] : ({8{addr_in_dccm_dc3}} & sec_data_hi_dc3[8*i+:8]);
+      assign store_ecc_data_lo_dc3[8*i+:8] = store_byteen_lo_dc3[i]  ? store_data_lo_dc3[8*i+:8] : ({8{addr_in_dccm_dc3}} & sec_data_lo_dc3[8*i+:8]);
    end
 
    assign dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0] = dma_dccm_spec_wen ? dma_dccm_wdata_lo[pt.DCCM_DATA_WIDTH-1:0] :
@@ -140,49 +143,93 @@ import eh2_pkg::*;
    assign dccm_wr_data_hi[pt.DCCM_FDATA_WIDTH-1:pt.DCCM_DATA_WIDTH] = dccm_wdata_ecc_hi_any[pt.DCCM_ECC_WIDTH-1:0];
 
    if (pt.DCCM_ENABLE == 1) begin: Gen_dccm_enable
-      //Detect/Repair for Hi/Lo
-      rvecc_decode lsu_ecc_decode_hi (
-         // Inputs
-         .en(is_ldst_hi_dc3),
-         .sed_ded (1'b0),    // 1 : means only detection
-         .din(dccm_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),
-         .ecc_in(dccm_data_ecc_hi_dc3[pt.DCCM_ECC_WIDTH-1:0]),
-         // Outputs
-         .dout(sec_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),
-         .ecc_out (ecc_out_hi_nc[6:0]),
-         .single_ecc_error(single_ecc_error_hi_raw_dc3),
-         .double_ecc_error(double_ecc_error_hi_dc3),
-         .*
-      );
+      if (pt.XLEN == 32) begin
+         //Detect/Repair for Hi/Lo
+         rvecc_decode lsu_ecc_decode_hi (
+            // Inputs
+            .en(is_ldst_hi_dc3),
+            .sed_ded (1'b0),    // 1 : means only detection
+            .din(dccm_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),
+            .ecc_in(dccm_data_ecc_hi_dc3[pt.DCCM_ECC_WIDTH-1:0]),
+            // Outputs
+            .dout(sec_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),
+            .ecc_out (ecc_out_hi_nc[pt.DCCM_ECC_WIDTH-1:0]),
+            .single_ecc_error(single_ecc_error_hi_raw_dc3),
+            .double_ecc_error(double_ecc_error_hi_dc3),
+            .*
+         );
 
-      rvecc_decode lsu_ecc_decode_lo (
-         // Inputs
-         .en(is_ldst_lo_dc3),
-         .sed_ded (1'b0),    // 1 : means only detection
-         .din(dccm_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0] ),
-         .ecc_in(dccm_data_ecc_lo_dc3[pt.DCCM_ECC_WIDTH-1:0]),
-         // Outputs
-         .dout(sec_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]),
-         .ecc_out (ecc_out_lo_nc[6:0]),
-         .single_ecc_error(single_ecc_error_lo_raw_dc3),
-         .double_ecc_error(double_ecc_error_lo_dc3),
-         .*
-      );
+         rvecc_decode lsu_ecc_decode_lo (
+            // Inputs
+            .en(is_ldst_lo_dc3),
+            .sed_ded (1'b0),    // 1 : means only detection
+            .din(dccm_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0] ),
+            .ecc_in(dccm_data_ecc_lo_dc3[pt.DCCM_ECC_WIDTH-1:0]),
+            // Outputs
+            .dout(sec_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]),
+            .ecc_out (ecc_out_lo_nc[pt.DCCM_ECC_WIDTH-1:0]),
+            .single_ecc_error(single_ecc_error_lo_raw_dc3),
+            .double_ecc_error(double_ecc_error_lo_dc3),
+            .*
+         );
+         rvecc_encode lsu_ecc_encode_hi (
+            //Inputs
+            .din(dccm_wr_data_hi[pt.DCCM_DATA_WIDTH-1:0]),
+            //Outputs
+            .ecc_out(dccm_wdata_ecc_hi_any[pt.DCCM_ECC_WIDTH-1:0]),
+            .*
+         );
+         rvecc_encode lsu_ecc_encode_lo (
+            //Inputs
+            .din(dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0]),
+            //Outputs
+            .ecc_out(dccm_wdata_ecc_lo_any[pt.DCCM_ECC_WIDTH-1:0]),
+            .*
+         );
+      end else begin
+         //Detect/Repair for Hi/Lo
+         rvecc_decode_64 lsu_ecc_decode_hi (
+            // Inputs
+            .en(is_ldst_hi_dc3),
+            .sed_ded (1'b0),    // 1 : means only detection
+            .din(dccm_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),
+            .ecc_in(dccm_data_ecc_hi_dc3[pt.DCCM_ECC_WIDTH-1:0]),
+            // Outputs
+            .dout(sec_data_hi_dc3[pt.DCCM_DATA_WIDTH-1:0]),
+            .ecc_out (ecc_out_hi_nc[pt.DCCM_ECC_WIDTH-1:0]),
+            .single_ecc_error(single_ecc_error_hi_raw_dc3),
+            .double_ecc_error(double_ecc_error_hi_dc3),
+            .*
+         );
 
-      rvecc_encode lsu_ecc_encode_hi (
-         //Inputs
-         .din(dccm_wr_data_hi[pt.DCCM_DATA_WIDTH-1:0]),
-         //Outputs
-         .ecc_out(dccm_wdata_ecc_hi_any[pt.DCCM_ECC_WIDTH-1:0]),
-         .*
-      );
-      rvecc_encode lsu_ecc_encode_lo (
-         //Inputs
-         .din(dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0]),
-         //Outputs
-         .ecc_out(dccm_wdata_ecc_lo_any[pt.DCCM_ECC_WIDTH-1:0]),
-         .*
-      );
+         rvecc_decode_64 lsu_ecc_decode_lo (
+            // Inputs
+            .en(is_ldst_lo_dc3),
+            .sed_ded (1'b0),    // 1 : means only detection
+            .din(dccm_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0] ),
+            .ecc_in(dccm_data_ecc_lo_dc3[pt.DCCM_ECC_WIDTH-1:0]),
+            // Outputs
+            .dout(sec_data_lo_dc3[pt.DCCM_DATA_WIDTH-1:0]),
+            .ecc_out (ecc_out_lo_nc[pt.DCCM_ECC_WIDTH-1:0]),
+            .single_ecc_error(single_ecc_error_lo_raw_dc3),
+            .double_ecc_error(double_ecc_error_lo_dc3),
+            .*
+         );
+         rvecc_encode_64 lsu_ecc_encode_hi (
+            //Inputs
+            .din(dccm_wr_data_hi[pt.DCCM_DATA_WIDTH-1:0]),
+            //Outputs
+            .ecc_out(dccm_wdata_ecc_hi_any[pt.DCCM_ECC_WIDTH-1:0]),
+            .*
+         );
+         rvecc_encode_64 lsu_ecc_encode_lo (
+            //Inputs
+            .din(dccm_wr_data_lo[pt.DCCM_DATA_WIDTH-1:0]),
+            //Outputs
+            .ecc_out(dccm_wdata_ecc_lo_any[pt.DCCM_ECC_WIDTH-1:0]),
+            .*
+         );
+      end
 
       assign single_ecc_error_hi_dc3  = single_ecc_error_hi_raw_dc3 & ldst_dual_dc3 & ~(misaligned_fault_dc3 | access_fault_dc3);
       assign single_ecc_error_lo_dc3  = single_ecc_error_lo_raw_dc3 & ~(misaligned_fault_dc3 | access_fault_dc3);

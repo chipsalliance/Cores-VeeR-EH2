@@ -50,39 +50,39 @@ import eh2_pkg::*;
     input logic wen2,
     input logic wen3,
 
-    input logic [31:0] wd0,    // write data
-    input logic [31:0] wd1,
-    input logic [31:0] wd2,
-    input logic [31:0] wd3,
+    input logic [pt.XLEN-1:0] wd0,    // write data
+    input logic [pt.XLEN-1:0] wd1,
+    input logic [pt.XLEN-1:0] wd2,
+    input logic [pt.XLEN-1:0] wd3,
 
     input logic       clk,
     input logic       rst_l,
 
-    output logic [31:0] rd0,   // read data
-    output logic [31:0] rd1,
-    output logic [31:0] rd2,
-    output logic [31:0] rd3,
+    output logic [pt.XLEN-1:0] rd0,   // read data
+    output logic [pt.XLEN-1:0] rd1,
+    output logic [pt.XLEN-1:0] rd2,
+    output logic [pt.XLEN-1:0] rd3,
 
     input  logic        scan_mode
 );
 
-   logic [31:1] [31:0] gpr_out;     // 31 x 32 bit GPRs
-   logic [31:1] [31:0] gpr_in;
+   logic [31:1] [pt.XLEN-1:0] gpr_out;     // 31 x XLEN bit GPRs
+   logic [31:1] [pt.XLEN-1:0] gpr_in;
    logic [31:1] w0v,w1v,w2v,w3v;
    logic [31:1] gpr_wr_en;
 
    // GPR Write Enables
    assign gpr_wr_en[31:1] = (w0v[31:1] | w1v[31:1] | w2v[31:1] | w3v[31:1]);
    for ( genvar j=1; j<32; j++ )  begin : gpr
-      rvdffe #(32) gprff (.*, .en(gpr_wr_en[j]), .din(gpr_in[j][31:0]), .dout(gpr_out[j][31:0]));
+      rvdffe #(pt.XLEN) gprff (.*, .en(gpr_wr_en[j]), .din(gpr_in[j][pt.XLEN-1:0]), .dout(gpr_out[j][pt.XLEN-1:0]));
    end : gpr
 
 // the read out
    always_comb begin
-      rd0[31:0] = 32'b0;
-      rd1[31:0] = 32'b0;
-      rd2[31:0] = 32'b0;
-      rd3[31:0] = 32'b0;
+      rd0[pt.XLEN-1:0] = '0;
+      rd1[pt.XLEN-1:0] = '0;
+      rd2[pt.XLEN-1:0] = '0;
+      rd3[pt.XLEN-1:0] = '0;
       w0v[31:1] = 31'b0;
       w1v[31:1] = 31'b0;
       w2v[31:1] = 31'b0;
@@ -91,10 +91,10 @@ import eh2_pkg::*;
 
       // GPR Read logic
       for (int j=1; j<32; j++ )  begin
-         rd0[31:0] |= ({32{rden0 & (rtid0 == tid) & (raddr0[4:0]== 5'(j))}} & gpr_out[j][31:0]);
-         rd1[31:0] |= ({32{rden1 & (rtid1 == tid) & (raddr1[4:0]== 5'(j))}} & gpr_out[j][31:0]);
-         rd2[31:0] |= ({32{rden2 & (rtid2 == tid) & (raddr2[4:0]== 5'(j))}} & gpr_out[j][31:0]);
-         rd3[31:0] |= ({32{rden3 & (rtid3 == tid) & (raddr3[4:0]== 5'(j))}} & gpr_out[j][31:0]);
+         rd0[pt.XLEN-1:0] |= ({pt.XLEN{rden0 & (rtid0 == tid) & (raddr0[4:0]== 5'(j))}} & gpr_out[j][pt.XLEN-1:0]);
+         rd1[pt.XLEN-1:0] |= ({pt.XLEN{rden1 & (rtid1 == tid) & (raddr1[4:0]== 5'(j))}} & gpr_out[j][pt.XLEN-1:0]);
+         rd2[pt.XLEN-1:0] |= ({pt.XLEN{rden2 & (rtid2 == tid) & (raddr2[4:0]== 5'(j))}} & gpr_out[j][pt.XLEN-1:0]);
+         rd3[pt.XLEN-1:0] |= ({pt.XLEN{rden3 & (rtid3 == tid) & (raddr3[4:0]== 5'(j))}} & gpr_out[j][pt.XLEN-1:0]);
      end
 
      // GPR Write logic
@@ -103,10 +103,10 @@ import eh2_pkg::*;
          w1v[j]     = wen1  & (wtid1 == tid) & (waddr1[4:0]== 5'(j) );
          w2v[j]     = wen2  & (wtid2 == tid) & (waddr2[4:0]== 5'(j) );
          w3v[j]     = wen3  & (wtid3 == tid) & (waddr3[4:0]== 5'(j) );
-         gpr_in[j]  = ({32{w0v[j]}} & wd0[31:0]) |
-                      ({32{w1v[j]}} & wd1[31:0]) |
-                      ({32{w2v[j]}} & wd2[31:0]) |
-                      ({32{w3v[j]}} & wd3[31:0]);
+         gpr_in[j]  = ({pt.XLEN{w0v[j]}} & wd0[pt.XLEN-1:0]) |
+                      ({pt.XLEN{w1v[j]}} & wd1[pt.XLEN-1:0]) |
+                      ({pt.XLEN{w2v[j]}} & wd2[pt.XLEN-1:0]) |
+                      ({pt.XLEN{w3v[j]}} & wd3[pt.XLEN-1:0]);
      end
    end // always_comb begin
 

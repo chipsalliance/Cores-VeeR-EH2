@@ -363,13 +363,13 @@ module tb_top;
             $write("%c", WriteData[7:0]);
         end
 
-        if(mailbox_write && (WriteData[7:0] == 8'hFF || WriteData[7:0] == 8'hFE || WriteData[7:0] == 8'h01)) begin
+        if(mailbox_write && (WriteData[7:0] == 8'hFF || WriteData[7:0] == 8'h01)) begin
             if (mem_signature_begin < mem_signature_end) begin
                 dump_signature();
             end
         end
         // End Of test monitor
-        if(mailbox_write && WriteData[7:0] == 8'hff) begin
+        if(mailbox_write && WriteData[7:0] == 8'hFF) begin
             $display("TEST_PASSED");
             $display("\nFinished hart0 : minstret = %0d, mcycle = %0d", minstret[0],mcycle[0]);
             if(`RV_NUM_THREADS == 2)
@@ -377,7 +377,7 @@ module tb_top;
             $display("See \"exec.log\" for execution trace with register updates..\n");
             $finish;
         end
-        else if(mailbox_write && WriteData[7:0] == 8'h1) begin
+        else if(mailbox_write && WriteData[7:0] == 8'h01) begin
             $display("TEST_FAILED");
             `ifdef TB_SILENT_FAIL
                 $finish;

@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
   tb->mem_signature_begin = 0x00000000;
   tb->mem_signature_end   = 0x00000000;
 
-    std::map<std::string, uint64_t> symbols;
+  std::map<std::string, uint64_t> symbols;
 
   // Setup memory signature range by looking up symbol names in the provided
   // symbol dump file

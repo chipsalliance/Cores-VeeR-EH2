@@ -1,0 +1,1 @@
+config/cores/veer_eh2/veer_eh2_rv32/run_test.sh

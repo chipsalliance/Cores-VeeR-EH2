@@ -545,19 +545,19 @@ import eh2_pkg::*;
    eh2_cache_debug_pkt_t dec_tlu_ic_diag_pkt; // packet of DICAWICS, DICAD0/1, DICAGO info for icache diagnostics
    logic [pt.NUM_THREADS-1:0] dec_tlu_i0_commit_cmt;
 
-   logic  [31:0] gpr_i0_rs1_d;
-   logic  [31:0] gpr_i0_rs2_d;
-   logic  [31:0] gpr_i1_rs1_d;
-   logic  [31:0] gpr_i1_rs2_d;
+   logic [pt.XLEN-1:0] gpr_i0_rs1_d;
+   logic [pt.XLEN-1:0] gpr_i0_rs2_d;
+   logic [pt.XLEN-1:0] gpr_i1_rs1_d;
+   logic [pt.XLEN-1:0] gpr_i1_rs2_d;
 
-   logic [31:0] i0_rs1_bypass_data_d;
-   logic [31:0] i0_rs2_bypass_data_d;
-   logic [31:0] i1_rs1_bypass_data_d;
-   logic [31:0] i1_rs2_bypass_data_d;
-   logic [31:0] exu_i0_result_e1, exu_i1_result_e1;
-   logic [31:1] exu_i0_pc_e1;
-   logic [31:1] exu_i1_pc_e1;  // from the primary alu's
-   logic [pt.NUM_THREADS-1:0] [31:1] exu_npc_e4;
+   logic [pt.XLEN-1:0] i0_rs1_bypass_data_d;
+   logic [pt.XLEN-1:0] i0_rs2_bypass_data_d;
+   logic [pt.XLEN-1:0] i1_rs1_bypass_data_d;
+   logic [pt.XLEN-1:0] i1_rs2_bypass_data_d;
+   logic [pt.XLEN-1:0] exu_i0_result_e1, exu_i1_result_e1;
+   logic [pt.XLEN-1:1] exu_i0_pc_e1;
+   logic [pt.XLEN-1:1] exu_i1_pc_e1;  // from the primary alu's
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] exu_npc_e4;
 
    eh2_alu_pkt_t  i0_ap, i1_ap;
 
@@ -566,8 +566,8 @@ import eh2_pkg::*;
    logic [3:0]             lsu_trigger_match_dc4;
    logic [pt.NUM_THREADS-1:0] dec_ib3_valid_d, dec_ib2_valid_d;
 
-   logic [31:0] dec_i0_immed_d;
-   logic [31:0] dec_i1_immed_d;
+   logic [pt.XLEN-1:0] dec_i0_immed_d;
+   logic [pt.XLEN-1:0] dec_i1_immed_d;
 
    logic [pt.BTB_TOFFSET_SIZE:1] dec_i0_br_immed_d;
    logic [pt.BTB_TOFFSET_SIZE:1] dec_i1_br_immed_d;
@@ -575,31 +575,31 @@ import eh2_pkg::*;
    logic         dec_i0_select_pc_d;
    logic         dec_i1_select_pc_d;
 
-   logic [31:1] dec_i0_pc_d, dec_i1_pc_d;
-   logic        dec_i0_rs1_bypass_en_d;
-   logic        dec_i0_rs2_bypass_en_d;
-   logic        dec_i1_rs1_bypass_en_d;
-   logic        dec_i1_rs2_bypass_en_d;
+   logic [pt.XLEN-1:1] dec_i0_pc_d, dec_i1_pc_d;
+   logic               dec_i0_rs1_bypass_en_d;
+   logic               dec_i0_rs2_bypass_en_d;
+   logic               dec_i1_rs1_bypass_en_d;
+   logic               dec_i1_rs2_bypass_en_d;
 
 
    logic         dec_i0_alu_decode_d;
    logic         dec_i1_alu_decode_d;
 
-   logic [pt.NUM_THREADS-1:0]         ifu_i0_valid, ifu_i1_valid;
-   logic [pt.NUM_THREADS-1:0] [31:0]  ifu_i0_instr, ifu_i1_instr;
-   logic [pt.NUM_THREADS-1:0] [31:1]  ifu_i0_pc, ifu_i1_pc;
-   logic [31:2]  dec_tlu_meihap; // Fast ext int base
+   logic [pt.NUM_THREADS-1:0]              ifu_i0_valid, ifu_i1_valid;
+   logic [pt.NUM_THREADS-1:0][31:0]        ifu_i0_instr, ifu_i1_instr;
+   logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] ifu_i0_pc, ifu_i1_pc;
+   logic [pt.XLEN-1:2]  dec_tlu_meihap; // Fast ext int base
 
    logic [pt.NUM_THREADS-1:0]   flush_final_e3;             // final flush
    logic [pt.NUM_THREADS-1:0]   i0_flush_final_e3;          // final flush from i0
 
    logic [pt.NUM_THREADS-1:0]   exu_flush_final_early;              // Pipe is being flushed this cycle
-   logic [pt.NUM_THREADS-1:0][31:1] exu_flush_path_final_early;         // Target for the oldest flush source
+   logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] exu_flush_path_final_early;         // Target for the oldest flush source
 
-   logic [pt.NUM_THREADS-1:0] [31:1] exu_flush_path_final;
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] exu_flush_path_final;
 
-   logic [31:0] exu_lsu_rs1_d;
-   logic [31:0] exu_lsu_rs2_d;
+   logic [pt.XLEN-1:0] exu_lsu_rs1_d;
+   logic [pt.XLEN-1:0] exu_lsu_rs2_d;
 
 
    eh2_lsu_pkt_t    lsu_p;
@@ -610,14 +610,14 @@ import eh2_pkg::*;
 
    logic [pt.NUM_THREADS-1:0] dec_tlu_force_halt;
 
-   logic [31:0]  lsu_result_dc3;
-   logic [31:0]  lsu_result_corr_dc4;
-   logic         lsu_sc_success_dc5;
-   logic         lsu_single_ecc_error_incr;     // Increment the ecc error counter
+   logic [pt.XLEN-1:0] lsu_result_dc3;
+   logic [pt.XLEN-1:0] lsu_result_corr_dc4;
+   logic               lsu_sc_success_dc5;
+   logic               lsu_single_ecc_error_incr;     // Increment the ecc error counter
    eh2_lsu_error_pkt_t lsu_error_pkt_dc3;
-   logic [pt.NUM_THREADS-1:0]        lsu_imprecise_error_load_any;
-   logic [pt.NUM_THREADS-1:0]        lsu_imprecise_error_store_any;
-   logic [pt.NUM_THREADS-1:0][31:0]  lsu_imprecise_error_addr_any;
+   logic [pt.NUM_THREADS-1:0]              lsu_imprecise_error_load_any;
+   logic [pt.NUM_THREADS-1:0]              lsu_imprecise_error_store_any;
+   logic [pt.NUM_THREADS-1:0][pt.XLEN-1:0] lsu_imprecise_error_addr_any;
    logic         lsu_fastint_stall_any;     // Stall fast interrupts at decode-1
 
    logic [pt.NUM_THREADS-1:0] lsu_amo_stall_any;         // This is for blocking amo
@@ -625,8 +625,8 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0] lsu_store_stall_any;       // This is for blocking stores
    logic [pt.NUM_THREADS-1:0] lsu_idle_any;              // This is used to enter halt mode. Exclude DMA
 
-   logic [31:1]  lsu_fir_addr;              // fast interrupt address
-   logic [1:0]   lsu_fir_error;             // Error during fast interrupt lookup
+   logic [pt.XLEN-1:1] lsu_fir_addr;              // fast interrupt address
+   logic [1:0]         lsu_fir_error;             // Error during fast interrupt lookup
 
    // Non-blocking loads
    logic                                  lsu_nonblock_load_valid_dc1;
@@ -639,29 +639,29 @@ import eh2_pkg::*;
    logic                                  lsu_nonblock_load_data_error;
    logic                                  lsu_nonblock_load_data_tid;
    logic [pt.LSU_NUM_NBLOAD_WIDTH-1:0]    lsu_nonblock_load_data_tag;
-   logic [31:0]                           lsu_nonblock_load_data;
+   logic [pt.XLEN-1:0]                    lsu_nonblock_load_data;
 
 
-   logic [pt.NUM_THREADS-1:0] [31:1]      dec_tlu_flush_path_wb;  // flush pc
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_flush_mp_wb; // commit has a flush (mispredict at e4)
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_flush_lower_wb; // commit has a flush (exception; int; mispredict at e4)
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_flush_lower_wb1; // commit has a flush (exception; int; mispredict at e4)
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_flush_noredir_wb ; // Tell fetch to idle on this flush
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_flush_leak_one_wb; // single step
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_flush_err_wb; // iside perr/ecc rfpc
-   logic [pt.NUM_THREADS-1:0]             dec_tlu_fence_i_wb;     // flush is a fence_i rfnpc, flush icache
+   logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:1] dec_tlu_flush_path_wb;  // flush pc
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_flush_mp_wb; // commit has a flush (mispredict at e4)
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_flush_lower_wb; // commit has a flush (exception; int; mispredict at e4)
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_flush_lower_wb1; // commit has a flush (exception; int; mispredict at e4)
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_flush_noredir_wb ; // Tell fetch to idle on this flush
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_flush_leak_one_wb; // single step
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_flush_err_wb; // iside perr/ecc rfpc
+   logic [pt.NUM_THREADS-1:0]               dec_tlu_fence_i_wb;     // flush is a fence_i rfnpc, flush icache
 
 
    logic        dec_i0_csr_ren_d;
 
-   logic [31:0] exu_i0_csr_rs1_e1;
+   logic [pt.XLEN-1:0] exu_i0_csr_rs1_e1;
 
    logic        dec_tlu_i0_kill_writeb_wb;    // I0 is flushed, don't writeback any results to arch state
    logic        dec_tlu_i1_kill_writeb_wb;    // I1 is flushed, don't writeback any results to arch state
 
    logic dec_tlu_i0_valid_e4;
    logic dec_tlu_i1_valid_e4;
-   logic [31:0] dec_tlu_mrac_ff;        // CSR for memory region control
+   logic [pt.XLEN-1:0] dec_tlu_mrac_ff;        // CSR for memory region control
    logic [pt.NUM_THREADS-1:0] dec_tlu_lr_reset_wb; // Reset the reservation on certain events
 
 
@@ -674,7 +674,7 @@ import eh2_pkg::*;
 
    eh2_mul_pkt_t  mul_p;
 
-   logic [31:0] exu_mul_result_e3;
+   logic [pt.XLEN-1:0] exu_mul_result_e3;
 
    logic dec_i0_mul_d;
    logic dec_i1_mul_d;
@@ -682,41 +682,41 @@ import eh2_pkg::*;
    eh2_div_pkt_t  div_p;
 
    logic        exu_div_wren;
-   logic [31:0] exu_div_result;
+   logic [pt.XLEN-1:0] exu_div_result;
 
    logic dec_i0_div_d;
 
    logic        dec_i1_valid_e1;
 
-   logic [pt.NUM_THREADS-1:0][31:1] pred_correct_npc_e2; // npc e2 if the prediction is correct
+   logic [pt.NUM_THREADS-1:0][pt.XLEN-1:1] pred_correct_npc_e2; // npc e2 if the prediction is correct
 
-   logic [31:0] exu_i0_result_e4;
-   logic [31:0] exu_i1_result_e4;
+   logic [pt.XLEN-1:0] exu_i0_result_e4;
+   logic [pt.XLEN-1:0] exu_i1_result_e4;
 
-   logic        dec_i0_rs1_bypass_en_e3;
-   logic        dec_i0_rs2_bypass_en_e3;
-   logic        dec_i1_rs1_bypass_en_e3;
-   logic        dec_i1_rs2_bypass_en_e3;
-   logic [31:0] i0_rs1_bypass_data_e3;
-   logic [31:0] i0_rs2_bypass_data_e3;
-   logic [31:0] i1_rs1_bypass_data_e3;
-   logic [31:0] i1_rs2_bypass_data_e3;
-   logic        dec_i0_sec_decode_e3;
-   logic        dec_i1_sec_decode_e3;
-   logic [31:1] dec_i0_pc_e3;
-   logic [31:1] dec_i1_pc_e3;
+   logic               dec_i0_rs1_bypass_en_e3;
+   logic               dec_i0_rs2_bypass_en_e3;
+   logic               dec_i1_rs1_bypass_en_e3;
+   logic               dec_i1_rs2_bypass_en_e3;
+   logic [pt.XLEN-1:0] i0_rs1_bypass_data_e3;
+   logic [pt.XLEN-1:0] i0_rs2_bypass_data_e3;
+   logic [pt.XLEN-1:0] i1_rs1_bypass_data_e3;
+   logic [pt.XLEN-1:0] i1_rs2_bypass_data_e3;
+   logic               dec_i0_sec_decode_e3;
+   logic               dec_i1_sec_decode_e3;
+   logic [pt.XLEN-1:1] dec_i0_pc_e3;
+   logic [pt.XLEN-1:1] dec_i1_pc_e3;
 
-   logic        dec_i0_rs1_bypass_en_e2;
-   logic        dec_i0_rs2_bypass_en_e2;
-   logic        dec_i1_rs1_bypass_en_e2;
-   logic        dec_i1_rs2_bypass_en_e2;
-   logic [31:0] i0_rs1_bypass_data_e2;
-   logic [31:0] i0_rs2_bypass_data_e2;
-   logic [31:0] i1_rs1_bypass_data_e2;
-   logic [31:0] i1_rs2_bypass_data_e2;
+   logic               dec_i0_rs1_bypass_en_e2;
+   logic               dec_i0_rs2_bypass_en_e2;
+   logic               dec_i1_rs1_bypass_en_e2;
+   logic               dec_i1_rs2_bypass_en_e2;
+   logic [pt.XLEN-1:0] i0_rs1_bypass_data_e2;
+   logic [pt.XLEN-1:0] i0_rs2_bypass_data_e2;
+   logic [pt.XLEN-1:0] i1_rs1_bypass_data_e2;
+   logic [pt.XLEN-1:0] i1_rs2_bypass_data_e2;
 
-   logic [31:1] exu_i0_flush_path_e4;
-   logic [31:1] exu_i1_flush_path_e4;
+   logic [pt.XLEN-1:1] exu_i0_flush_path_e4;
+   logic [pt.XLEN-1:1] exu_i1_flush_path_e4;
 
    eh2_br_tlu_pkt_t dec_tlu_br0_wb_pkt;
    eh2_br_tlu_pkt_t dec_tlu_br1_wb_pkt;
@@ -757,20 +757,20 @@ import eh2_pkg::*;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] exu_i0_br_index_e4;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] exu_i1_br_index_e4;
 
-   logic        dma_dccm_req;
-   logic        dma_dccm_spec_req;
-   logic        dma_iccm_req;
-   logic        dma_mem_addr_in_dccm;
-   logic [2:0]  dma_mem_tag;
-   logic [31:0] dma_mem_addr;
-   logic [2:0]  dma_mem_sz;
-   logic        dma_mem_write;
-   logic [63:0] dma_mem_wdata;
+   logic                    dma_dccm_req;
+   logic                    dma_dccm_spec_req;
+   logic                    dma_iccm_req;
+   logic                    dma_mem_addr_in_dccm;
+   logic [2:0]              dma_mem_tag;
+   logic [pt.XLEN-1:0]      dma_mem_addr;
+   logic [2:0]              dma_mem_sz;
+   logic                    dma_mem_write;
+   logic [pt.BUS_WIDTH-1:0] dma_mem_wdata;
 
-   logic        dccm_dma_rvalid;
-   logic        dccm_dma_ecc_error;
-   logic [2:0]  dccm_dma_rtag;
-   logic [63:0] dccm_dma_rdata;
+   logic                    dccm_dma_rvalid;
+   logic                    dccm_dma_ecc_error;
+   logic [2:0]              dccm_dma_rtag;
+   logic [pt.BUS_WIDTH-1:0] dccm_dma_rdata;
    logic        iccm_dma_rvalid;
    logic        iccm_dma_ecc_error;
    logic [2:0]  iccm_dma_rtag;
@@ -786,10 +786,10 @@ import eh2_pkg::*;
    logic        dma_pmu_any_read;
    logic        dma_pmu_any_write;
 
-   logic [31:0] i0_result_e4_eff;
-   logic [31:0] i1_result_e4_eff;
+   logic [pt.XLEN-1:0] i0_result_e4_eff;
+   logic [pt.XLEN-1:0] i1_result_e4_eff;
 
-   logic [31:0] i0_result_e2;
+   logic [pt.XLEN-1:0] i0_result_e2;
 
    logic [pt.NUM_THREADS-1:0] [1:0]  ifu_i0_icaf_type;
    logic [pt.NUM_THREADS-1:0]        ifu_i0_icaf;
@@ -823,14 +823,14 @@ import eh2_pkg::*;
    logic [pt.BTB_ADDR_HI:pt.BTB_ADDR_LO] dec_tlu_br1_index_wb; // bp index
 
       // PIC ports
-   logic                  picm_rd_thr;
-   logic                  picm_wren;
-   logic                  picm_rden;
-   logic                  picm_mken;
-   logic [31:0]           picm_rdaddr;
-   logic [31:0]           picm_wraddr;
-   logic [31:0]           picm_wr_data;
-   logic [31:0]           picm_rd_data;
+   logic               picm_rd_thr;
+   logic               picm_wren;
+   logic               picm_rden;
+   logic               picm_mken;
+   logic [pt.XLEN-1:0] picm_rdaddr;
+   logic [pt.XLEN-1:0] picm_wraddr;
+   logic [pt.XLEN-1:0] picm_wr_data;
+   logic [pt.XLEN-1:0] picm_rd_data;
 
    logic [pt.NUM_THREADS-1:0]  dec_tlu_btb_write_kill;
 
@@ -922,7 +922,7 @@ import eh2_pkg::*;
    logic [pt.NUM_THREADS-1:0] [15:0]            ifu_i0_cinst;
    logic [pt.NUM_THREADS-1:0] [15:0]            ifu_i1_cinst;
 
-   logic [31:0]                  lsu_rs1_dc1;
+   logic [pt.XLEN-1:0]           lsu_rs1_dc1;
 
    logic                         dec_extint_stall;
 
@@ -1456,7 +1456,7 @@ import eh2_pkg::*;
                                                                            ((lsu_hsize[2:0] == 3'h3) & (lsu_haddr[2:0] == 3'b0)));
       endproperty
       assert_ahb_trxn_aligned: assert property (ahb_trxn_aligned) else
-        $display("Assertion ahb_trxn_aligned failed: lsu_htrans=2'h%h, lsu_hsize=3'h%h, lsu_haddr=32'h%h",lsu_htrans[1:0], lsu_hsize[2:0], lsu_haddr[31:0]);
+        $display("Assertion ahb_trxn_aligned failed: lsu_htrans=2'h%h, lsu_hsize=3'h%h, lsu_haddr=%d'h%h",lsu_htrans[1:0], lsu_hsize[2:0], pt.XLEN, lsu_haddr[pt.XLEN-1:0]);
 
       property dma_trxn_aligned;
         @(posedge clk) disable iff(~rst_l) (dma_htrans[1:0] != 2'b0)  |-> ((dma_hsize[2:0] == 3'h0)                              |
@@ -1476,12 +1476,12 @@ import eh2_pkg::*;
    for (genvar i=0; i<pt.NUM_THREADS; i++) begin : trace_rewire
 
       assign trace_rv_i_insn_ip[i][63:0]     = trace_rv_trace_pkt[i].trace_rv_i_insn_ip[63:0];
-      assign trace_rv_i_address_ip[i][63:0]  = trace_rv_trace_pkt[i].trace_rv_i_address_ip[63:0];
+      assign trace_rv_i_address_ip[i][(2*pt.XLEN)-1:0]  = trace_rv_trace_pkt[i].trace_rv_i_address_ip[(2*pt.XLEN)-1:0];
       assign trace_rv_i_valid_ip[i][1:0]     = trace_rv_trace_pkt[i].trace_rv_i_valid_ip[1:0];
       assign trace_rv_i_exception_ip[i][1:0] = trace_rv_trace_pkt[i].trace_rv_i_exception_ip[1:0];
       assign trace_rv_i_ecause_ip[i][4:0]    = trace_rv_trace_pkt[i].trace_rv_i_ecause_ip[4:0];
       assign trace_rv_i_interrupt_ip[i][1:0] = trace_rv_trace_pkt[i].trace_rv_i_interrupt_ip[1:0];
-      assign trace_rv_i_tval_ip[i][31:0]     = trace_rv_trace_pkt[i].trace_rv_i_tval_ip[31:0];
+      assign trace_rv_i_tval_ip[i][pt.XLEN-1:0] = trace_rv_trace_pkt[i].trace_rv_i_tval_ip[pt.XLEN-1:0];
    end
 
 

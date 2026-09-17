@@ -35,12 +35,12 @@ import eh2_pkg::*;
 
 
    output logic [pt.NUM_THREADS-1:0] [63:0] trace_rv_i_insn_ip,
-   output logic [pt.NUM_THREADS-1:0] [63:0] trace_rv_i_address_ip,
+   output logic [pt.NUM_THREADS-1:0] [(2*pt.XLEN)-1:0] trace_rv_i_address_ip,
    output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_valid_ip,
    output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_exception_ip,
    output logic [pt.NUM_THREADS-1:0] [4:0]  trace_rv_i_ecause_ip,
    output logic [pt.NUM_THREADS-1:0] [1:0]  trace_rv_i_interrupt_ip,
-   output logic [pt.NUM_THREADS-1:0] [31:0] trace_rv_i_tval_ip,
+   output logic [pt.NUM_THREADS-1:0] [pt.XLEN-1:0] trace_rv_i_tval_ip,
 
    // Bus signals
 
@@ -642,7 +642,7 @@ import eh2_pkg::*;
    logic                           sb_axi_arvalid;
    logic                           sb_axi_arready;
    logic [pt.SB_BUS_TAG-1:0]       sb_axi_arid;
-   logic [31:0]                    sb_axi_araddr;
+   logic [pt.XLEN-1:0]             sb_axi_araddr;
    logic [3:0]                     sb_axi_arregion;
    logic [7:0]                     sb_axi_arlen;
    logic [2:0]                     sb_axi_arsize;

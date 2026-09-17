@@ -4,7 +4,7 @@ This repository contains the VeeR EH2 RISC-V Core design RTL.
 
 ## Overview
 
-VeeR EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and the Zbb, Zbkb and Zbkx bit manipulation extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability.
+VeeR EH2 is a machine-mode (M-mode) only, 32-bit CPU core which supports RISC-V’s integer (I), compressed instruction (C), multiplication and division (M), atomic (A), and instruction-fetch fence, CSR, and the Zba, Zbb, Zbc, Zbs, Zbkb and Zbkx bit manipulation extensions. The core is a 9-stage, **dual-threaded**, dual-issue, superscalar, mostly in-order pipeline with some out-of-order execution capability.
 
 ## License
 
@@ -61,7 +61,7 @@ This will update the **default** snapshot in `$PWD/snapshots/default/` with para
 
 Add `-snapshot=dccm64`, for example, if you wish to name your build snapshot `dccm64` and refer to it during the build.
 
-Note: By default the only bit manipulation extension enabled is `Zbb`. To enable `Zbkb`, `Zbkx`, add `set=bitmanip_zbkb=1`, `set=bitmanip_zbkx=1`, respectively,
+Note: By default the bit manipulation extensions enabled are `Zba`, `Zbb`, `Zbc` and `Zbs`. To enable `Zbkb`, `Zbkx`, add `set=bitmanip_zbkb=1`, `set=bitmanip_zbkx=1`, respectively,
 to the configuration parameters passed to the `veer.config` script.
 
 There are 4 predefined target configurations: `default`, `default_mt`, `typical_pd` and `high_perf` that can be selected via

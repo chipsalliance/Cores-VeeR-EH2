@@ -73,6 +73,12 @@ int main(int argc, char** argv) {
 
   std::map<std::string, uint64_t> symbols;
 
+  for (int i=1; i<argc; ++i) {
+    if (!strcmp(argv[i], "--outdir") && (i + 1) < argc) {
+        chdir(argv[i+1]);
+    }
+  }
+
   // Setup memory signature range by looking up symbol names in the provided
   // symbol dump file
   for (int i=1; i<argc; ++i) {

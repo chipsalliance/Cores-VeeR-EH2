@@ -4,10 +4,13 @@ set -euo pipefail
 elf="$1"
 sym="${elf%.elf}.sym"
 
+TEST_DIR="${elf%.elf}"
 PROJECT_ROOT="$RV_ROOT"
 
+mkdir -p "$TEST_DIR"
+
 # Get hex file from ELF file
-riscv64-unknown-elf-objcopy -O verilog $elf $PROJECT_ROOT/program.hex
+riscv64-unknown-elf-objcopy -O verilog $elf $TEST_DIR/program.hex
 
 # Get all symbols from the ELF file
 riscv64-unknown-elf-nm -B -n "$elf" > "$sym"
@@ -19,4 +22,4 @@ if grep -qE '(begin|end)_signature' "$sym"; then
     args+=(--mem-signature "$BEG" "$END")
 fi
 
-"$PROJECT_ROOT/obj_dir/Vtb_top" "${args[@]}"
+"$PROJECT_ROOT/obj_dir/Vtb_top" "${args[@]}" --outdir "$TEST_DIR"

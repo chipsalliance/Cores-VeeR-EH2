@@ -1,0 +1,85 @@
+name: ACT4 tests
+
+on:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: Run ACT4 tests
+    runs-on: ubuntu-latest
+    container: ghcr.io/antmicro/cores-veer-el2:20260819
+    strategy:
+      fail-fast: false
+    env:
+      DEBIAN_FRONTEND: "noninteractive"
+      ACT4_VERSION: "ba3c382dc9a846f8a1ec502c49c479dbc391be4b"
+
+    steps:
+      - name: Setup repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH=$PATH:$HOME/.local/bin
+          mise --version
+          eval "$(mise activate bash)"
+
+      - name: Install sail
+        run: |
+          mkdir -p $HOME/sail
+          curl --location https://github.com/riscv/sail-riscv/releases/download/0.14.1/sail-riscv-$(uname)-$(arch).tar.gz | sudo tar xvz --directory=$HOME/sail --strip-components=1
+          echo "$HOME/sail/bin" >> "$GITHUB_PATH"
+          export PATH=$PATH:$HOME/sail/bin
+          sail_riscv_sim --version
+
+      - name: Clone ACT4
+        run: |
+          cd tools
+          git clone https://github.com/riscv/riscv-arch-test ACT4
+          cd ACT4
+          git checkout $ACT4_VERSION
+          mise trust .mise.toml
+          mise install
+          mise deps install
+
+      - name: Build VeeR EH2 model
+        run: |
+          export RV_ROOT=`pwd`
+          configs/veer.config -set=bitmanip_zbkb=1 -set=bitmanip_zbkx=1
+          make -f tools/Makefile verilator-build
+
+      - name: Configure ACT4
+        run: |
+          mkdir -p tools/ACT4/config/cores/veer_eh2/
+          cp -r tools/act4_veer_eh2_config/veer_eh2/veer_eh2_rv32/ tools/ACT4/config/cores/veer_eh2/
+
+      - name: Run ACT4 tests
+        run: |
+          export RV_ROOT=`pwd`
+          cd tools/ACT4
+          make veer_eh2 elfs EXCLUDE_EXTENSIONS=ExceptionsSm,ExceptionsZc,Sm,SdtrigS,SdtrigU FAST=1 --jobs $(nproc)
+
+      - name: Pack artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ACT4-report
+          path: |
+            tools/ACT4/work/veer_eh2_rv32/summary.log
+            tools/ACT4/work/veer_eh2_rv32/logs/rv32i/
+
+      - name: Check failure
+        run: |
+          if res=$(grep -no tools/ACT4/work/veer_eh2_rv32/summary.log -e "<tbody.*failed"); then
+            echo "Number of failed ACT4 tests: $(wc -l <<< "$res")" >&2
+            echo "Check the report in artifacts for details." >&2
+            exit 1
+          fi

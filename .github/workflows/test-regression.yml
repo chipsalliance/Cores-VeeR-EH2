@@ -17,6 +17,9 @@ jobs:
         bus: ["axi", "ahb"]
         test: ["hello_world", "hello_world_dccm", "hello_world_iccm", "cmark", "cmark_dccm", "cmark_iccm", "cmark_mt",
                "cmark_dccm_mt", "cmark_iccm_mt", "dhry", "dhry_mt"]
+        include:
+          - bus: axi
+            test: minstret
     env:
       DEBIAN_FRONTEND: "noninteractive"
       CCACHE_DIR: "/opt/regression/.cache/"

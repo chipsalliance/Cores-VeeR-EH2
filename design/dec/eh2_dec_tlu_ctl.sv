@@ -1335,7 +1335,7 @@ end
    assign wr_minstretl_wb = dec_i0_csr_wen_wb_mod & (dec_i0_csr_wraddr_wb[11:0] == MINSTRET);
 
    assign {minstretl_couta, minstretl_inc[7:0]} = minstretl[7:0] + {7'b0,i0_valid_no_ebreak_ecall_wb} + {7'b0,i1_valid_wb & ~mcountinhibit[2]};
-   assign {minstretl_cout, minstretl_inc[pt.XLEN-1:8]} = minstretl[pt.XLEN-1:8] + {pt.XLEN-9'b0, minstretl_couta};
+   assign {minstretl_cout, minstretl_inc[pt.XLEN-1:8]} = minstretl[pt.XLEN-1:8] + {{(pt.XLEN-9){1'b0}}, minstretl_couta};
 
    assign minstret_enable = (i0_valid_no_ebreak_ecall_wb | i1_valid_wb);
 
